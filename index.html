@@ -263,6 +263,29 @@
   </main>
   <div id="toast" class="toast" role="status"></div>
 
+  <script id="face-style-core">
+    (() => {
+      "use strict";
+
+      const distance = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
+
+      const safeDivide = (numerator, denominator, fallback = null) =>
+        Number.isFinite(numerator) && Number.isFinite(denominator) && Math.abs(denominator) > 1e-9
+          ? numerator / denominator
+          : fallback;
+
+      const averagePoint = (points, indexes) => ({
+        x: indexes.reduce((sum, index) => sum + points[index].x, 0) / indexes.length,
+        y: indexes.reduce((sum, index) => sum + points[index].y, 0) / indexes.length
+      });
+
+      const angleDegrees = (a, b) => Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+      const round = (value, digits = 2) => Number.isFinite(value) ? Number(value.toFixed(digits)) : null;
+
+      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round };
+    })();
+  </script>
+
   <script>
     /* Face-API.js 模型地址：仅加载轻量检测器与 68 点关键点模型。 */
     const MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights";
