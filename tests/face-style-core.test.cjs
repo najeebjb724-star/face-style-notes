@@ -102,3 +102,21 @@ test("asymmetry confidence is reduced for medium quality", () => {
   assert.equal(result.symmetry.confidence, "low");
   assert.match(result.symmetry.note, /拍摄角度/);
 });
+
+test("report conclusions are traceable and action plan has three items", () => {
+  const core = loadCore();
+  const quality = { accepted: true, level: "high", issues: [], metrics: {} };
+  const measurements = core.computeMeasurements(makeFrontLandmarks(), "high");
+  const profile = core.inferQuestionnaire({ postCleanse: "tzone", reactivity: "rarely", primaryGoal: "makeup", dailyMinutes: 15, hairMaintenance: "light", monthlyBudget: "moderate" });
+  const report = core.composeReport({ quality, measurements, profile });
+  assert.equal(report.actionPlan.length, 3);
+  assert.ok(report.coreTraits.every((item) => item.evidenceType && item.metricIds.length));
+  assert.ok(report.sources.some((source) => source.id === "southernChineseCanons"));
+});
+
+test("incomplete profile omits care and complete action plan", () => {
+  const core = loadCore();
+  const report = core.composeReport({ quality: { accepted: true, level: "high" }, measurements: core.computeMeasurements(makeFrontLandmarks(), "high"), profile: core.inferQuestionnaire({ postCleanse: "tight" }) });
+  assert.equal(report.carePlan, null);
+  assert.equal(report.actionPlan.length, 1);
+});

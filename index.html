@@ -97,6 +97,31 @@
     .question-option:has(input:checked) { border-color: var(--rose); background: rgba(229,152,155,.1); box-shadow: inset 0 0 0 1px var(--rose); }
     .question-option input { margin-top: .16rem; accent-color: var(--rose-dark); }
     .question-actions { display: grid; grid-template-columns: .8fr 1.3fr; gap: .65rem; margin-top: 1.1rem; }
+    .report-summary-grid, .science-advice-grid { display: grid; gap: .75rem; }
+    .science-card { padding: .95rem; border: 1px solid var(--line); border-radius: .9rem; background: rgba(255,255,255,.7); }
+    .science-card .badge { display: inline-block; margin-bottom: .5rem; padding: .2rem .45rem; border-radius: 999px; background: rgba(212,163,115,.14); color: var(--ink); font-size: .62rem; font-weight: 900; }
+    .science-card h4 { margin: 0 0 .25rem; font-size: .82rem; }
+    .science-card strong { display: block; color: var(--rose-dark); font-family: "Noto Serif SC", serif; font-size: 1.05rem; }
+    .science-card p { margin: .45rem 0 0; color: var(--muted); font-size: .74rem; line-height: 1.55; }
+    .data-details { border-top: 1px solid var(--line); }
+    .data-details:last-child { border-bottom: 1px solid var(--line); }
+    .data-details summary { display: flex; justify-content: space-between; padding: .85rem 0; cursor: pointer; font-weight: 800; font-size: .82rem; }
+    .metric-row { display: grid; grid-template-columns: 1fr auto; gap: .25rem .7rem; padding: .7rem 0; border-top: 1px dashed var(--line); }
+    .metric-row strong { font-size: .78rem; }
+    .metric-row b { color: var(--rose-dark); font-size: .78rem; }
+    .metric-row small { grid-column: 1 / -1; color: var(--muted); font-size: .68rem; line-height: 1.5; }
+    .care-box { padding: 1rem; border-radius: 1rem; background: rgba(212,163,115,.11); }
+    .care-columns { display: grid; gap: .8rem; }
+    .care-columns h4 { margin: 0 0 .35rem; font-size: .78rem; }
+    .care-columns ul, .limitations { margin: 0; padding-left: 1.1rem; color: var(--muted); font-size: .72rem; line-height: 1.65; }
+    .action-list { display: grid; gap: .65rem; counter-reset: actions; }
+    .action-item { display: grid; grid-template-columns: 2rem 1fr; gap: .7rem; align-items: start; padding: .8rem; border: 1px solid var(--line); border-radius: .85rem; }
+    .action-number { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; background: var(--ink); color: white; font-weight: 900; }
+    .action-item h4 { margin: .05rem 0 .2rem; font-size: .8rem; }
+    .action-item p { margin: 0; color: var(--muted); font-size: .72rem; line-height: 1.5; }
+    .evidence-details summary { cursor: pointer; font-size: .8rem; font-weight: 800; }
+    .source-list { display: grid; gap: .45rem; margin: .8rem 0; }
+    .source-list a { color: var(--rose-dark); font-size: .72rem; text-decoration: underline; text-underline-offset: 2px; }
     .text-link { margin-top: .7rem; padding: 0; border: 0; background: none; color: var(--rose-dark); text-decoration: underline; font-weight: 800; cursor: pointer; }
     .hidden { display: none !important; }
 
@@ -303,32 +328,37 @@
             </div>
           </header>
 
-          <section class="shape-block">
-            <div>
-              <div class="section-label">脸型分析 / FACE SHAPE</div>
-              <h3 id="faceShape" class="shape-name"></h3>
-              <p id="faceDescription" class="shape-desc"></p>
-            </div>
-            <div class="ratio-seal"><div><strong id="faceRatio"></strong><small>长宽比</small></div></div>
+          <section class="report-section">
+            <h3 class="section-heading">先看这 3 点 <span>照片内几何摘要</span></h3>
+            <div id="coreTraits" class="report-summary-grid"></div>
           </section>
 
           <section class="report-section">
-            <h3 class="section-heading">三庭比例 <span>以均衡的约 33% 为参考</span></h3>
-            <div id="courtList" class="court-list"></div>
+            <h3 class="section-heading">具体数据 <span>展开查看公式与置信度</span></h3>
+            <div id="dataGroups"></div>
           </section>
 
           <section class="report-section">
-            <h3 class="section-heading">面部特征 <span>决定风格的落点</span></h3>
-            <div id="featureTags" class="pill-list"></div>
+            <h3 class="section-heading">造型实验 <span>经验映射，不代表固定规则</span></h3>
+            <div id="styleAdviceGrid" class="science-advice-grid"></div>
+          </section>
+
+          <section id="carePlan" class="report-section">
+            <h3 class="section-heading">基础护理路线 <span>依据你的自评</span></h3>
+            <div id="carePlanContent" class="care-box"></div>
           </section>
 
           <section class="report-section">
-            <h3 class="section-heading">你的风格建议 <span id="styleLabel"></span></h3>
-            <div class="advice-grid">
-              <article class="advice-card"><span class="advice-icon">妆</span><h4>妆容怎么画</h4><p id="makeupAdvice"></p></article>
-              <article class="advice-card"><span class="advice-icon">发</span><h4>发型怎么选</h4><p id="hairAdvice"></p></article>
-              <article class="advice-card"><span class="advice-icon">穿</span><h4>穿搭怎么配</h4><p id="outfitAdvice"></p></article>
-            </div>
+            <h3 class="section-heading">30 天行动卡 <span>一次只改变一件事</span></h3>
+            <div id="actionPlan" class="action-list"></div>
+          </section>
+
+          <section class="report-section">
+            <details id="evidenceDrawer" class="evidence-details">
+              <summary>查看判断依据、来源和局限</summary>
+              <div id="sourceList" class="source-list"></div>
+              <ul id="limitations" class="limitations"></ul>
+            </details>
           </section>
 
           <section class="report-section">
@@ -569,7 +599,77 @@
         };
       }
 
-      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, inferQuestionnaire, computeMeasurements, KNOWLEDGE_BASE };
+      function conclusion({ title, value, explanation, action, evidenceType, metricIds = [], confidence = "high" }) {
+        if (!evidenceType || (evidenceType !== "care" && metricIds.length === 0)) throw new Error("Untraceable conclusion");
+        return { title, value, explanation, action, evidenceType, metricIds, confidence };
+      }
+
+      function composeReport({ quality, measurements, profile }) {
+        const ratio = measurements.faceLengthWidth;
+        const eye = measurements.eyeSpacing;
+        const middle = measurements.courts[1];
+        const ratioBand = ratio.value > 1.12 ? "纵向相对突出" : ratio.value < .95 ? "横向相对突出" : "长宽接近中间带";
+        const eyeLabel = eye.band === "spacious" ? "眼距相对舒展" : eye.band === "concentrated" ? "眼距相对集中" : "接近一眼宽参照";
+        const middleLabel = middle.value > 36 ? "中庭占比相对高" : middle.value < 30 ? "中庭占比相对低" : "中庭接近三等分参照";
+        const traitMap = {
+          face: conclusion({ title: "整体轮廓", value: `${ratio.value.toFixed(2)} : 1`, explanation: `${ratioBand}。脸长包含发际线估算，因此置信度低于面宽。`, action: "用发型和领口做一次横向/纵向线条对照。", evidenceType: "geometry", metricIds: [ratio.id], confidence: ratio.confidence }),
+          eye: conclusion({ title: "眼部间距", value: `${eye.value.toFixed(2)} 个眼宽`, explanation: `${eyeLabel}；一眼宽只作为古典视觉参照，不是理想标准。`, action: eye.band === "spacious" ? "眉头可自然前移，先试不外拉的眼线。" : eye.band === "concentrated" ? "眉头减淡，眼尾可轻微外延。" : "保持自然长度，比较柔和与清晰两种边缘。", evidenceType: "geometry", metricIds: [eye.id], confidence: eye.confidence }),
+          middle: conclusion({ title: "三庭视觉参照", value: `${measurements.courts.map((item) => item.value).join(" / ")}%`, explanation: `${middleLabel}；上庭来自发际线估算，整组仅用于构图参考。`, action: "在同一光线下比较不同眉形与腮红位置。", evidenceType: "geometry", metricIds: measurements.courts.map((item) => item.id), confidence: "low" })
+        };
+        const priority = profile?.primaryGoal === "makeup" ? ["eye", "middle", "face"] : profile?.primaryGoal === "hair" ? ["face", "middle", "eye"] : ["face", "eye", "middle"];
+        const coreTraits = priority.map((id) => traitMap[id]);
+        const eyeRuleId = eye.band === "spacious" ? "eye_spacious" : eye.band === "concentrated" ? "eye_concentrated" : "eye_reference";
+        const eyeRule = KNOWLEDGE_BASE.styleRules[eyeRuleId];
+        const faceRule = KNOWLEDGE_BASE.styleRules[ratio.value > 1.06 ? "face_long" : "face_wide"];
+        const jawRule = KNOWLEDGE_BASE.styleRules.jaw_framing;
+        const timeNote = profile?.dailyMinutes <= 5 ? "控制为一步变化，约 2 分钟完成。" : "可分别拍照比较两种强度。";
+        const hairNote = profile?.hairMaintenance === "minimal" ? "优先选择自然落位、无需每日夹卷的脸侧层次。" : faceRule.advice;
+        const styleAdvice = [
+          conclusion({ title: "妆容", value: eyeLabel, explanation: `${eyeRule.advice}。${timeNote}`, action: eyeRule.avoid || eyeRule.limitation, evidenceType: "styling", metricIds: [eye.id], confidence: "medium" }),
+          conclusion({ title: "发型", value: ratioBand, explanation: hairNote, action: faceRule.avoid || faceRule.limitation, evidenceType: "styling", metricIds: [ratio.id], confidence: "medium" }),
+          conclusion({ title: "穿搭与配饰", value: `下颌曲线 ${measurements.jawCurve.value.toFixed(2)}`, explanation: jawRule.advice, action: jawRule.limitation, evidenceType: "styling", metricIds: [measurements.jawCurve.id], confidence: "medium" })
+        ];
+        const dataGroups = [
+          { id: "overall", title: "整体比例", items: [measurements.faceLengthWidth, measurements.cheekFaceWidth, measurements.jawFaceWidth, measurements.chinFaceWidth, ...measurements.courts] },
+          { id: "eye_brow", title: "眼部与眉部", items: [measurements.eyeSpacing, measurements.eyeAspectLeft, measurements.eyeAspectRight, measurements.canthalTilt, measurements.browTilt, measurements.browEyeDistance, measurements.eyeSizeDifference] },
+          { id: "nose_lip", title: "鼻部与唇部", items: [measurements.noseFaceWidth, measurements.noseEyeSpacing, measurements.mouthFaceWidth, measurements.lipRatio, measurements.mouthTilt] },
+          { id: "jaw_symmetry", title: "下颌与左右差异", items: [measurements.jawCurve, measurements.symmetry] }
+        ];
+        const skinLabels = { dry: "偏干肤感", normal: "较舒适肤感", combination: "混合肤感", oily: "偏油肤感" };
+        const sensitivityLabels = { sensitive: "较易反应", possible: "偶有反应", low: "较少反应" };
+        const carePlan = profile?.complete ? {
+          tendency: `${skinLabels[profile.skinTendency]} · ${sensitivityLabels[profile.sensitivityTendency]}`,
+          morning: KNOWLEDGE_BASE.careRules.base.morning,
+          evening: KNOWLEDGE_BASE.careRules.base.evening,
+          boundary: profile.sensitivityTendency === "sensitive" || profile.sensitivityTendency === "possible" ? KNOWLEDGE_BASE.careRules.sensitive.advice : "若持续出现刺痛、红肿或皮疹，停止新增产品并咨询皮肤科医生。",
+          evidenceType: "care",
+          sourceIds: ["aadBasics"]
+        } : null;
+        const actionPlan = profile?.complete ? [
+          { number: 1, title: "固定基础", text: "连续 7 天只稳定清洁、保湿和白天广谱 SPF 30+ 防晒。" },
+          { number: 2, title: "只改一个造型变量", text: profile.primaryGoal === "hair" ? hairNote : eyeRule.advice },
+          { number: 3, title: "同条件复盘", text: "第 30 天在相同距离、光线和表情下拍照，只记录舒适度与执行难度。" }
+        ] : [{ number: 1, title: "先做几何对照", text: eyeRule.advice }];
+        const sourceIds = new Set(["southernChineseCanons", "interEthnicReview", "faceApi", "photoStandard"]);
+        if (carePlan) sourceIds.add("aadBasics");
+        const sources = Array.from(sourceIds, (id) => ({ id, ...KNOWLEDGE_BASE.sources[id] }));
+        return {
+          quality,
+          coreTraits,
+          dataGroups,
+          styleAdvice,
+          carePlan,
+          actionPlan,
+          sources,
+          limitations: [
+            "结果依赖单张照片的角度、镜头距离、光线和表情。",
+            "上庭使用关键点外推估算，置信度较低。",
+            "本工具只做二维几何与通用护理整理，不替代专业诊疗或个体审美判断。"
+          ]
+        };
+      }
+
+      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, inferQuestionnaire, computeMeasurements, composeReport, KNOWLEDGE_BASE };
     })();
   </script>
 
@@ -741,11 +841,10 @@
         return;
       }
       state.measurements = FaceStyleCore.computeMeasurements(detections[0].landmarks.positions, state.quality.level);
-      const report = calculateFeatures(detections[0].landmarks.positions);
 
       setAnalysisStep(3);
       await wait(500);
-      state.report = report;
+      state.report = null;
       setAnalysisStep(4);
       await wait(180);
       state.questionIndex = 0;
@@ -788,6 +887,7 @@
         return;
       }
       state.profile = FaceStyleCore.inferQuestionnaire(state.questionnaire);
+      state.report = FaceStyleCore.composeReport({ quality: state.quality, measurements: state.measurements, profile: state.profile });
       renderReport(state.report, state.photo);
       showView("report");
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -999,36 +1099,58 @@
     }
 
     function renderReport(report, photo) {
-      const style = buildStyle(report);
-      const descriptions = {
-        "长脸": "纵向比例更突出，成熟感与知性线条明显，横向增加层次会更平衡。",
-        "圆脸": "长宽比例接近、下颌转折柔和，自带亲和与轻盈的少年感。",
-        "方脸": "下颌宽度与轮廓直线感更明显，骨骼存在感带来大气、利落的气质。",
-        "菱形脸": "颧骨附近存在感更强，额头与下颌相对收窄，轮廓清晰、有辨识度。",
-        "心形脸": "上半脸更舒展、下巴较收，视觉重心轻盈，精致感比较突出。",
-        "椭圆脸": "长宽与下颌过渡较均衡，轮廓流畅，对发型和风格的包容度较高。"
-      };
-
       $("reportPhoto").src = photo;
       $("reportDate").textContent = new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-      $("faceShape").textContent = report.faceShape;
-      $("faceDescription").textContent = descriptions[report.faceShape];
-      $("faceRatio").textContent = report.lengthWidthRatio.toFixed(2);
-      $("styleLabel").textContent = style.labels.join(" · ");
+      $("coreTraits").innerHTML = report.coreTraits.map((item) => `
+        <article class="science-card">
+          <span class="badge">几何测量 · ${confidenceLabel(item.confidence)}</span>
+          <h4>${escapeHtml(item.title)}</h4><strong>${escapeHtml(item.value)}</strong>
+          <p>${escapeHtml(item.explanation)}</p><p><b>可以试：</b>${escapeHtml(item.action)}</p>
+        </article>`).join("");
 
-      $("courtList").innerHTML = report.courts.map((court) => {
-        const rounded = Math.round(court.value);
-        return `<div><div class="court-meta"><span>${court.name}<em>${court.status === "均衡" ? "" : court.status}</em></span><b>${rounded}%</b></div><div class="bar-track"><div class="bar-fill ${court.status === "偏长" ? "alert" : ""}" style="width:${Math.min(100, rounded)}%"></div></div></div>`;
-      }).join("");
+      $("dataGroups").innerHTML = report.dataGroups.map((group, index) => `
+        <details class="data-details" ${index === 0 ? "open" : ""}>
+          <summary><span>${escapeHtml(group.title)}</span><span>${group.items.length} 项</span></summary>
+          <div>${group.items.map(renderMetric).join("")}</div>
+        </details>`).join("");
 
-      const tags = [report.featureWeight, report.eyeSpacing, report.jawLine, ...style.labels];
-      $("featureTags").innerHTML = tags.map((tag, index) => `<span class="feature-pill ${index < 2 ? "accent" : ""}">${escapeHtml(tag)}</span>`).join("");
-      $("makeupAdvice").textContent = style.makeup;
-      $("hairAdvice").textContent = style.hair;
-      $("outfitAdvice").textContent = `${style.outfit} 风格避雷：${style.avoid}。`;
+      $("styleAdviceGrid").innerHTML = report.styleAdvice.map((item) => `
+        <article class="science-card">
+          <span class="badge">造型经验 · 关联 ${item.metricIds.length} 项数据</span>
+          <h4>${escapeHtml(item.title)}</h4><strong>${escapeHtml(item.value)}</strong>
+          <p>${escapeHtml(item.explanation)}</p><p><b>边界：</b>${escapeHtml(item.action)}</p>
+        </article>`).join("");
 
-      $("keywordList").innerHTML = style.keywords.map((keyword) => `<div class="keyword-row"><span>${escapeHtml(keyword)}</span><button class="copy-btn" type="button" data-keyword="${escapeHtml(keyword)}">复制</button></div>`).join("");
+      if (report.carePlan) {
+        $("carePlan").classList.remove("hidden");
+        $("carePlanContent").innerHTML = `
+          <p><span class="badge">通用护理</span><strong>${escapeHtml(report.carePlan.tendency)}</strong></p>
+          <div class="care-columns">
+            <div><h4>早间基础</h4><ul>${report.carePlan.morning.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>
+            <div><h4>晚间基础</h4><ul>${report.carePlan.evening.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>
+          </div><p class="question-intro"><b>停止边界：</b>${escapeHtml(report.carePlan.boundary)}</p>`;
+      } else {
+        $("carePlan").classList.add("hidden");
+      }
+
+      $("actionPlan").innerHTML = report.actionPlan.map((item) => `
+        <article class="action-item"><span class="action-number">${item.number}</span><div><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.text)}</p></div></article>`).join("");
+      $("sourceList").innerHTML = report.sources.map((source) => `<a href="${source.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title)} · ${source.type}</a>`).join("");
+      $("limitations").innerHTML = report.limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+
+      const keywords = ["科学护肤 基础三件套", "面部比例 妆容思路", state.profile?.primaryGoal === "hair" ? "低维护 发型 脸侧层次" : "眼距 眉形 眼线 对照"];
+      $("keywordList").innerHTML = keywords.map((keyword) => `<div class="keyword-row"><span>${escapeHtml(keyword)}</span><button class="copy-btn" type="button" data-keyword="${escapeHtml(keyword)}">复制</button></div>`).join("");
       $("keywordList").querySelectorAll(".copy-btn").forEach((button) => button.addEventListener("click", () => copyKeyword(button)));
+    }
+
+    function renderMetric(item) {
+      const unitLabels = { ratio: "", eye_width: " 个眼宽", "%": "%", "°": "°", "% residual": "%" };
+      const value = Number.isInteger(item.value) ? item.value : Number(item.value).toFixed(2);
+      return `<div class="metric-row"><strong>${escapeHtml(item.label || item.id)}</strong><b>${value}${unitLabels[item.unit] ?? ` ${escapeHtml(item.unit)}`}</b><small>公式：${escapeHtml(item.formulaText || "照片内关键点计算")}<br>参照：${escapeHtml(item.referenceType || "照片内归一化几何")} · ${confidenceLabel(item.confidence)}</small></div>`;
+    }
+
+    function confidenceLabel(value) {
+      return ({ high: "较高置信度", medium: "中等置信度", low: "低置信度" })[value] || "需结合实拍";
     }
 
     async function copyKeyword(button) {
