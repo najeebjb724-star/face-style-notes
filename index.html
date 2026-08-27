@@ -369,7 +369,11 @@
       });
 
       const angleDegrees = (a, b) => Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
-      const round = (value, digits = 2) => Number.isFinite(value) ? Number(value.toFixed(digits)) : null;
+      const round = (value, digits = 2) => {
+        if (!Number.isFinite(value)) return null;
+        const factor = 10 ** digits;
+        return Math.round((value + Math.sign(value || 1) * Number.EPSILON) * factor) / factor;
+      };
 
       function evaluatePhotoQuality(signals) {
         const { detectionScore, faceBox, imageSize, points, laplacianVariance, meanBrightness } = signals;
@@ -419,7 +423,153 @@
         };
       }
 
-      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, inferQuestionnaire };
+      const KNOWLEDGE_BASE = Object.freeze({
+        sources: {
+          interEthnicReview: { title: "跨族群面部尺寸系统综述", url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC3074358/", type: "research" },
+          southernChineseCanons: { title: "华南成人新古典面部比例研究", url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC3532441/", type: "research" },
+          photoStandard: { title: "标准化面部摄影指南", url: "https://www.imi.org.uk/wp-content/uploads/2022/03/NG_Dental_Photo_2_0_S.pdf", type: "guideline" },
+          aadBasics: { title: "美国皮肤科学会基础护肤建议", url: "https://www.aad.org/public/everyday-care/skin-care-basics/care/skin-care-budget", type: "guideline" },
+          faceApi: { title: "Face-API.js 68 点说明", url: "https://github.com/justadudewhohacks/face-api.js/", type: "implementation" }
+        },
+        metrics: {
+          face_length_width: { formulaText: "估算发际线至下巴长度 ÷ 面宽", referenceType: "产品启发式解释带", sourceIds: ["interEthnicReview", "faceApi"] },
+          cheek_face_width: { formulaText: "颧区可见宽度 ÷ 面宽", referenceType: "照片内归一化几何", sourceIds: ["faceApi"] },
+          jaw_face_width: { formulaText: "下颌转折宽度 ÷ 面宽", referenceType: "照片内归一化几何", sourceIds: ["faceApi"] },
+          chin_face_width: { formulaText: "下巴两侧宽度 ÷ 面宽", referenceType: "照片内归一化几何", sourceIds: ["faceApi"] },
+          eye_spacing: { formulaText: "内眼角距离 ÷ 平均眼宽", referenceType: "古典五眼视觉参照", sourceIds: ["southernChineseCanons"] },
+          eye_aspect_left: { formulaText: "左眼垂直开合 ÷ 左眼宽", referenceType: "照片内归一化几何", sourceIds: ["faceApi"] },
+          eye_aspect_right: { formulaText: "右眼垂直开合 ÷ 右眼宽", referenceType: "照片内归一化几何", sourceIds: ["faceApi"] },
+          canthal_tilt: { formulaText: "双眼内外眼角连线的平均角度", referenceType: "造型方向参考", sourceIds: ["faceApi", "photoStandard"] },
+          brow_tilt: { formulaText: "左右眉首尾连线的平均角度", referenceType: "造型方向参考", sourceIds: ["faceApi"] },
+          brow_eye_distance: { formulaText: "眉眼中心距离 ÷ 平均眼宽", referenceType: "照片内归一化几何", sourceIds: ["faceApi"] },
+          eye_size_difference: { formulaText: "左右眼宽差 ÷ 平均眼宽", referenceType: "拍摄敏感指标", sourceIds: ["photoStandard"] },
+          nose_face_width: { formulaText: "鼻翼宽度 ÷ 面宽", referenceType: "照片内归一化几何", sourceIds: ["interEthnicReview", "faceApi"] },
+          nose_eye_spacing: { formulaText: "鼻翼宽度 ÷ 内眼角距离", referenceType: "照片内归一化几何", sourceIds: ["faceApi"] },
+          mouth_face_width: { formulaText: "嘴角宽度 ÷ 面宽", referenceType: "照片内归一化几何", sourceIds: ["interEthnicReview", "faceApi"] },
+          upper_lower_lip: { formulaText: "上唇可见高度 ÷ 下唇可见高度", referenceType: "表情敏感指标", sourceIds: ["faceApi"] },
+          mouth_tilt: { formulaText: "两侧嘴角连线角度", referenceType: "表情与拍摄敏感指标", sourceIds: ["photoStandard"] },
+          jaw_curve: { formulaText: "下颌折线路径 ÷ 两侧下颌直线距离", referenceType: "轮廓曲线代理", sourceIds: ["faceApi"] },
+          symmetry: { formulaText: "成对关键点镜像残差的平均值", referenceType: "拍摄敏感的二维代理", sourceIds: ["photoStandard", "faceApi"] },
+          court_upper: { formulaText: "估算发际线至鼻根 ÷ 三庭总长", referenceType: "低可信度估算", sourceIds: ["interEthnicReview", "southernChineseCanons"] },
+          court_middle: { formulaText: "鼻根至鼻底 ÷ 三庭总长", referenceType: "古典三庭视觉参照", sourceIds: ["interEthnicReview", "southernChineseCanons"] },
+          court_lower: { formulaText: "鼻底至下巴 ÷ 三庭总长", referenceType: "古典三庭视觉参照", sourceIds: ["interEthnicReview", "southernChineseCanons"] }
+        },
+        styleRules: {
+          eye_concentrated: { evidenceType: "styling", advice: "眉头减淡，眼尾可适度向外延伸 2–3 毫米", avoid: "不要同时加重眉头与眼头", sourceIds: [] },
+          eye_spacious: { evidenceType: "styling", advice: "眉头可自然前移，眼头增加少量亮度和线条", avoid: "避免继续拉长外眼线", sourceIds: [] },
+          eye_reference: { evidenceType: "styling", advice: "保持眼线与眉形的自然长度，先用明暗测试重心", limitation: "属于造型经验，不代表优劣", sourceIds: [] },
+          middle_long: { evidenceType: "styling", advice: "腮红横向轻扫，卧蚕适度提亮，眉毛避免过度高挑", avoid: "避免把鼻影拉得过长", sourceIds: [] },
+          face_long: { evidenceType: "styling", advice: "用刘海、脸侧层次或横向腮红分段纵向视觉", avoid: "避免头顶和纵向线条同时过度拉高", sourceIds: [] },
+          face_wide: { evidenceType: "styling", advice: "用锁骨、领口和脸侧纵向层次增加方向感", avoid: "避免两侧同时堆积厚重体积", sourceIds: [] },
+          canthal_up: { evidenceType: "styling", advice: "眼线沿原生走向轻收尾，唇颊保持柔和", limitation: "眼角方向会受表情和拍摄角度影响", sourceIds: [] },
+          canthal_down: { evidenceType: "styling", advice: "外眼角上方增加少量睫毛与阴影，不必强行上挑", limitation: "眼角方向会受表情和拍摄角度影响", sourceIds: [] },
+          brow_direction: { evidenceType: "styling", advice: "顺着眉骨方向整理眉峰，先减少而非新增线条", limitation: "眉毛可塑性高，建议逐步试验", sourceIds: [] },
+          nose_contour: { evidenceType: "styling", advice: "鼻影控制在眼窝至鼻翼的自然转折内，少量多次", avoid: "避免一条深色直线贯穿鼻梁", sourceIds: [] },
+          lip_emphasis: { evidenceType: "styling", advice: "在眼妆较轻时用唇色建立一个清晰重点", avoid: "避免眼唇同时使用最高对比", sourceIds: [] },
+          jaw_framing: { evidenceType: "styling", advice: "用脸侧碎发、耳饰和领口控制下半脸的线条密度", limitation: "轮廓建议取决于发量和实际侧面结构", sourceIds: [] },
+          feature_light: { evidenceType: "styling", advice: "使用低对比、边缘柔和的颜色，保留皮肤留白", avoid: "避免每个五官同时加深轮廓", sourceIds: [] },
+          feature_strong: { evidenceType: "styling", advice: "可承接更清晰的眉眼或唇部重点，但一次只选一个", avoid: "避免多个高对比重点互相竞争", sourceIds: [] }
+        },
+        careRules: {
+          base: { evidenceType: "care", morning: ["按出油感受选择清水或温和清洁", "保湿", "广谱 SPF 30+ 防晒"], evening: ["温和清洁", "保湿"], sourceIds: ["aadBasics"] },
+          sensitive: { evidenceType: "care", advice: "一次只新增一种产品，先做小范围试用；持续刺痛、红肿或皮疹时停止并咨询皮肤科医生", sourceIds: ["aadBasics"] }
+        }
+      });
+
+      const metric = (id, value, unit, extra = {}) => {
+        const knowledge = KNOWLEDGE_BASE.metrics[id] || {};
+        return {
+          id,
+          value: round(value, extra.digits ?? 2),
+          unit,
+          evidenceType: "geometry",
+          confidence: extra.confidence || "high",
+          ...knowledge,
+          ...extra
+        };
+      };
+
+      function computeRegionalSymmetry(points, faceWidth, qualityLevel) {
+        const midX = (points[27].x + points[8].x) / 2;
+        const regions = {
+          eyes: [[36, 45], [37, 44], [38, 43], [39, 42], [40, 47], [41, 46]],
+          brows: [[17, 26], [18, 25], [19, 24], [20, 23], [21, 22]],
+          mouth: [[48, 54], [49, 53], [50, 52], [59, 55], [58, 56]],
+          jaw: [[0, 16], [2, 14], [4, 12], [6, 10]]
+        };
+        const regionValues = {};
+        Object.entries(regions).forEach(([name, pairs]) => {
+          regionValues[name] = pairs.reduce((sum, [left, right]) => {
+            const horizontal = (points[left].x + points[right].x) - 2 * midX;
+            const vertical = points[left].y - points[right].y;
+            return sum + Math.hypot(horizontal, vertical) / faceWidth;
+          }, 0) / pairs.length;
+        });
+        const average = Object.values(regionValues).reduce((sum, value) => sum + value, 0) / Object.keys(regionValues).length;
+        return metric("symmetry", average * 100, "% residual", {
+          label: "二维镜像残差",
+          confidence: qualityLevel === "high" ? "medium" : "low",
+          note: "该数值容易受拍摄角度、表情与光线影响，只用于检查照片内左右差异。",
+          regions: Object.fromEntries(Object.entries(regionValues).map(([name, value]) => [name, round(value * 100, 1)]))
+        });
+      }
+
+      function computeMeasurements(points, qualityLevel = "high") {
+        const faceWidth = distance(points[0], points[16]);
+        const visibleLength = Math.abs(points[8].y - points[27].y);
+        const estimatedFaceLength = visibleLength * 1.8;
+        const leftEyeWidth = distance(points[36], points[39]);
+        const rightEyeWidth = distance(points[42], points[45]);
+        const averageEyeWidth = (leftEyeWidth + rightEyeWidth) / 2;
+        const innerEyeDistance = distance(points[39], points[42]);
+        const noseWidth = distance(points[31], points[35]);
+        const mouthWidth = distance(points[48], points[54]);
+        const hairlineY = points[27].y - (points[33].y - points[27].y) * 1.2;
+        const rawCourts = [Math.abs(points[27].y - hairlineY), Math.abs(points[33].y - points[27].y), Math.abs(points[8].y - points[33].y)];
+        const courtTotal = rawCourts.reduce((sum, value) => sum + value, 0);
+        const roundedCourts = rawCourts.map((value) => round(safeDivide(value * 100, courtTotal, 0), 0));
+        roundedCourts[2] += 100 - roundedCourts.reduce((sum, value) => sum + value, 0);
+        const eyeSpacingValue = safeDivide(innerEyeDistance, averageEyeWidth, 0);
+        const leftEyeCenter = averagePoint(points, [36, 37, 38, 39, 40, 41]);
+        const rightEyeCenter = averagePoint(points, [42, 43, 44, 45, 46, 47]);
+        const leftBrowCenter = averagePoint(points, [17, 18, 19, 20, 21]);
+        const rightBrowCenter = averagePoint(points, [22, 23, 24, 25, 26]);
+        const jawPath = [0, 2, 4, 6, 8, 10, 12, 14, 16].reduce((sum, index, position, indexes) => position ? sum + distance(points[indexes[position - 1]], points[index]) : 0, 0);
+        const eyeAspectLeft = safeDivide((distance(points[37], points[41]) + distance(points[38], points[40])) / 2, leftEyeWidth, 0);
+        const eyeAspectRight = safeDivide((distance(points[43], points[47]) + distance(points[44], points[46])) / 2, rightEyeWidth, 0);
+        const canthalTilt = (angleDegrees(points[36], points[39]) + angleDegrees(points[42], points[45])) / 2;
+        const browTilt = (angleDegrees(points[17], points[21]) + angleDegrees(points[22], points[26])) / 2;
+        return {
+          faceWidth: round(faceWidth, 2),
+          faceLengthWidth: metric("face_length_width", safeDivide(estimatedFaceLength, faceWidth, 0), "ratio", { label: "估算脸长宽比", referenceType: "产品启发式解释带" }),
+          cheekFaceWidth: metric("cheek_face_width", safeDivide(distance(points[2], points[14]), faceWidth, 0), "ratio", { label: "颧区/面宽" }),
+          jawFaceWidth: metric("jaw_face_width", safeDivide(distance(points[4], points[12]), faceWidth, 0), "ratio", { label: "下颌/面宽" }),
+          chinFaceWidth: metric("chin_face_width", safeDivide(distance(points[6], points[10]), faceWidth, 0), "ratio", { label: "下巴/面宽" }),
+          eyeSpacing: metric("eye_spacing", eyeSpacingValue, "eye_width", { label: "眼距/眼宽", band: eyeSpacingValue < .85 ? "concentrated" : eyeSpacingValue <= 1.15 ? "reference" : "spacious", referenceType: "古典五眼视觉参照" }),
+          eyeAspectLeft: metric("eye_aspect_left", eyeAspectLeft, "ratio", { label: "左眼开合" }),
+          eyeAspectRight: metric("eye_aspect_right", eyeAspectRight, "ratio", { label: "右眼开合" }),
+          canthalTilt: metric("canthal_tilt", canthalTilt, "°", { label: "眼角方向", confidence: qualityLevel }),
+          browTilt: metric("brow_tilt", browTilt, "°", { label: "眉毛方向", confidence: qualityLevel }),
+          browEyeDistance: metric("brow_eye_distance", safeDivide((distance(leftBrowCenter, leftEyeCenter) + distance(rightBrowCenter, rightEyeCenter)) / 2, averageEyeWidth, 0), "eye_width", { label: "眉眼距离" }),
+          eyeSizeDifference: metric("eye_size_difference", safeDivide(Math.abs(leftEyeWidth - rightEyeWidth), averageEyeWidth, 0), "ratio", { label: "左右眼宽差", confidence: qualityLevel === "high" ? "medium" : "low" }),
+          noseFaceWidth: metric("nose_face_width", safeDivide(noseWidth, faceWidth, 0), "ratio", { label: "鼻翼/面宽" }),
+          noseEyeSpacing: metric("nose_eye_spacing", safeDivide(noseWidth, innerEyeDistance, 0), "ratio", { label: "鼻翼/内眼距" }),
+          mouthFaceWidth: metric("mouth_face_width", safeDivide(mouthWidth, faceWidth, 0), "ratio", { label: "嘴宽/面宽" }),
+          lipRatio: metric("upper_lower_lip", safeDivide(distance(points[51], points[62]), distance(points[66], points[57]), 0), "ratio", { label: "上下唇高度代理", confidence: "low" }),
+          mouthTilt: metric("mouth_tilt", angleDegrees(points[48], points[54]), "°", { label: "嘴角连线", confidence: "low" }),
+          jawCurve: metric("jaw_curve", safeDivide(jawPath, distance(points[0], points[16]), 0), "ratio", { label: "下颌曲线代理" }),
+          visualWeight: {
+            eyes: round(safeDivide(averageEyeWidth * 2, faceWidth, 0), 2),
+            brows: round(safeDivide((distance(points[17], points[21]) + distance(points[22], points[26])) / 2, faceWidth, 0), 2),
+            nose: round(safeDivide(noseWidth, faceWidth, 0), 2),
+            lips: round(safeDivide(mouthWidth, faceWidth, 0), 2)
+          },
+          courts: ["upper", "middle", "lower"].map((id, index) => metric(`court_${id}`, roundedCourts[index], "%", { label: ["上庭", "中庭", "下庭"][index], confidence: index === 0 ? "low" : qualityLevel, referenceType: index === 0 ? "低可信度估算" : "古典三庭视觉参照" })),
+          symmetry: computeRegionalSymmetry(points, faceWidth, qualityLevel)
+        };
+      }
+
+      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, inferQuestionnaire, computeMeasurements, KNOWLEDGE_BASE };
     })();
   </script>
 
@@ -427,7 +577,7 @@
     /* Face-API.js 模型地址：仅加载轻量检测器与 68 点关键点模型。 */
     const MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights";
     const $ = (id) => document.getElementById(id);
-    const state = { modelsReady: false, photo: "", detection: null, quality: null, questionnaire: {}, profile: null, report: null, questionIndex: 0 };
+    const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0 };
 
     const views = {
       upload: $("uploadView"),
@@ -590,6 +740,7 @@
         showView("upload");
         return;
       }
+      state.measurements = FaceStyleCore.computeMeasurements(detections[0].landmarks.positions, state.quality.level);
       const report = calculateFeatures(detections[0].landmarks.positions);
 
       setAnalysisStep(3);
@@ -933,6 +1084,7 @@
       state.photo = "";
       state.detection = null;
       state.quality = null;
+      state.measurements = null;
       state.questionnaire = {};
       state.profile = null;
       state.report = null;

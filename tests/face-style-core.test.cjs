@@ -83,3 +83,22 @@ test("incomplete questionnaire disables care plan", () => {
   assert.equal(profile.complete, false);
   assert.equal(profile.skinTendency, "combination");
 });
+
+test("measurement engine returns finite normalized metrics", () => {
+  const result = loadCore().computeMeasurements(makeFrontLandmarks(), "high");
+  assert.equal(result.faceWidth, 160);
+  assert.equal(result.eyeSpacing.value, 1.43);
+  assert.equal(result.eyeSpacing.band, "spacious");
+  assert.equal(result.noseFaceWidth.value, 0.18);
+  assert.equal(result.mouthFaceWidth.value, 0.35);
+  assert.equal(result.courts.reduce((sum, item) => sum + item.value, 0), 100);
+  Object.values(result).flatMap((value) => Array.isArray(value) ? value : [value]).forEach((value) => {
+    if (value && typeof value === "object" && "value" in value) assert.ok(Number.isFinite(value.value));
+  });
+});
+
+test("asymmetry confidence is reduced for medium quality", () => {
+  const result = loadCore().computeMeasurements(makeFrontLandmarks(), "medium");
+  assert.equal(result.symmetry.confidence, "low");
+  assert.match(result.symmetry.note, /拍摄角度/);
+});
