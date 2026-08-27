@@ -26,4 +26,8 @@ function rotate(points, degrees, center = { x: 100, y: 110 }) {
   }));
 }
 
-module.exports = { makeFrontLandmarks, rotate };
+function scaleVertical(points, factor, centerY = 110) {
+  return points.map((point) => ({ x: point.x, y: centerY + (point.y - centerY) * factor }));
+}
+
+module.exports = { makeFrontLandmarks, rotate, scaleVertical };

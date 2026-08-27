@@ -487,6 +487,8 @@
           jaw_face_width: { formulaText: "下颌转折宽度 ÷ 面宽", referenceType: "照片内归一化几何", sourceIds: ["faceApi"] },
           chin_face_width: { formulaText: "下巴两侧宽度 ÷ 面宽", referenceType: "照片内归一化几何", sourceIds: ["faceApi"] },
           eye_spacing: { formulaText: "内眼角距离 ÷ 平均眼宽", referenceType: "古典五眼视觉参照", sourceIds: ["southernChineseCanons"] },
+          left_eye_side_space: { formulaText: "外眼角至可见脸缘距离 ÷ 平均眼宽", referenceType: "照片内五眼留白代理", sourceIds: ["southernChineseCanons", "faceApi"] },
+          right_eye_side_space: { formulaText: "外眼角至可见脸缘距离 ÷ 平均眼宽", referenceType: "照片内五眼留白代理", sourceIds: ["southernChineseCanons", "faceApi"] },
           eye_aspect_left: { formulaText: "左眼垂直开合 ÷ 左眼宽", referenceType: "照片内归一化几何", sourceIds: ["faceApi"] },
           eye_aspect_right: { formulaText: "右眼垂直开合 ÷ 右眼宽", referenceType: "照片内归一化几何", sourceIds: ["faceApi"] },
           canthal_tilt: { formulaText: "双眼内外眼角连线的平均角度", referenceType: "造型方向参考", sourceIds: ["faceApi", "photoStandard"] },
@@ -596,6 +598,8 @@
           jawFaceWidth: metric("jaw_face_width", safeDivide(distance(points[4], points[12]), faceWidth, 0), "ratio", { label: "下颌/面宽" }),
           chinFaceWidth: metric("chin_face_width", safeDivide(distance(points[6], points[10]), faceWidth, 0), "ratio", { label: "下巴/面宽" }),
           eyeSpacing: metric("eye_spacing", eyeSpacingValue, "eye_width", { label: "眼距/眼宽", band: eyeSpacingValue < .85 ? "concentrated" : eyeSpacingValue <= 1.15 ? "reference" : "spacious", referenceType: "古典五眼视觉参照" }),
+          leftEyeSideSpace: metric("left_eye_side_space", safeDivide(Math.abs(points[36].x - points[0].x), averageEyeWidth, 0), "eye_width", { label: "左侧眼外留白", confidence: qualityLevel === "high" ? "medium" : "low" }),
+          rightEyeSideSpace: metric("right_eye_side_space", safeDivide(Math.abs(points[16].x - points[45].x), averageEyeWidth, 0), "eye_width", { label: "右侧眼外留白", confidence: qualityLevel === "high" ? "medium" : "low" }),
           eyeAspectLeft: metric("eye_aspect_left", eyeAspectLeft, "ratio", { label: "左眼开合" }),
           eyeAspectRight: metric("eye_aspect_right", eyeAspectRight, "ratio", { label: "右眼开合" }),
           canthalTilt: metric("canthal_tilt", canthalTilt, "°", { label: "眼角方向", confidence: qualityLevel }),
@@ -620,12 +624,65 @@
         return confidenceCap ? capMeasurementConfidence(result, confidenceCap) : result;
       }
 
+      function rankFaceShapes(measurements) {
+        const ratio = measurements.faceLengthWidth.value;
+        const jaw = measurements.jawFaceWidth.value;
+        const chin = measurements.chinFaceWidth.value;
+        const cheek = measurements.cheekFaceWidth.value;
+        const curve = measurements.jawCurve.value;
+        const scores = {
+          "长脸": Math.max(0, (ratio - 1.08) * 5),
+          "圆脸": Math.max(0, 1.15 - ratio) + Math.max(0, curve - 1.18),
+          "方脸": Math.max(0, jaw - .68) * 4 + Math.max(0, 1.22 - curve),
+          "菱形脸": Math.max(0, cheek - jaw) * 5 + Math.max(0, .48 - chin),
+          "心形脸": Math.max(0, cheek - jaw) * 3 + Math.max(0, .44 - chin),
+          "椭圆脸": Math.max(0, .18 - Math.abs(ratio - 1.05)) + Math.max(0, .12 - Math.abs(cheek - jaw))
+        };
+        return Object.entries(scores).sort((a, b) => b[1] - a[1]);
+      }
+
+      function deriveReadableProfile(measurements, quality = { level: "high" }) {
+        const ranked = rankFaceShapes(measurements);
+        const primary = ranked[0][0];
+        const secondary = ranked[1][1] >= ranked[0][1] * .72 ? ranked[1][0] : null;
+        const courtValues = measurements.courts.map((item) => item.value);
+        const courtLabels = measurements.courts.map((item) => item.value > 36 ? "相对突出" : item.value < 30 ? "相对收敛" : "接近三等分参照");
+        const eyeTerm = measurements.eyeSpacing.band === "spacious" ? "眼距相对舒展" : measurements.eyeSpacing.band === "concentrated" ? "眼距相对集中" : "接近一眼宽参照";
+        const weightScore = (measurements.visualWeight.eyes + measurements.visualWeight.brows + measurements.visualWeight.nose + measurements.visualWeight.lips) / 4;
+        const featureWeight = weightScore < .2 ? "五官量感偏轻" : weightScore > .28 ? "五官量感偏强" : "五官量感适中";
+        const lineTendency = measurements.jawCurve.value > 1.22 ? "曲线感较明显" : measurements.jawCurve.value < 1.14 ? "直线感较明显" : "直曲混合";
+        const shapeExplanations = {
+          "长脸": "纵向比例相对突出，脸侧线条更容易形成向下延伸感。",
+          "圆脸": "长宽较接近，下颌路径呈现较明显的柔和曲线。",
+          "方脸": "下颌宽度存在感较明显，轮廓方向相对清晰。",
+          "菱形脸": "颧区相对突出，下颌与下巴的横向宽度较收。",
+          "心形脸": "颧区相对舒展，下巴横向宽度较收。",
+          "椭圆脸": "长宽处于中间带，颧区与下颌宽度过渡较连续。"
+        };
+        const strengths = [
+          measurements.eyeSpacing.band === "spacious" ? "眼部留白舒展，适合清晰但不过度外扩的眉眼重点。" : "眉眼聚焦感清楚，适合把视觉重点放在眼尾与睫毛。",
+          lineTendency.includes("曲线") ? "轮廓过渡柔和，容易承接自然层次和柔和边缘。" : "轮廓方向清晰，容易承接利落线条和明确配饰。"
+        ].slice(0, 2);
+        const attention = [measurements.eyeSpacing.band === "spacious" ? "眉头和眼尾若同时外扩，眼部横向留白会进一步增加。" : "眉头若同时加深并向内延伸，眉眼重心会更集中。"];
+        return {
+          faceShape: { primary, secondary, explanation: shapeExplanations[primary], confidence: quality.level === "low" || quality.overridden ? "low" : "medium", metricIds: [measurements.faceLengthWidth.id, measurements.cheekFaceWidth.id, measurements.jawFaceWidth.id, measurements.chinFaceWidth.id, measurements.jawCurve.id] },
+          threeCourts: { values: courtValues, labels: courtLabels, summary: `上庭 ${courtValues[0]}%、中庭 ${courtValues[1]}%、下庭 ${courtValues[2]}%；上庭为估算，三庭仅作视觉参照。`, metricIds: measurements.courts.map((item) => item.id), confidence: "low" },
+          fiveEyes: { term: eyeTerm, summary: `眼距约 ${measurements.eyeSpacing.value} 个眼宽，左侧可见留白约 ${measurements.leftEyeSideSpace.value} 个眼宽，右侧约 ${measurements.rightEyeSideSpace.value} 个眼宽；五眼为古典视觉参照，不代表审美等级。`, metricIds: [measurements.eyeSpacing.id, measurements.leftEyeSideSpace.id, measurements.rightEyeSideSpace.id], confidence: quality.level === "high" ? "medium" : "low" },
+          featureWeight: { term: featureWeight, metricIds: [measurements.eyeAspectLeft.id, measurements.browEyeDistance.id, measurements.noseFaceWidth.id, measurements.mouthFaceWidth.id], confidence: quality.level === "high" ? "medium" : "low" },
+          lineTendency: { term: lineTendency, metricIds: [measurements.jawCurve.id], confidence: measurements.jawCurve.confidence },
+          strengths,
+          attention,
+          memorySentence: `${secondary ? `${primary}偏${secondary}` : `${primary}倾向`}，${eyeTerm}，${courtLabels[1] === "接近三等分参照" ? "中庭接近三等分参照" : `中庭${courtLabels[1]}`}。`
+        };
+      }
+
       function conclusion({ title, value, explanation, action, evidenceType, metricIds = [], confidence = "high" }) {
         if (!evidenceType || (evidenceType !== "care" && metricIds.length === 0)) throw new Error("Untraceable conclusion");
         return { title, value, explanation, action, evidenceType, metricIds, confidence };
       }
 
       function composeReport({ quality, measurements, profile }) {
+        const readableProfile = deriveReadableProfile(measurements, quality);
         const ratio = measurements.faceLengthWidth;
         const eye = measurements.eyeSpacing;
         const middle = measurements.courts[1];
@@ -652,7 +709,7 @@
         ];
         const dataGroups = [
           { id: "overall", title: "整体比例", items: [measurements.faceLengthWidth, measurements.cheekFaceWidth, measurements.jawFaceWidth, measurements.chinFaceWidth, ...measurements.courts] },
-          { id: "eye_brow", title: "眼部与眉部", items: [measurements.eyeSpacing, measurements.eyeAspectLeft, measurements.eyeAspectRight, measurements.canthalTilt, measurements.browTilt, measurements.browEyeDistance, measurements.eyeSizeDifference] },
+          { id: "eye_brow", title: "眼部与眉部", items: [measurements.eyeSpacing, measurements.leftEyeSideSpace, measurements.rightEyeSideSpace, measurements.eyeAspectLeft, measurements.eyeAspectRight, measurements.canthalTilt, measurements.browTilt, measurements.browEyeDistance, measurements.eyeSizeDifference] },
           { id: "nose_lip", title: "鼻部与唇部", items: [measurements.noseFaceWidth, measurements.noseEyeSpacing, measurements.mouthFaceWidth, measurements.lipRatio, measurements.mouthTilt] },
           { id: "jaw_symmetry", title: "下颌与左右差异", items: [measurements.jawCurve, measurements.symmetry] }
         ];
@@ -676,6 +733,7 @@
         const sources = Array.from(sourceIds, (id) => ({ id, ...KNOWLEDGE_BASE.sources[id] }));
         return {
           quality,
+          readableProfile,
           coreTraits,
           dataGroups,
           styleAdvice,
@@ -685,12 +743,13 @@
           limitations: [
             "结果依赖单张照片的角度、镜头距离、光线和表情。",
             "上庭使用关键点外推估算，置信度较低。",
+            "脸型倾向与术语阈值属于产品启发式解释带，不是普适分类标准。",
             "本工具只做二维几何与通用护理整理，不替代专业诊疗或个体审美判断。"
           ]
         };
       }
 
-      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, overridePhotoQuality, capMeasurementConfidence, inferQuestionnaire, computeMeasurements, composeReport, KNOWLEDGE_BASE };
+      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, overridePhotoQuality, capMeasurementConfidence, inferQuestionnaire, computeMeasurements, deriveReadableProfile, composeReport, KNOWLEDGE_BASE };
     })();
   </script>
 

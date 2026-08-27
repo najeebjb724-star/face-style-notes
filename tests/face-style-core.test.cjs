@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
 const path = require("node:path");
-const { makeFrontLandmarks, rotate } = require("./fixtures/landmarks.cjs");
+const { makeFrontLandmarks, rotate, scaleVertical } = require("./fixtures/landmarks.cjs");
 
 function loadCore() {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
@@ -153,4 +153,33 @@ test("override confidence never exceeds medium and angle-sensitive metrics stay 
   assert.equal(result.mouthTilt.confidence, "low");
   assert.equal(result.courts[0].confidence, "low");
   assert.equal(result.symmetry.confidence, "low");
+});
+
+test("readable profile returns traceable terminology and bounded takeaways", () => {
+  const core = loadCore();
+  const measurements = core.computeMeasurements(makeFrontLandmarks(), "high");
+  const profile = core.deriveReadableProfile(measurements, { level: "high", overridden: false });
+  assert.ok(profile.faceShape.primary);
+  assert.ok(profile.faceShape.explanation.length > 10);
+  assert.ok(profile.faceShape.metricIds.length >= 3);
+  assert.match(profile.threeCourts.summary, /上庭|中庭|下庭/);
+  assert.match(profile.fiveEyes.summary, /眼宽|五眼/);
+  assert.match(profile.fiveEyes.summary, /左侧|右侧/);
+  assert.ok(profile.strengths.length <= 2);
+  assert.ok(profile.attention.length <= 1);
+  assert.ok(profile.memorySentence.length > 10);
+});
+
+test("longer landmark fixture changes the primary face-shape tendency", () => {
+  const core = loadCore();
+  const regular = core.deriveReadableProfile(core.computeMeasurements(makeFrontLandmarks(), "high"), { level: "high" });
+  const longer = core.deriveReadableProfile(core.computeMeasurements(scaleVertical(makeFrontLandmarks(), 1.3), "high"), { level: "high" });
+  assert.notEqual(longer.faceShape.primary, regular.faceShape.primary);
+  assert.match(longer.faceShape.primary, /长|椭圆/);
+});
+
+test("overridden quality lowers readable face-shape confidence", () => {
+  const core = loadCore();
+  const profile = core.deriveReadableProfile(core.computeMeasurements(makeFrontLandmarks(), "low", "medium"), { level: "low", overridden: true });
+  assert.equal(profile.faceShape.confidence, "low");
 });
