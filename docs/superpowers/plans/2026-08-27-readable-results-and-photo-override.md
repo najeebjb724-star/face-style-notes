@@ -213,6 +213,7 @@ test("readable profile returns traceable terminology and bounded takeaways", () 
   const measurements = core.computeMeasurements(makeFrontLandmarks(), "high");
   const profile = core.deriveReadableProfile(measurements, { level: "high", overridden: false });
   assert.ok(profile.faceShape.primary);
+  assert.ok(profile.faceShape.explanation.length > 10);
   assert.ok(profile.faceShape.metricIds.length >= 3);
   assert.match(profile.threeCourts.summary, /上庭|中庭|下庭/);
   assert.match(profile.fiveEyes.summary, /眼宽|五眼/);
@@ -283,13 +284,21 @@ function deriveReadableProfile(m, quality = { level: "high" }) {
   const weightScore = (m.visualWeight.eyes + m.visualWeight.brows + m.visualWeight.nose + m.visualWeight.lips) / 4;
   const featureWeight = weightScore < .2 ? "五官量感偏轻" : weightScore > .28 ? "五官量感偏强" : "五官量感适中";
   const lineTendency = m.jawCurve.value > 1.22 ? "曲线感较明显" : m.jawCurve.value < 1.14 ? "直线感较明显" : "直曲混合";
+  const shapeExplanations = {
+    "长脸": "纵向比例相对突出，脸侧线条更容易形成向下延伸感。",
+    "圆脸": "长宽较接近，下颌路径呈现较明显的柔和曲线。",
+    "方脸": "下颌宽度存在感较明显，轮廓方向相对清晰。",
+    "菱形脸": "颧区相对突出，下颌与下巴的横向宽度较收。",
+    "心形脸": "颧区相对舒展，下巴横向宽度较收。",
+    "椭圆脸": "长宽处于中间带，颧区与下颌宽度过渡较连续。"
+  };
   const strengths = [
     m.eyeSpacing.band === "spacious" ? "眼部留白舒展，适合清晰但不过度外扩的眉眼重点。" : "眉眼聚焦感清楚，适合把视觉重点放在眼尾与睫毛。",
     lineTendency.includes("曲线") ? "轮廓过渡柔和，容易承接自然层次和柔和边缘。" : "轮廓方向清晰，容易承接利落线条和明确配饰。"
   ].slice(0, 2);
   const attention = [m.eyeSpacing.band === "spacious" ? "眉头和眼尾若同时外扩，眼部横向留白会进一步增加。" : "眉头若同时加深并向内延伸，眉眼重心会更集中。"];
   return {
-    faceShape: { primary, secondary, confidence: quality.level === "low" || quality.overridden ? "low" : "medium", metricIds: [m.faceLengthWidth.id, m.cheekFaceWidth.id, m.jawFaceWidth.id, m.chinFaceWidth.id, m.jawCurve.id] },
+    faceShape: { primary, secondary, explanation: shapeExplanations[primary], confidence: quality.level === "low" || quality.overridden ? "low" : "medium", metricIds: [m.faceLengthWidth.id, m.cheekFaceWidth.id, m.jawFaceWidth.id, m.chinFaceWidth.id, m.jawCurve.id] },
     threeCourts: { values: courtValues, labels: courtLabels, summary: `上庭 ${courtValues[0]}%、中庭 ${courtValues[1]}%、下庭 ${courtValues[2]}%；上庭为估算，三庭仅作视觉参照。`, metricIds: m.courts.map((item) => item.id), confidence: "low" },
     fiveEyes: { term: eyeTerm, summary: `眼距约 ${m.eyeSpacing.value} 个眼宽，左侧可见留白约 ${m.leftEyeSideSpace.value} 个眼宽，右侧约 ${m.rightEyeSideSpace.value} 个眼宽；五眼为古典视觉参照，不代表审美等级。`, metricIds: [m.eyeSpacing.id, m.leftEyeSideSpace.id, m.rightEyeSideSpace.id], confidence: quality.level === "high" ? "medium" : "low" },
     featureWeight: { term: featureWeight, metricIds: [m.eyeAspectLeft.id, m.browEyeDistance.id, m.noseFaceWidth.id, m.mouthFaceWidth.id], confidence: quality.level === "high" ? "medium" : "low" },
@@ -379,7 +388,7 @@ At the beginning of `renderReport(report, photo)`:
 ```js
 const readable = report.readableProfile;
 const terminology = [
-  ["脸型倾向", readable.faceShape.secondary ? `${readable.faceShape.primary} · 次倾向 ${readable.faceShape.secondary}` : `${readable.faceShape.primary}倾向`],
+  ["脸型倾向", `${readable.faceShape.secondary ? `${readable.faceShape.primary} · 次倾向 ${readable.faceShape.secondary}` : `${readable.faceShape.primary}倾向`}。${readable.faceShape.explanation}`],
   ["三庭", readable.threeCourts.summary],
   ["五眼", readable.fiveEyes.summary],
   ["五官量感", readable.featureWeight.term],
