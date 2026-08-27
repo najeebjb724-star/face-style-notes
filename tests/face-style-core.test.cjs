@@ -63,3 +63,23 @@ test("quality gate rejects small, dark and blurry photos deterministically", () 
   assert.equal(result.accepted, false);
   assert.deepEqual(Array.from(result.issues, (item) => item.id), ["face_too_small", "blurry", "too_dark"]);
 });
+
+test("questionnaire keeps skin and sensitivity as separate tendencies", () => {
+  const profile = loadCore().inferQuestionnaire({
+    postCleanse: "tight",
+    reactivity: "often",
+    primaryGoal: "skin",
+    dailyMinutes: 5,
+    hairMaintenance: "minimal",
+    monthlyBudget: "basic"
+  });
+  assert.equal(profile.complete, true);
+  assert.equal(profile.skinTendency, "dry");
+  assert.equal(profile.sensitivityTendency, "sensitive");
+});
+
+test("incomplete questionnaire disables care plan", () => {
+  const profile = loadCore().inferQuestionnaire({ postCleanse: "tzone" });
+  assert.equal(profile.complete, false);
+  assert.equal(profile.skinTendency, "combination");
+});

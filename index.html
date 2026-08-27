@@ -86,6 +86,17 @@
     .quality-action { margin: 0 0 .8rem; color: var(--muted); font-size: .82rem; }
     .quality-details { margin-bottom: .85rem; color: var(--muted); font-size: .75rem; }
     .quality-details summary { cursor: pointer; color: var(--ink); }
+    .questionnaire { padding: 1.2rem; border: 1px solid var(--line); border-radius: 1.3rem; background: rgba(255,255,255,.7); box-shadow: 0 1.2rem 3rem rgba(75,42,36,.08); }
+    .question-progress { color: var(--rose-dark); font-size: .74rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+    .questionnaire h2 { margin: .45rem 0 .35rem; font-family: "Noto Serif SC", serif; font-size: 1.45rem; }
+    .question-intro { margin: 0 0 1.2rem; color: var(--muted); font-size: .82rem; line-height: 1.65; }
+    .question-step { margin: 0; padding: 0; border: 0; }
+    .question-step legend { width: 100%; margin-bottom: 1rem; font-family: "Noto Serif SC", serif; font-size: 1.08rem; font-weight: 800; }
+    .question-options { display: grid; gap: .65rem; }
+    .question-option { display: flex; align-items: flex-start; gap: .65rem; padding: .82rem .9rem; border: 1px solid var(--line); border-radius: .85rem; background: #fffdfb; cursor: pointer; font-size: .84rem; line-height: 1.45; }
+    .question-option:has(input:checked) { border-color: var(--rose); background: rgba(229,152,155,.1); box-shadow: inset 0 0 0 1px var(--rose); }
+    .question-option input { margin-top: .16rem; accent-color: var(--rose-dark); }
+    .question-actions { display: grid; grid-template-columns: .8fr 1.3fr; gap: .65rem; margin-top: 1.1rem; }
     .text-link { margin-top: .7rem; padding: 0; border: 0; background: none; color: var(--rose-dark); text-decoration: underline; font-weight: 800; cursor: pointer; }
     .hidden { display: none !important; }
 
@@ -217,6 +228,69 @@
       </div>
     </section>
 
+    <section id="questionnaireView" class="questionnaire hidden" aria-labelledby="questionnaireTitle">
+      <div id="questionProgress" class="question-progress" aria-live="polite">第 1 / 6 题</div>
+      <h2 id="questionnaireTitle">补充你的日常情况</h2>
+      <p class="question-intro">照片只提供几何信息。这 6 题把建议限制在你的肤感、时间和预算内；答案仅保存在当前页面内存。</p>
+      <form id="questionnaireForm">
+        <fieldset class="question-step" data-key="postCleanse">
+          <legend>洁面后约 30 分钟，脸部通常是什么感觉？</legend>
+          <div class="question-options">
+            <label class="question-option"><input type="radio" name="postCleanse" value="tight"><span>整体紧绷或容易起皮</span></label>
+            <label class="question-option"><input type="radio" name="postCleanse" value="comfortable"><span>整体舒适，没有明显干或油</span></label>
+            <label class="question-option"><input type="radio" name="postCleanse" value="tzone"><span>T 区较油、两颊偏干或舒适</span></label>
+            <label class="question-option"><input type="radio" name="postCleanse" value="allOver"><span>大部分区域较快出现油光</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="question-step hidden" data-key="reactivity">
+          <legend>换新护肤品后，刺痛、发红或发痒常见吗？</legend>
+          <div class="question-options">
+            <label class="question-option"><input type="radio" name="reactivity" value="often"><span>经常出现</span></label>
+            <label class="question-option"><input type="radio" name="reactivity" value="sometimes"><span>偶尔出现</span></label>
+            <label class="question-option"><input type="radio" name="reactivity" value="rarely"><span>很少出现</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="question-step hidden" data-key="primaryGoal">
+          <legend>你现在最想先改善哪一项？</legend>
+          <div class="question-options">
+            <label class="question-option"><input type="radio" name="primaryGoal" value="skin"><span>建立简单稳定的基础护肤</span></label>
+            <label class="question-option"><input type="radio" name="primaryGoal" value="makeup"><span>找到更合适的妆容重点</span></label>
+            <label class="question-option"><input type="radio" name="primaryGoal" value="hair"><span>找到更省心的发型方向</span></label>
+            <label class="question-option"><input type="radio" name="primaryGoal" value="overall"><span>先建立整体形象基础</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="question-step hidden" data-key="dailyMinutes">
+          <legend>每天愿意花多少时间打理？</legend>
+          <div class="question-options">
+            <label class="question-option"><input type="radio" name="dailyMinutes" value="5"><span>约 5 分钟，只做最基础步骤</span></label>
+            <label class="question-option"><input type="radio" name="dailyMinutes" value="15"><span>约 15 分钟，可以完成简单妆发</span></label>
+            <label class="question-option"><input type="radio" name="dailyMinutes" value="30"><span>约 30 分钟，愿意细化步骤</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="question-step hidden" data-key="hairMaintenance">
+          <legend>你能接受多高的发型维护频率？</legend>
+          <div class="question-options">
+            <label class="question-option"><input type="radio" name="hairMaintenance" value="minimal"><span>尽量免打理，不常修剪或造型</span></label>
+            <label class="question-option"><input type="radio" name="hairMaintenance" value="light"><span>可接受简单吹整和定期修剪</span></label>
+            <label class="question-option"><input type="radio" name="hairMaintenance" value="regular"><span>愿意定期造型、染烫或精细护理</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="question-step hidden" data-key="monthlyBudget">
+          <legend>每月用于基础护肤与形象尝试的预算？</legend>
+          <div class="question-options">
+            <label class="question-option"><input type="radio" name="monthlyBudget" value="basic"><span>基础：优先少而必要的单品</span></label>
+            <label class="question-option"><input type="radio" name="monthlyBudget" value="moderate"><span>适中：可增加一项针对性尝试</span></label>
+            <label class="question-option"><input type="radio" name="monthlyBudget" value="flexible"><span>灵活：更看重体验与选择空间</span></label>
+          </div>
+        </fieldset>
+      </form>
+      <div class="question-actions">
+        <button id="questionBack" class="secondary-btn" type="button">上一题</button>
+        <button id="questionNext" class="primary-btn" type="button">下一题</button>
+      </div>
+      <div id="questionMessage" class="notice hidden" role="alert"></div>
+    </section>
+
     <section id="reportView" class="report-wrap hidden" aria-labelledby="reportTitle">
       <div id="reportCapture" class="report-sheet">
         <div class="report-inner">
@@ -331,7 +405,21 @@
         };
       }
 
-      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality };
+      function inferQuestionnaire(answers = {}) {
+        const skinMap = { tight: "dry", comfortable: "normal", tzone: "combination", allOver: "oily" };
+        const required = ["postCleanse", "reactivity", "primaryGoal", "dailyMinutes", "hairMaintenance", "monthlyBudget"];
+        return {
+          complete: required.every((key) => answers[key] !== undefined && answers[key] !== ""),
+          skinTendency: skinMap[answers.postCleanse] || null,
+          sensitivityTendency: answers.reactivity === "often" ? "sensitive" : answers.reactivity === "sometimes" ? "possible" : answers.reactivity === "rarely" ? "low" : null,
+          primaryGoal: answers.primaryGoal || null,
+          dailyMinutes: Number(answers.dailyMinutes) || null,
+          hairMaintenance: answers.hairMaintenance || null,
+          monthlyBudget: answers.monthlyBudget || null
+        };
+      }
+
+      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, inferQuestionnaire };
     })();
   </script>
 
@@ -339,11 +427,12 @@
     /* Face-API.js 模型地址：仅加载轻量检测器与 68 点关键点模型。 */
     const MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights";
     const $ = (id) => document.getElementById(id);
-    const state = { modelsReady: false, photo: "", detection: null, quality: null, report: null };
+    const state = { modelsReady: false, photo: "", detection: null, quality: null, questionnaire: {}, profile: null, report: null, questionIndex: 0 };
 
     const views = {
       upload: $("uploadView"),
       analysis: $("analysisView"),
+      questionnaire: $("questionnaireView"),
       report: $("reportView")
     };
 
@@ -364,6 +453,14 @@
         $("qualityCard").classList.add("hidden");
         $("fileInput").click();
       });
+      $("questionnaireForm").addEventListener("change", (event) => {
+        if (event.target.matches("input[type=radio]")) {
+          state.questionnaire[event.target.name] = event.target.value;
+          $("questionMessage").classList.add("hidden");
+        }
+      });
+      $("questionBack").addEventListener("click", () => moveQuestion(-1));
+      $("questionNext").addEventListener("click", () => moveQuestion(1));
 
       const dropZone = $("dropZone");
       ["dragenter", "dragover"].forEach((name) => dropZone.addEventListener(name, (event) => {
@@ -498,9 +595,49 @@
       setAnalysisStep(3);
       await wait(500);
       state.report = report;
-      renderReport(report, dataUrl);
       setAnalysisStep(4);
       await wait(180);
+      state.questionIndex = 0;
+      renderQuestion();
+      showView("questionnaire");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function renderQuestion() {
+      const steps = Array.from(document.querySelectorAll(".question-step"));
+      steps.forEach((step, index) => step.classList.toggle("hidden", index !== state.questionIndex));
+      $("questionProgress").textContent = `第 ${state.questionIndex + 1} / ${steps.length} 题`;
+      $("questionBack").disabled = state.questionIndex === 0;
+      $("questionNext").textContent = state.questionIndex === steps.length - 1 ? "生成我的基础报告" : "下一题";
+      const current = steps[state.questionIndex];
+      const selected = state.questionnaire[current.dataset.key];
+      if (selected !== undefined) {
+        const input = current.querySelector(`input[value="${CSS.escape(String(selected))}"]`);
+        if (input) input.checked = true;
+      }
+    }
+
+    function moveQuestion(direction) {
+      const steps = Array.from(document.querySelectorAll(".question-step"));
+      const current = steps[state.questionIndex];
+      if (direction > 0 && !state.questionnaire[current.dataset.key]) {
+        $("questionMessage").textContent = "请先选择最接近你的情况。";
+        $("questionMessage").classList.remove("hidden");
+        return;
+      }
+      $("questionMessage").classList.add("hidden");
+      if (direction < 0) {
+        state.questionIndex = Math.max(0, state.questionIndex - 1);
+        renderQuestion();
+        return;
+      }
+      if (state.questionIndex < steps.length - 1) {
+        state.questionIndex += 1;
+        renderQuestion();
+        return;
+      }
+      state.profile = FaceStyleCore.inferQuestionnaire(state.questionnaire);
+      renderReport(state.report, state.photo);
       showView("report");
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -794,8 +931,16 @@
 
     function resetApp() {
       state.photo = "";
+      state.detection = null;
+      state.quality = null;
+      state.questionnaire = {};
+      state.profile = null;
       state.report = null;
+      state.questionIndex = 0;
       $("fileInput").value = "";
+      $("questionnaireForm").reset();
+      $("qualityCard").classList.add("hidden");
+      $("questionMessage").classList.add("hidden");
       $("analysisPhoto").removeAttribute("src");
       $("reportPhoto").removeAttribute("src");
       $("reportMessage").classList.add("hidden");
