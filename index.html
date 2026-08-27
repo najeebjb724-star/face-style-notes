@@ -78,6 +78,14 @@
     .privacy-note { display: flex; gap: .55rem; align-items: flex-start; padding: 1rem .2rem 0; color: var(--muted); font-size: .73rem; line-height: 1.55; }
     .notice { margin-top: 1rem; padding: .9rem 1rem; border-radius: .85rem; border: 1px solid rgba(173,98,103,.22); background: rgba(229,152,155,.1); color: #81474b; font-size: .8rem; line-height: 1.55; }
     .notice.info { border-color: rgba(212,163,115,.28); background: rgba(212,163,115,.1); color: var(--ink); }
+    .quality-card { margin-top: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: 1rem; background: rgba(255,255,255,.62); }
+    .quality-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+    .quality-head h3 { margin: 0; font-family: "Noto Serif SC", serif; font-size: 1rem; }
+    .quality-level { flex: none; padding: .25rem .55rem; border-radius: 999px; background: rgba(173,98,103,.12); color: var(--rose-dark); font-size: .72rem; font-weight: 800; }
+    .quality-issue { margin: .7rem 0 .3rem; font-weight: 700; }
+    .quality-action { margin: 0 0 .8rem; color: var(--muted); font-size: .82rem; }
+    .quality-details { margin-bottom: .85rem; color: var(--muted); font-size: .75rem; }
+    .quality-details summary { cursor: pointer; color: var(--ink); }
     .text-link { margin-top: .7rem; padding: 0; border: 0; background: none; color: var(--rose-dark); text-decoration: underline; font-weight: 800; cursor: pointer; }
     .hidden { display: none !important; }
 
@@ -186,6 +194,13 @@
         <span>照片只在你的浏览器里分析，不会上传或保存。结果是基于几何比例的风格参考，不评价美丑。</span>
       </div>
       <div id="messageBox" class="notice hidden" role="alert"></div>
+      <section id="qualityCard" class="quality-card hidden" aria-live="polite">
+        <div class="quality-head"><h3>照片质量检查</h3><span id="qualityLevel" class="quality-level"></span></div>
+        <p id="qualityIssue" class="quality-issue"></p>
+        <p id="qualityAction" class="quality-action"></p>
+        <details class="quality-details"><summary>查看其他提示与检测数据</summary><div id="qualityMetrics"></div></details>
+        <button id="retakeButton" class="secondary-btn" type="button">重新选择照片</button>
+      </section>
     </section>
 
     <section id="analysisView" class="analysis-panel hidden" aria-live="polite">
@@ -282,7 +297,41 @@
       const angleDegrees = (a, b) => Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
       const round = (value, digits = 2) => Number.isFinite(value) ? Number(value.toFixed(digits)) : null;
 
-      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round };
+      function evaluatePhotoQuality(signals) {
+        const { detectionScore, faceBox, imageSize, points, laplacianVariance, meanBrightness } = signals;
+        const leftEye = averagePoint(points, [36, 37, 38, 39, 40, 41]);
+        const rightEye = averagePoint(points, [42, 43, 44, 45, 46, 47]);
+        const roll = Math.abs(angleDegrees(leftEye, rightEye));
+        const faceRatio = safeDivide(faceBox.width, imageSize.width, 0);
+        const faceWidth = distance(points[0], points[16]);
+        const leftNose = distance(points[30], points[0]);
+        const rightNose = distance(points[30], points[16]);
+        const yawProxy = safeDivide(Math.abs(leftNose - rightNose), faceWidth, 1);
+        const issues = [];
+        const push = (condition, id, message, action, severity = "reject") => {
+          if (condition) issues.push({ id, message, action, severity });
+        };
+        push(detectionScore < 0.55, "low_detection", "面部细节不足", "换一张更清晰、无遮挡的照片");
+        push(faceRatio < 0.28 || faceBox.width < 180, "face_too_small", "脸部在画面中太小", "靠近一些，并保留完整头部轮廓");
+        push(faceRatio > 0.85, "face_too_large", "脸部离镜头太近", "手机后退到约一臂距离");
+        push(roll > 5, "head_roll", "头部倾斜会影响比例", "让双眼连线保持水平");
+        push(yawProxy > 0.12, "head_yaw", "脸部没有正对镜头", "鼻尖朝向镜头，左右脸颊露出接近");
+        push(laplacianVariance < 45, "blurry", "照片可能模糊", "擦净镜头并保持手机稳定");
+        push(meanBrightness < 55, "too_dark", "面部光线太暗", "面向窗户或增加均匀光线");
+        push(meanBrightness > 215, "too_bright", "面部出现过曝", "避开直射强光并降低曝光");
+        const medium = roll > 3 || yawProxy > 0.08;
+        return {
+          accepted: !issues.some((item) => item.severity === "reject"),
+          level: issues.length ? "low" : medium ? "medium" : "high",
+          issues,
+          metrics: {
+            roll: round(roll, 1), yawProxy: round(yawProxy, 3), faceRatio: round(faceRatio, 3),
+            laplacianVariance: round(laplacianVariance, 1), meanBrightness: round(meanBrightness, 1)
+          }
+        };
+      }
+
+      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality };
     })();
   </script>
 
@@ -290,7 +339,7 @@
     /* Face-API.js 模型地址：仅加载轻量检测器与 68 点关键点模型。 */
     const MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights";
     const $ = (id) => document.getElementById(id);
-    const state = { modelsReady: false, photo: "", report: null };
+    const state = { modelsReady: false, photo: "", detection: null, quality: null, report: null };
 
     const views = {
       upload: $("uploadView"),
@@ -310,6 +359,11 @@
       $("retryButton").addEventListener("click", resetApp);
       $("saveButton").addEventListener("click", saveReport);
       $("modelRetry").addEventListener("click", loadModels);
+      $("retakeButton").addEventListener("click", () => {
+        $("fileInput").value = "";
+        $("qualityCard").classList.add("hidden");
+        $("fileInput").click();
+      });
 
       const dropZone = $("dropZone");
       ["dragenter", "dragover"].forEach((name) => dropZone.addEventListener(name, (event) => {
@@ -335,6 +389,7 @@
       $("modelProgress").textContent = "0 / 2";
       $("chooseLabel").textContent = "模型加载中";
       hideMessage();
+      $("qualityCard").classList.add("hidden");
 
       try {
         if (!window.faceapi) throw new Error("Face-API.js 未能加载");
@@ -430,8 +485,15 @@
 
       setAnalysisStep(2);
       await wait(420);
+      state.detection = detections[0];
+      const signals = computeImageSignals(image, detections[0]);
+      state.quality = FaceStyleCore.evaluatePhotoQuality(signals);
+      if (!state.quality.accepted) {
+        renderQualityFailure(state.quality);
+        showView("upload");
+        return;
+      }
       const report = calculateFeatures(detections[0].landmarks.positions);
-      if (!report.isFrontal) throw new Error("请上传更正面的照片，两眼尽量保持水平");
 
       setAnalysisStep(3);
       await wait(500);
@@ -441,6 +503,58 @@
       await wait(180);
       showView("report");
       window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function computeImageSignals(image, detection) {
+      const box = detection.detection.box;
+      const canvas = document.createElement("canvas");
+      canvas.width = 256;
+      canvas.height = 256;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      const sx = Math.max(0, box.x);
+      const sy = Math.max(0, box.y);
+      const sw = Math.min(box.width, image.naturalWidth - sx);
+      const sh = Math.min(box.height, image.naturalHeight - sy);
+      context.drawImage(image, sx, sy, sw, sh, 0, 0, 256, 256);
+      const pixels = context.getImageData(0, 0, 256, 256).data;
+      const gray = new Float32Array(256 * 256);
+      let brightnessTotal = 0;
+      for (let index = 0; index < gray.length; index += 1) {
+        const offset = index * 4;
+        gray[index] = pixels[offset] * .299 + pixels[offset + 1] * .587 + pixels[offset + 2] * .114;
+        brightnessTotal += gray[index];
+      }
+      let lapTotal = 0;
+      let lapSquaredTotal = 0;
+      let lapCount = 0;
+      for (let y = 1; y < 255; y += 1) {
+        for (let x = 1; x < 255; x += 1) {
+          const index = y * 256 + x;
+          const lap = gray[index - 256] + gray[index + 256] + gray[index - 1] + gray[index + 1] - 4 * gray[index];
+          lapTotal += lap;
+          lapSquaredTotal += lap * lap;
+          lapCount += 1;
+        }
+      }
+      const lapMean = lapTotal / lapCount;
+      return {
+        detectionScore: detection.detection.score,
+        faceBox: { width: box.width, height: box.height },
+        imageSize: { width: image.naturalWidth, height: image.naturalHeight },
+        points: detection.landmarks.positions,
+        laplacianVariance: lapSquaredTotal / lapCount - lapMean * lapMean,
+        meanBrightness: brightnessTotal / gray.length
+      };
+    }
+
+    function renderQualityFailure(quality) {
+      const primary = quality.issues[0];
+      $("qualityLevel").textContent = "建议重拍";
+      $("qualityIssue").textContent = primary.message;
+      $("qualityAction").textContent = `怎么拍：${primary.action}`;
+      const other = quality.issues.slice(1).map((item) => item.message).join("、") || "无其他明显问题";
+      $("qualityMetrics").textContent = `其他提示：${other}。倾斜 ${quality.metrics.roll}°，面部宽度占图像 ${Math.round(quality.metrics.faceRatio * 100)}%，亮度 ${quality.metrics.meanBrightness}。阈值为本工具的启发式解释带。`;
+      $("qualityCard").classList.remove("hidden");
     }
 
     function calculateFeatures(points) {
