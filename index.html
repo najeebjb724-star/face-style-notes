@@ -186,6 +186,7 @@
     .primary-btn, .secondary-btn { width: 100%; min-height: 3.2rem; border-radius: 999px; font-weight: 850; cursor: pointer; transition: transform .18s ease, box-shadow .18s ease; }
     .primary-btn { border: 0; background: var(--ink); color: #fff; box-shadow: 0 10px 24px rgba(62,39,35,.18); }
     .secondary-btn { border: 1px solid var(--sand); background: transparent; color: var(--ink); }
+    .text-btn { width: 100%; margin-top: .45rem; padding: .7rem; border: 0; background: transparent; color: var(--rose-dark); font-size: .76rem; font-weight: 850; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
     .primary-btn:hover, .secondary-btn:hover { transform: translateY(-1px); }
     .primary-btn:disabled { opacity: .55; cursor: wait; transform: none; }
     button:focus-visible, label:focus-visible { outline: 3px solid rgba(229,152,155,.38); outline-offset: 3px; }
@@ -236,6 +237,7 @@
         <p id="qualityAction" class="quality-action"></p>
         <details class="quality-details"><summary>查看其他提示与检测数据</summary><div id="qualityMetrics"></div></details>
         <button id="retakeButton" class="secondary-btn" type="button">重新选择照片</button>
+        <button id="useAnywayButton" class="text-btn" type="button">仍用这张照片分析</button>
       </section>
     </section>
 
@@ -439,6 +441,24 @@
         };
       }
 
+      function overridePhotoQuality(quality) {
+        return { ...quality, accepted: true, level: "low", overridden: true };
+      }
+
+      const confidenceRank = { low: 0, medium: 1, high: 2 };
+      const capConfidence = (value, cap) => confidenceRank[value] > confidenceRank[cap] ? cap : value;
+
+      function capMeasurementConfidence(value, cap) {
+        if (Array.isArray(value)) return value.map((item) => capMeasurementConfidence(item, cap));
+        if (!value || typeof value !== "object") return value;
+        const next = { ...value };
+        if (next.confidence) next.confidence = capConfidence(next.confidence, cap);
+        Object.keys(next).forEach((key) => {
+          if (key !== "confidence") next[key] = capMeasurementConfidence(next[key], cap);
+        });
+        return next;
+      }
+
       function inferQuestionnaire(answers = {}) {
         const skinMap = { tight: "dry", comfortable: "normal", tzone: "combination", allOver: "oily" };
         const required = ["postCleanse", "reactivity", "primaryGoal", "dailyMinutes", "hairMaintenance", "monthlyBudget"];
@@ -544,7 +564,7 @@
         });
       }
 
-      function computeMeasurements(points, qualityLevel = "high") {
+      function computeMeasurements(points, qualityLevel = "high", confidenceCap = null) {
         const faceWidth = distance(points[0], points[16]);
         const visibleLength = Math.abs(points[8].y - points[27].y);
         const estimatedFaceLength = visibleLength * 1.8;
@@ -569,7 +589,7 @@
         const eyeAspectRight = safeDivide((distance(points[43], points[47]) + distance(points[44], points[46])) / 2, rightEyeWidth, 0);
         const canthalTilt = (angleDegrees(points[36], points[39]) + angleDegrees(points[42], points[45])) / 2;
         const browTilt = (angleDegrees(points[17], points[21]) + angleDegrees(points[22], points[26])) / 2;
-        return {
+        const result = {
           faceWidth: round(faceWidth, 2),
           faceLengthWidth: metric("face_length_width", safeDivide(estimatedFaceLength, faceWidth, 0), "ratio", { label: "估算脸长宽比", referenceType: "产品启发式解释带" }),
           cheekFaceWidth: metric("cheek_face_width", safeDivide(distance(points[2], points[14]), faceWidth, 0), "ratio", { label: "颧区/面宽" }),
@@ -597,6 +617,7 @@
           courts: ["upper", "middle", "lower"].map((id, index) => metric(`court_${id}`, roundedCourts[index], "%", { label: ["上庭", "中庭", "下庭"][index], confidence: index === 0 ? "low" : qualityLevel, referenceType: index === 0 ? "低可信度估算" : "古典三庭视觉参照" })),
           symmetry: computeRegionalSymmetry(points, faceWidth, qualityLevel)
         };
+        return confidenceCap ? capMeasurementConfidence(result, confidenceCap) : result;
       }
 
       function conclusion({ title, value, explanation, action, evidenceType, metricIds = [], confidence = "high" }) {
@@ -669,7 +690,7 @@
         };
       }
 
-      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, inferQuestionnaire, computeMeasurements, composeReport, KNOWLEDGE_BASE };
+      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, overridePhotoQuality, capMeasurementConfidence, inferQuestionnaire, computeMeasurements, composeReport, KNOWLEDGE_BASE };
     })();
   </script>
 
@@ -677,7 +698,7 @@
     /* Face-API.js 模型地址：仅加载轻量检测器与 68 点关键点模型。 */
     const MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights";
     const $ = (id) => document.getElementById(id);
-    const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0 };
+    const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0, qualityFailureCount: 0, qualityOverride: false };
 
     const views = {
       upload: $("uploadView"),
@@ -703,6 +724,7 @@
         $("qualityCard").classList.add("hidden");
         $("fileInput").click();
       });
+      $("useAnywayButton").addEventListener("click", continueWithCurrentPhoto);
       $("questionnaireForm").addEventListener("change", (event) => {
         if (event.target.matches("input[type=radio]")) {
           state.questionnaire[event.target.name] = event.target.value;
@@ -936,13 +958,27 @@
     }
 
     function renderQualityFailure(quality) {
+      state.qualityFailureCount += 1;
       const primary = quality.issues[0];
       $("qualityLevel").textContent = "建议重拍";
       $("qualityIssue").textContent = primary.message;
       $("qualityAction").textContent = `怎么拍：${primary.action}`;
       const other = quality.issues.slice(1).map((item) => item.message).join("、") || "无其他明显问题";
       $("qualityMetrics").textContent = `其他提示：${other}。倾斜 ${quality.metrics.roll}°，面部宽度占图像 ${Math.round(quality.metrics.faceRatio * 100)}%，亮度 ${quality.metrics.meanBrightness}。阈值为本工具的启发式解释带。`;
+      $("useAnywayButton").textContent = state.qualityFailureCount > 1 ? "继续分析（结果仅供参考）" : "仍用这张照片分析";
       $("qualityCard").classList.remove("hidden");
+    }
+
+    function continueWithCurrentPhoto() {
+      if (!state.detection || !state.quality || state.quality.accepted) return;
+      state.quality = FaceStyleCore.overridePhotoQuality(state.quality);
+      state.qualityOverride = true;
+      state.measurements = FaceStyleCore.computeMeasurements(state.detection.landmarks.positions, "low", "medium");
+      $("qualityCard").classList.add("hidden");
+      state.questionIndex = 0;
+      renderQuestion();
+      showView("questionnaire");
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
     function calculateFeatures(points) {
@@ -1211,6 +1247,8 @@
       state.profile = null;
       state.report = null;
       state.questionIndex = 0;
+      state.qualityFailureCount = 0;
+      state.qualityOverride = false;
       $("fileInput").value = "";
       $("questionnaireForm").reset();
       $("qualityCard").classList.add("hidden");

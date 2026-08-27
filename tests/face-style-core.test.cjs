@@ -130,3 +130,27 @@ test("page contains required accessible views and no prohibited claims", () => {
   assert.match(html, /aria-live=/);
   assert.match(html, /prefers-reduced-motion/);
 });
+
+test("photo quality override preserves issues and marks result as reference-only", () => {
+  const core = loadCore();
+  const rejected = core.evaluatePhotoQuality({
+    ...goodSignals(),
+    points: rotate(makeFrontLandmarks(), 8)
+  });
+  const overridden = core.overridePhotoQuality(rejected);
+  assert.equal(overridden.accepted, true);
+  assert.equal(overridden.level, "low");
+  assert.equal(overridden.overridden, true);
+  assert.equal(overridden.issues[0].id, "head_roll");
+});
+
+test("override confidence never exceeds medium and angle-sensitive metrics stay low", () => {
+  const core = loadCore();
+  const result = core.computeMeasurements(makeFrontLandmarks(), "low", "medium");
+  assert.equal(result.faceLengthWidth.confidence, "medium");
+  assert.equal(result.canthalTilt.confidence, "low");
+  assert.equal(result.browTilt.confidence, "low");
+  assert.equal(result.mouthTilt.confidence, "low");
+  assert.equal(result.courts[0].confidence, "low");
+  assert.equal(result.symmetry.confidence, "low");
+});
