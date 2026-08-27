@@ -120,3 +120,13 @@ test("incomplete profile omits care and complete action plan", () => {
   assert.equal(report.carePlan, null);
   assert.equal(report.actionPlan.length, 1);
 });
+
+test("page contains required accessible views and no prohibited claims", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  ["uploadView", "analysisView", "questionnaireView", "reportView", "qualityLevel", "coreTraits", "dataGroups", "carePlan", "actionPlan", "evidenceDrawer"].forEach((id) => {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  });
+  ["美貌分", "颜值评分", "健康诊断", "性格推断", "完美比例"].forEach((phrase) => assert.equal(html.includes(phrase), false));
+  assert.match(html, /aria-live=/);
+  assert.match(html, /prefers-reduced-motion/);
+});

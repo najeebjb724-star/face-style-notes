@@ -1218,10 +1218,19 @@
       $("analysisPhoto").removeAttribute("src");
       $("reportPhoto").removeAttribute("src");
       $("reportMessage").classList.add("hidden");
+      clearRenderedReport();
       hideMessage();
       setAnalysisStep(0);
       showView("upload");
       window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function clearRenderedReport() {
+      ["coreTraits", "dataGroups", "styleAdviceGrid", "carePlanContent", "actionPlan", "sourceList", "limitations", "keywordList"].forEach((id) => {
+        $(id).replaceChildren();
+      });
+      $("carePlan").classList.remove("hidden");
+      $("evidenceDrawer").removeAttribute("open");
     }
 
     function setAnalysisStep(activeStep) {
