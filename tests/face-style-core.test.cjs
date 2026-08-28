@@ -168,6 +168,20 @@ test("challenge templates cover habits and makeup camps", () => {
   templates.forEach((item) => assert.ok(item.id && item.title && item.taskLabel));
 });
 
+test("challenge template data cannot be mutated through public APIs", () => {
+  const core = loadCore();
+  core.CHALLENGE_TEMPLATES[0].title = "已篡改";
+  core.CHALLENGE_TEMPLATES[0].photoDays[0] = 99;
+  const returned = core.getChallengeTemplates();
+  returned[0].title = "已篡改";
+  returned[0].photoDays[0] = 99;
+
+  const fresh = core.getChallengeTemplates();
+  assert.equal(fresh[0].title, "30 天身体乳习惯");
+  assert.equal(fresh[0].photoDays[0], 1);
+  assert.equal(core.createChallenge({ templateId: "body-lotion-30" }).title, "30 天身体乳习惯");
+});
+
 test("tutorial links only accept web URLs", () => {
   const core = loadCore();
   assert.equal(core.validateTutorialUrl("https://www.xiaohongshu.com/explore/1"), "https://www.xiaohongshu.com/explore/1");
