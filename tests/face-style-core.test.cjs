@@ -133,6 +133,8 @@ test("page contains required accessible views and no prohibited claims", () => {
   ["缺点", "修正", "遮丑"].forEach((phrase) => assert.equal(html.includes(phrase), false));
   assert.match(html, /aria-live=/);
   assert.match(html, /prefers-reduced-motion/);
+  assert.match(html, /qualityFailureCount\s*=\s*0/);
+  assert.match(html, /qualityOverride\s*=\s*false/);
 });
 
 test("photo quality override preserves issues and marks result as reference-only", () => {
@@ -186,4 +188,15 @@ test("overridden quality lowers readable face-shape confidence", () => {
   const core = loadCore();
   const profile = core.deriveReadableProfile(core.computeMeasurements(makeFrontLandmarks(), "low", "medium"), { level: "low", overridden: true });
   assert.equal(profile.faceShape.confidence, "low");
+});
+
+test("readable report remains traceable after quality override", () => {
+  const core = loadCore();
+  const quality = core.overridePhotoQuality(core.evaluatePhotoQuality({ ...goodSignals(), points: rotate(makeFrontLandmarks(), 8) }));
+  const measurements = core.computeMeasurements(makeFrontLandmarks(), "low", "medium");
+  const profile = core.inferQuestionnaire({ postCleanse: "tzone", reactivity: "rarely", primaryGoal: "overall", dailyMinutes: 5, hairMaintenance: "minimal", monthlyBudget: "basic" });
+  const report = core.composeReport({ quality, measurements, profile });
+  assert.equal(report.quality.overridden, true);
+  assert.ok(report.readableProfile.faceShape.metricIds.length >= 3);
+  assert.ok(report.readableProfile.memorySentence);
 });
