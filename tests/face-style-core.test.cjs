@@ -183,12 +183,13 @@ test("challenge center review hides the masthead while its view is active", () =
   assert.match(html, /document\.body\.classList\.toggle\(["']challenge-mode["'],\s*name === ["']challenge["']\)/);
 });
 
-test("challenge center review defers custom creation and persistence", () => {
+test("challenge creation provides templates and optional custom fields", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  assert.match(html, /id=["']customChallengeButton["']/);
+  ["challengeTemplateCards", "customChallengeButton", "customChallengeForm", "customChallengeTitle", "customChallengeDays", "customChallengeFrequency", "challengeReminderTime", "tutorialInputs", "deleteChallengeButton"].forEach((id) => {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  });
+  assert.match(html, /faceStyleChallengeStateV2/);
   assert.equal(html.includes("window.prompt"), false);
-  assert.equal(html.includes("createCustomChallenge"), false);
-  assert.equal(html.includes("CHALLENGE_STORAGE_KEY"), false);
 });
 
 test("challenge center review gives the sheet cancellation control a 44px target", () => {

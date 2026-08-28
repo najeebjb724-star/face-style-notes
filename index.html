@@ -269,8 +269,19 @@
     .challenge-template-card strong, .challenge-template-card small { display: block; }
     .challenge-template-card strong { font-size: .9rem; }
     .challenge-template-card small { margin-top: .3rem; color: var(--muted); font-size: .72rem; line-height: 1.45; }
+    .challenge-template-card.recommended { border-color: var(--rose-dark); box-shadow: inset 0 0 0 1px var(--rose-dark); background: rgba(229,152,155,.08); }
+    .challenge-template-card .recommendation { color: var(--rose-dark); font-weight: 800; }
     .bottom-sheet .secondary-btn { margin-top: .8rem; }
     .bottom-sheet .text-btn { min-height: 2.75rem; }
+    .challenge-form { display: grid; gap: .8rem; }
+    .challenge-form label, .tutorial-row { display: grid; gap: .35rem; color: var(--muted); font-size: .78rem; font-weight: 750; }
+    .challenge-form input, .challenge-form select { width: 100%; min-height: 2.75rem; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .7rem; background: #fff; color: var(--ink); }
+    .challenge-form input:focus, .challenge-form select:focus, .challenge-template-card:focus-visible, .icon-button:focus-visible { outline: 3px solid rgba(229,152,155,.42); outline-offset: 2px; }
+    .tutorial-inputs { display: grid; gap: .65rem; }
+    .tutorial-row { grid-template-columns: 1fr 1.25fr; align-items: end; }
+    .tutorial-row input { min-width: 0; }
+    .challenge-form-message { min-height: 1.25rem; margin: 0; color: var(--rose-dark); font-size: .76rem; line-height: 1.5; }
+    .danger-btn { margin-top: .75rem; color: #9b3e47; }
 
     @keyframes pulse { 50% { transform: scale(.72); opacity: .48; } }
     @keyframes scan { 0%,100% { transform: translateX(-50%) translateY(.35rem); opacity: .55; } 50% { transform: translateX(-50%) translateY(5.7rem); opacity: 1; } }
@@ -500,6 +511,7 @@
       <div id="todayChallenge" class="today-challenge"></div>
       <div id="challengeProgress" class="challenge-progress"></div>
       <button id="newChallengeButton" class="primary-btn" type="button">选择一个挑战</button>
+      <button id="deleteChallengeButton" class="text-btn danger-btn hidden" type="button">结束并删除当前挑战</button>
       <section id="challengeHistory" class="challenge-history" aria-label="挑战记录"></section>
     </section>
     <div id="challengeTemplateSheet" class="sheet-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="templateSheetTitle">
@@ -508,7 +520,28 @@
         <h2 id="templateSheetTitle">你想养成什么？</h2>
         <div id="challengeTemplateCards" class="challenge-template-cards"></div>
         <button id="customChallengeButton" class="secondary-btn" type="button">自定义挑战</button>
+        <form id="customChallengeForm" class="challenge-form hidden" novalidate>
+          <label>挑战名称<input id="customChallengeTitle" name="title" type="text" maxlength="30" required placeholder="例如：晚间护肤打卡"></label>
+          <label>持续天数<input id="customChallengeDays" name="days" type="number" min="1" max="90" value="7" required></label>
+          <label>完成频率<select id="customChallengeFrequency" name="frequency"><option value="daily">每天</option><option value="weekly">每周</option></select></label>
+          <label>提醒时间<input id="challengeReminderTime" name="reminderTime" type="time" value="21:30"></label>
+          <div id="tutorialInputs" class="tutorial-inputs" aria-label="参考教程">
+            <div class="tutorial-row"><label>教程名称<input name="tutorialLabel" type="text" maxlength="30" placeholder="可选"></label><label>教程链接<input name="tutorialUrl" type="url" placeholder="https://"></label></div>
+            <div class="tutorial-row"><label>教程名称<input name="tutorialLabel" type="text" maxlength="30" placeholder="可选"></label><label>教程链接<input name="tutorialUrl" type="url" placeholder="https://"></label></div>
+          </div>
+          <p id="customChallengeMessage" class="challenge-form-message" aria-live="polite"></p>
+          <button class="primary-btn" type="submit">开始我的挑战</button>
+        </form>
         <button id="closeTemplateSheetButton" class="text-btn" type="button">暂不创建</button>
+      </div>
+    </div>
+    <div id="deleteChallengeSheet" class="sheet-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="deleteChallengeTitle">
+      <div class="bottom-sheet">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <h2 id="deleteChallengeTitle">删除当前挑战？</h2>
+        <p class="challenge-history">挑战进度和关联的本地对照照将一并删除，且无法恢复。</p>
+        <button id="confirmDeleteChallengeButton" class="primary-btn" type="button">确认删除</button>
+        <button id="cancelDeleteChallengeButton" class="text-btn" type="button">保留挑战</button>
       </div>
     </div>
   </main>
@@ -1068,8 +1101,9 @@
     /* Face-API.js 模型地址：仅加载轻量检测器与 68 点关键点模型。 */
     const MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights";
     const ACTION_STORAGE_KEY = "faceStyleActionStateV1";
+    const CHALLENGE_STORAGE_KEY = "faceStyleChallengeStateV2";
     const $ = (id) => document.getElementById(id);
-    const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0, qualityFailureCount: 0, qualityOverride: false, actionState: null, challenge: null, challengeReturnView: "upload", challengeReturnFocus: null, templateSheetTrigger: null };
+    const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0, qualityFailureCount: 0, qualityOverride: false, actionState: null, challengeState: null, challengeReturnView: "upload", challengeReturnFocus: null, templateSheetTrigger: null, deleteSheetTrigger: null, recommendedTemplateId: "" };
 
     const views = {
       upload: $("uploadView"),
@@ -1083,6 +1117,7 @@
 
     function init() {
       state.actionState = loadActionState();
+      state.challengeState = loadChallengeState();
       bindEvents();
       loadModels();
     }
@@ -1096,9 +1131,11 @@
       $("closeChallengeButton").addEventListener("click", closeChallengeCenter);
       $("newChallengeButton").addEventListener("click", openTemplateSheet);
       $("closeTemplateSheetButton").addEventListener("click", closeTemplateSheet);
+      $("customChallengeButton").addEventListener("click", showCustomChallengeForm);
+      $("customChallengeForm").addEventListener("submit", submitCustomChallenge);
       $("challengeTemplateCards").addEventListener("click", (event) => {
         const button = event.target.closest("[data-template-id]");
-        if (button) createChallengeFromTemplate(button.dataset.templateId);
+        if (button) selectChallengeTemplate(button.dataset.templateId);
       });
       $("todayChallenge").addEventListener("click", (event) => {
         if (event.target.closest("[data-challenge-checkin]")) toggleTodayChallenge();
@@ -1106,8 +1143,16 @@
       $("challengeTemplateSheet").addEventListener("click", (event) => {
         if (event.target === $("challengeTemplateSheet")) closeTemplateSheet();
       });
+      $("deleteChallengeButton").addEventListener("click", openDeleteChallengeConfirmation);
+      $("confirmDeleteChallengeButton").addEventListener("click", deleteActiveChallenge);
+      $("cancelDeleteChallengeButton").addEventListener("click", closeDeleteChallengeConfirmation);
+      $("deleteChallengeSheet").addEventListener("click", (event) => {
+        if (event.target === $("deleteChallengeSheet")) closeDeleteChallengeConfirmation();
+      });
       document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape" && !$("challengeTemplateSheet").classList.contains("hidden")) closeTemplateSheet();
+        if (event.key !== "Escape") return;
+        if (!$("deleteChallengeSheet").classList.contains("hidden")) closeDeleteChallengeConfirmation();
+        else if (!$("challengeTemplateSheet").classList.contains("hidden")) closeTemplateSheet();
       });
       $("modelRetry").addEventListener("click", loadModels);
       $("retakeButton").addEventListener("click", () => {
@@ -1573,6 +1618,29 @@
       }
     }
 
+    function emptyChallengeState() {
+      return { version: 2, active: null, history: [] };
+    }
+
+    function loadChallengeState() {
+      try {
+        const value = JSON.parse(localStorage.getItem(CHALLENGE_STORAGE_KEY));
+        return value?.version === 2
+          ? { version: 2, active: value.active || null, history: Array.isArray(value.history) ? value.history : [] }
+          : emptyChallengeState();
+      } catch (_) {
+        return emptyChallengeState();
+      }
+    }
+
+    function saveChallengeState() {
+      try {
+        localStorage.setItem(CHALLENGE_STORAGE_KEY, JSON.stringify(state.challengeState));
+      } catch (_) {
+        showToast("浏览器无法长期保存，当前挑战可能在关闭页面后丢失");
+      }
+    }
+
     function openChallengeCenter(source) {
       state.challengeReturnView = source === "report" && state.report ? "report" : "upload";
       state.challengeReturnFocus = source === "report" ? $("reportChallengeButton") : $("homeChallengeButton");
@@ -1580,6 +1648,7 @@
       showView("challenge");
       window.scrollTo({ top: 0, behavior: "smooth" });
       requestAnimationFrame(() => $("closeChallengeButton").focus());
+      if (source === "report") openTemplateSheet(getRecommendedChallengeTemplateId());
     }
 
     function closeChallengeCenter() {
@@ -1588,45 +1657,138 @@
       state.challengeReturnFocus?.focus();
     }
 
-    function openTemplateSheet() {
+    function getRecommendedChallengeTemplateId() {
+      if (state.profile?.primaryGoal === "makeup") return "makeup-3-in-7";
+      if (state.profile?.primaryGoal === "skin") return "sunscreen-21";
+      return "";
+    }
+
+    function openTemplateSheet(recommendedTemplateId = "") {
       state.templateSheetTrigger = document.activeElement;
+      state.recommendedTemplateId = recommendedTemplateId;
+      showTemplateOptions();
       $("challengeTemplateSheet").classList.remove("hidden");
       $("challengeTemplateCards").innerHTML = FaceStyleCore.getChallengeTemplates().map((item) => {
         const type = item.kind === "habit" ? "习惯养成" : "妆容练习";
         const photo = item.photoDays.length ? `第 ${item.photoDays.join(" / ")} 天拍照` : "不要求拍照";
-        return `<button class="challenge-template-card" type="button" data-template-id="${escapeHtml(item.id)}"><strong>${escapeHtml(item.title)}</strong><small>${item.durationDays} 天 · ${type} · ${photo}</small></button>`;
+        const recommended = item.id === state.recommendedTemplateId;
+        return `<button class="challenge-template-card${recommended ? " recommended" : ""}" type="button" data-template-id="${escapeHtml(item.id)}"><strong>${escapeHtml(item.title)}</strong><small>${item.durationDays} 天 · ${type} · ${photo}${recommended ? '<span class="recommendation">根据本次报告推荐</span>' : ""}</small></button>`;
       }).join("");
       requestAnimationFrame(() => $("challengeTemplateCards").querySelector("button")?.focus());
+    }
+
+    function showTemplateOptions() {
+      $("challengeTemplateCards").classList.remove("hidden");
+      $("customChallengeButton").classList.remove("hidden");
+      $("customChallengeForm").classList.add("hidden");
+      $("customChallengeMessage").textContent = "";
+    }
+
+    function showCustomChallengeForm() {
+      $("challengeTemplateCards").classList.add("hidden");
+      $("customChallengeButton").classList.add("hidden");
+      $("customChallengeForm").classList.remove("hidden");
+      $("templateSheetTitle").textContent = "自定义你的挑战";
+      requestAnimationFrame(() => $("customChallengeTitle").focus());
     }
 
     function closeTemplateSheet(returnFocus = true) {
       const sheet = $("challengeTemplateSheet");
       if (sheet.classList.contains("hidden")) return;
       sheet.classList.add("hidden");
+      $("templateSheetTitle").textContent = "你想养成什么？";
+      showTemplateOptions();
       if (returnFocus) state.templateSheetTrigger?.focus();
       state.templateSheetTrigger = null;
+      state.recommendedTemplateId = "";
     }
 
-    function createChallengeFromTemplate(templateId) {
-      state.challenge = FaceStyleCore.createChallenge({ templateId }, new Date());
+    function startChallenge(input) {
+      if (state.challengeState.active?.status === "active") {
+        showToast("请先完成或结束当前挑战");
+        return false;
+      }
+      state.challengeState.active = FaceStyleCore.createChallenge(input, new Date());
+      saveChallengeState();
       closeTemplateSheet(false);
       renderChallengeCenter();
       showToast("挑战已开始，今天就做第一步");
+      return true;
+    }
+
+    function selectChallengeTemplate(id) {
+      startChallenge({ templateId: id });
+    }
+
+    function submitCustomChallenge(event) {
+      event.preventDefault();
+      const title = $("customChallengeTitle").value.trim();
+      const durationDays = Number($("customChallengeDays").value);
+      const tutorialLabels = [...document.querySelectorAll("#tutorialInputs [name=tutorialLabel]")];
+      const tutorialUrls = [...document.querySelectorAll("#tutorialInputs [name=tutorialUrl]")];
+      if (!title || !Number.isInteger(durationDays) || durationDays < 1 || durationDays > 90) {
+        $("customChallengeMessage").textContent = "请填写挑战名称和 1–90 天的持续时间。";
+        return;
+      }
+      const tutorials = [];
+      for (let index = 0; index < tutorialUrls.length; index += 1) {
+        const url = tutorialUrls[index].value.trim();
+        const label = tutorialLabels[index].value.trim();
+        if (url && !FaceStyleCore.validateTutorialUrl(url)) {
+          $("customChallengeMessage").textContent = "教程链接请填写完整的 http 或 https 地址。";
+          return;
+        }
+        if (url) tutorials.push({ label: label || "参考教程", url });
+      }
+      startChallenge({ templateId: "custom", title, durationDays, frequency: $("customChallengeFrequency").value, reminderTime: $("challengeReminderTime").value, tutorials });
+    }
+
+    function openDeleteChallengeConfirmation() {
+      if (!state.challengeState.active) return;
+      state.deleteSheetTrigger = document.activeElement;
+      $("deleteChallengeSheet").classList.remove("hidden");
+      requestAnimationFrame(() => $("cancelDeleteChallengeButton").focus());
+    }
+
+    function closeDeleteChallengeConfirmation(returnFocus = true) {
+      const sheet = $("deleteChallengeSheet");
+      if (sheet.classList.contains("hidden")) return;
+      sheet.classList.add("hidden");
+      if (returnFocus) state.deleteSheetTrigger?.focus();
+      state.deleteSheetTrigger = null;
+    }
+
+    function deleteActiveChallenge() {
+      const challenge = state.challengeState.active;
+      if (!challenge) return;
+      if ($("deleteChallengeSheet").classList.contains("hidden")) {
+        openDeleteChallengeConfirmation();
+        return;
+      }
+      if (typeof window.deleteChallengePhotos === "function") window.deleteChallengePhotos(challenge.id);
+      state.challengeState.active = null;
+      saveChallengeState();
+      closeDeleteChallengeConfirmation(false);
+      renderChallengeCenter();
+      showToast("当前挑战已删除");
     }
 
     function toggleTodayChallenge() {
-      if (!state.challenge) return;
-      state.challenge = FaceStyleCore.toggleChallengeCheckIn(state.challenge, localDateString());
+      const challenge = state.challengeState.active;
+      if (!challenge) return;
+      state.challengeState.active = FaceStyleCore.toggleChallengeCheckIn(challenge, localDateString());
+      saveChallengeState();
       renderChallengeCenter();
     }
 
     function renderChallengeCenter() {
-      const challenge = state.challenge;
+      const challenge = state.challengeState.active;
       if (!challenge) {
         $("todayChallenge").innerHTML = `<span class="eyebrow">TODAY</span><h3>从一件小事开始</h3><p>选一个 7 或 30 天挑战，把变美的下一步变得清楚、轻松。</p>`;
         $("challengeProgress").replaceChildren();
         $("challengeHistory").innerHTML = "<p>挑战开始后，每天只需要完成一件事。</p>";
         $("newChallengeButton").textContent = "选择一个挑战";
+        $("deleteChallengeButton").classList.add("hidden");
         return;
       }
       const today = localDateString();
@@ -1642,11 +1804,17 @@
       const photoDays = Array.isArray(challenge.photoDays) ? challenge.photoDays.filter(Number.isFinite).join(" / ") : "";
       $("challengeHistory").innerHTML = `<p>从 ${escapeHtml(challenge.startedAt)} 开始 · ${photoDays ? `第 ${photoDays} 天留一张对照照` : "按自己的节奏记录"}</p>`;
       $("newChallengeButton").textContent = "换一个挑战";
+      $("deleteChallengeButton").classList.remove("hidden");
     }
 
     window.openChallengeCenter = openChallengeCenter;
     window.closeChallengeCenter = closeChallengeCenter;
     window.renderChallengeCenter = renderChallengeCenter;
+    window.loadChallengeState = loadChallengeState;
+    window.saveChallengeState = saveChallengeState;
+    window.selectChallengeTemplate = selectChallengeTemplate;
+    window.submitCustomChallenge = submitCustomChallenge;
+    window.deleteActiveChallenge = deleteActiveChallenge;
 
     function selectActionCard(actionId) {
       if (!state.report?.actionCards.some((item) => item.id === actionId)) return;
