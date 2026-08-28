@@ -126,7 +126,11 @@ test("page contains required accessible views and no prohibited claims", () => {
   ["uploadView", "analysisView", "questionnaireView", "reportView", "qualityLevel", "coreTraits", "dataGroups", "carePlan", "actionPlan", "evidenceDrawer"].forEach((id) => {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   });
+  ["qualityBanner", "memorySentence", "terminologyGrid", "strengthList", "attentionDirection", "monthlyFocus"].forEach((id) => {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  });
   ["美貌分", "颜值评分", "健康诊断", "性格推断", "完美比例"].forEach((phrase) => assert.equal(html.includes(phrase), false));
+  ["缺点", "修正", "遮丑"].forEach((phrase) => assert.equal(html.includes(phrase), false));
   assert.match(html, /aria-live=/);
   assert.match(html, /prefers-reduced-motion/);
 });
