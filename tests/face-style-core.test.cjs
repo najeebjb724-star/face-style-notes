@@ -168,6 +168,15 @@ test("challenge templates cover habits and makeup camps", () => {
   templates.forEach((item) => assert.ok(item.id && item.title && item.taskLabel));
 });
 
+test("page exposes a mobile challenge center from home and report", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  ["challengeView", "homeChallengeButton", "reportChallengeButton", "todayChallenge", "challengeProgress", "newChallengeButton", "challengeTemplateSheet"].forEach((id) => {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  });
+  assert.match(html, /openChallengeCenter/);
+  assert.match(html, /aria-modal=["']true["']/);
+});
+
 test("challenge template data cannot be mutated through public APIs", () => {
   const core = loadCore();
   core.CHALLENGE_TEMPLATES[0].title = "已篡改";

@@ -239,11 +239,42 @@
     .toast { position: fixed; left: 50%; bottom: calc(1.25rem + env(safe-area-inset-bottom)); z-index: 20; transform: translate(-50%, 1rem); padding: .7rem 1rem; border-radius: 999px; background: var(--ink); color: #fff; font-size: .75rem; opacity: 0; pointer-events: none; transition: all .22s ease; box-shadow: 0 10px 30px rgba(62,39,35,.25); }
     .toast.show { opacity: 1; transform: translate(-50%, 0); }
     .model-retry { margin-left: auto; border: 0; padding: 0; background: none; color: var(--rose-dark); font-size: .7rem; font-weight: 800; text-decoration: underline; cursor: pointer; }
+    .home-challenge-entry { margin-top: 1rem; }
+    .challenge-view { width: min(100%, 480px); max-width: 480px; margin: 0 auto; padding: max(1.15rem, env(safe-area-inset-top)) 0 calc(6.5rem + env(safe-area-inset-bottom)); }
+    .challenge-header { display: flex; align-items: flex-start; gap: .85rem; margin-bottom: 1.35rem; }
+    .challenge-header .eyebrow { font-size: .62rem; }
+    .challenge-header h2 { margin: .42rem 0 0; font-family: "Noto Serif SC", serif; font-size: 1.55rem; line-height: 1.2; }
+    .icon-button { display: grid; flex: none; place-items: center; width: 2.75rem; min-width: 2.75rem; min-height: 2.75rem; border: 1px solid var(--line); border-radius: 50%; background: rgba(255,255,255,.72); color: var(--ink); font-size: 1.2rem; cursor: pointer; }
+    .today-challenge { min-height: 13rem; padding: 1.2rem; border: 1px solid rgba(173,98,103,.27); border-radius: 1.25rem; background: linear-gradient(145deg, rgba(229,152,155,.18), rgba(255,255,255,.9) 65%); box-shadow: 0 1rem 2.5rem rgba(173,98,103,.1); }
+    .today-challenge .eyebrow { color: var(--rose-dark); }
+    .today-challenge h3 { margin: .7rem 0 .35rem; font-family: "Noto Serif SC", serif; font-size: 1.35rem; }
+    .today-challenge p { margin: 0; color: var(--muted); font-size: .84rem; line-height: 1.65; }
+    .today-checkin { width: 100%; min-height: 3rem; margin-top: 1rem; border: 0; border-radius: .85rem; background: var(--ink); color: #fff; font-weight: 850; cursor: pointer; }
+    .today-checkin.done { background: #6f9b7a; }
+    .challenge-progress { display: grid; grid-template-columns: repeat(3, 1fr); gap: .55rem; margin: .8rem 0 1rem; }
+    .challenge-progress article { padding: .75rem .65rem; border: 1px solid var(--line); border-radius: .85rem; background: rgba(255,255,255,.68); }
+    .challenge-progress span { display: block; color: var(--muted); font-size: .67rem; }
+    .challenge-progress strong { display: block; margin-top: .22rem; font-variant-numeric: tabular-nums; font-size: 1rem; }
+    .challenge-history { margin-top: 1rem; color: var(--muted); font-size: .75rem; line-height: 1.6; }
+    .challenge-history p { margin: 0; }
+    .challenge-view > .primary-btn { position: sticky; bottom: calc(.75rem + env(safe-area-inset-bottom)); z-index: 2; min-height: 3.2rem; }
+    .sheet-backdrop { position: fixed; inset: 0; z-index: 30; display: flex; align-items: flex-end; background: rgba(62,39,35,.34); transition: opacity .2s ease; }
+    .sheet-backdrop.hidden { display: none; }
+    .bottom-sheet { width: min(100%, 480px); max-width: 480px; max-height: min(82vh, 42rem); margin: 0 auto; overflow-y: auto; padding: .7rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom)); border-radius: 1.35rem 1.35rem 0 0; background: var(--paper); box-shadow: 0 -1rem 3rem rgba(62,39,35,.18); animation: sheet-rise .24s ease both; }
+    .sheet-handle { width: 2.5rem; height: .28rem; margin: 0 auto 1rem; border-radius: 999px; background: rgba(62,39,35,.2); }
+    .bottom-sheet h2 { margin: 0 0 .85rem; font-family: "Noto Serif SC", serif; font-size: 1.3rem; }
+    .challenge-template-cards { display: grid; gap: .65rem; }
+    .challenge-template-card { width: 100%; min-height: 5.4rem; padding: .85rem .95rem; border: 1px solid var(--line); border-radius: .95rem; background: rgba(255,255,255,.75); color: var(--ink); text-align: left; cursor: pointer; }
+    .challenge-template-card strong, .challenge-template-card small { display: block; }
+    .challenge-template-card strong { font-size: .9rem; }
+    .challenge-template-card small { margin-top: .3rem; color: var(--muted); font-size: .72rem; line-height: 1.45; }
+    .bottom-sheet .secondary-btn { margin-top: .8rem; }
 
     @keyframes pulse { 50% { transform: scale(.72); opacity: .48; } }
     @keyframes scan { 0%,100% { transform: translateX(-50%) translateY(.35rem); opacity: .55; } 50% { transform: translateX(-50%) translateY(5.7rem); opacity: 1; } }
     @keyframes measure { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
     @keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    @keyframes sheet-rise { from { transform: translateY(1.5rem); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     @media (min-width: 28rem) { .report-inner { padding: 1.7rem; } .action-stack { grid-template-columns: 1.35fr 1fr; } .terminology-grid, .takeaway-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; } }
   </style>
@@ -276,6 +307,7 @@
         <span aria-hidden="true">◌</span>
         <span>照片只在你的浏览器里分析，不会上传或保存。结果是基于几何比例的风格参考，不评价美丑。</span>
       </div>
+      <div class="home-challenge-entry"><button id="homeChallengeButton" class="secondary-btn" type="button">先做一个变美挑战</button></div>
       <div id="messageBox" class="notice hidden" role="alert"></div>
       <section id="qualityCard" class="quality-card hidden" aria-live="polite">
         <div class="quality-head"><h3>照片质量检查</h3><span id="qualityLevel" class="quality-level"></span></div>
@@ -452,10 +484,31 @@
 
       <div class="action-stack">
         <button id="saveButton" class="primary-btn" type="button">保存报告图</button>
+        <button id="reportChallengeButton" class="secondary-btn" type="button">把建议变成挑战</button>
         <button id="retryButton" class="secondary-btn" type="button">重新测试</button>
       </div>
       <div id="reportMessage" class="notice hidden" role="alert"></div>
     </section>
+
+    <section id="challengeView" class="view challenge-view hidden" aria-labelledby="challengeTitle">
+      <header class="challenge-header">
+        <button id="closeChallengeButton" class="icon-button" type="button" aria-label="返回">←</button>
+        <div><span class="eyebrow">BEAUTY CHALLENGE</span><h2 id="challengeTitle">我的变美挑战</h2></div>
+      </header>
+      <div id="todayChallenge" class="today-challenge"></div>
+      <div id="challengeProgress" class="challenge-progress"></div>
+      <button id="newChallengeButton" class="primary-btn" type="button">选择一个挑战</button>
+      <section id="challengeHistory" class="challenge-history" aria-label="挑战记录"></section>
+    </section>
+    <div id="challengeTemplateSheet" class="sheet-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="templateSheetTitle">
+      <div class="bottom-sheet">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <h2 id="templateSheetTitle">你想养成什么？</h2>
+        <div id="challengeTemplateCards" class="challenge-template-cards"></div>
+        <button id="customChallengeButton" class="secondary-btn" type="button">自定义挑战</button>
+        <button id="closeTemplateSheetButton" class="text-btn" type="button">暂不创建</button>
+      </div>
+    </div>
   </main>
   <div id="toast" class="toast" role="status"></div>
 
@@ -1013,20 +1066,23 @@
     /* Face-API.js 模型地址：仅加载轻量检测器与 68 点关键点模型。 */
     const MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights";
     const ACTION_STORAGE_KEY = "faceStyleActionStateV1";
+    const CHALLENGE_STORAGE_KEY = "faceStyleChallengeV1";
     const $ = (id) => document.getElementById(id);
-    const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0, qualityFailureCount: 0, qualityOverride: false, actionState: null };
+    const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0, qualityFailureCount: 0, qualityOverride: false, actionState: null, challenge: null, challengeReturnView: "upload", challengeReturnFocus: null, templateSheetTrigger: null };
 
     const views = {
       upload: $("uploadView"),
       analysis: $("analysisView"),
       questionnaire: $("questionnaireView"),
-      report: $("reportView")
+      report: $("reportView"),
+      challenge: $("challengeView")
     };
 
     window.addEventListener("load", init);
 
     function init() {
       state.actionState = loadActionState();
+      state.challenge = loadChallenge();
       bindEvents();
       loadModels();
     }
@@ -1035,6 +1091,25 @@
       $("fileInput").addEventListener("change", (event) => handleFile(event.target.files[0]));
       $("retryButton").addEventListener("click", resetApp);
       $("saveButton").addEventListener("click", saveReport);
+      $("homeChallengeButton").addEventListener("click", () => openChallengeCenter("home"));
+      $("reportChallengeButton").addEventListener("click", () => openChallengeCenter("report"));
+      $("closeChallengeButton").addEventListener("click", closeChallengeCenter);
+      $("newChallengeButton").addEventListener("click", openTemplateSheet);
+      $("closeTemplateSheetButton").addEventListener("click", closeTemplateSheet);
+      $("challengeTemplateCards").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-template-id]");
+        if (button) createChallengeFromTemplate(button.dataset.templateId);
+      });
+      $("customChallengeButton").addEventListener("click", createCustomChallenge);
+      $("todayChallenge").addEventListener("click", (event) => {
+        if (event.target.closest("[data-challenge-checkin]")) toggleTodayChallenge();
+      });
+      $("challengeTemplateSheet").addEventListener("click", (event) => {
+        if (event.target === $("challengeTemplateSheet")) closeTemplateSheet();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !$("challengeTemplateSheet").classList.contains("hidden")) closeTemplateSheet();
+      });
       $("modelRetry").addEventListener("click", loadModels);
       $("retakeButton").addEventListener("click", () => {
         $("fileInput").value = "";
@@ -1498,6 +1573,116 @@
         showToast("当前浏览器无法长期保存，进度仅在本次打开期间有效");
       }
     }
+
+    function loadChallenge() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(CHALLENGE_STORAGE_KEY));
+        if (!saved || typeof saved !== "object" || typeof saved.id !== "string" || typeof saved.title !== "string") return null;
+        if (!FaceStyleCore.getChallengeTemplates().some((item) => item.id === saved.templateId) && saved.templateId !== "custom") return null;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(saved.startedAt) || !Number.isInteger(saved.durationDays) || saved.durationDays < 1) return null;
+        return { ...saved, checkIns: saved.checkIns && typeof saved.checkIns === "object" ? saved.checkIns : {}, tutorials: Array.isArray(saved.tutorials) ? saved.tutorials : [] };
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function saveChallenge() {
+      try {
+        localStorage.setItem(CHALLENGE_STORAGE_KEY, JSON.stringify(state.challenge));
+      } catch (_) {
+        showToast("当前浏览器无法长期保存，挑战仅在本次打开期间有效");
+      }
+    }
+
+    function openChallengeCenter(source) {
+      state.challengeReturnView = source === "report" && state.report ? "report" : "upload";
+      state.challengeReturnFocus = source === "report" ? $("reportChallengeButton") : $("homeChallengeButton");
+      renderChallengeCenter();
+      showView("challenge");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      requestAnimationFrame(() => $("closeChallengeButton").focus());
+    }
+
+    function closeChallengeCenter() {
+      closeTemplateSheet(false);
+      showView(state.challengeReturnView);
+      state.challengeReturnFocus?.focus();
+    }
+
+    function openTemplateSheet() {
+      state.templateSheetTrigger = document.activeElement;
+      $("challengeTemplateSheet").classList.remove("hidden");
+      $("challengeTemplateCards").innerHTML = FaceStyleCore.getChallengeTemplates().map((item) => {
+        const type = item.kind === "habit" ? "习惯养成" : "妆容练习";
+        const photo = item.photoDays.length ? `第 ${item.photoDays.join(" / ")} 天拍照` : "不要求拍照";
+        return `<button class="challenge-template-card" type="button" data-template-id="${escapeHtml(item.id)}"><strong>${escapeHtml(item.title)}</strong><small>${item.durationDays} 天 · ${type} · ${photo}</small></button>`;
+      }).join("");
+      requestAnimationFrame(() => $("challengeTemplateCards").querySelector("button")?.focus());
+    }
+
+    function closeTemplateSheet(returnFocus = true) {
+      const sheet = $("challengeTemplateSheet");
+      if (sheet.classList.contains("hidden")) return;
+      sheet.classList.add("hidden");
+      if (returnFocus) state.templateSheetTrigger?.focus();
+      state.templateSheetTrigger = null;
+    }
+
+    function createChallengeFromTemplate(templateId) {
+      state.challenge = FaceStyleCore.createChallenge({ templateId }, new Date());
+      saveChallenge();
+      closeTemplateSheet(false);
+      renderChallengeCenter();
+      showToast("挑战已开始，今天就做第一步");
+    }
+
+    function createCustomChallenge() {
+      const title = window.prompt("给这个挑战起一个名字", "我的变美挑战");
+      if (title === null) return;
+      const taskLabel = window.prompt("今天要做什么？", "完成一次基础护理或造型练习");
+      if (taskLabel === null) return;
+      const durationDays = Number(window.prompt("准备坚持几天？", "7"));
+      state.challenge = FaceStyleCore.createChallenge({ templateId: "custom", title, taskLabel, durationDays }, new Date());
+      saveChallenge();
+      closeTemplateSheet(false);
+      renderChallengeCenter();
+      showToast("自定义挑战已开始");
+    }
+
+    function toggleTodayChallenge() {
+      if (!state.challenge) return;
+      state.challenge = FaceStyleCore.toggleChallengeCheckIn(state.challenge, localDateString());
+      saveChallenge();
+      renderChallengeCenter();
+    }
+
+    function renderChallengeCenter() {
+      const challenge = state.challenge;
+      if (!challenge) {
+        $("todayChallenge").innerHTML = `<span class="eyebrow">TODAY</span><h3>从一件小事开始</h3><p>选一个 7 或 30 天挑战，把变美的下一步变得清楚、轻松。</p>`;
+        $("challengeProgress").replaceChildren();
+        $("challengeHistory").innerHTML = "<p>挑战开始后，每天只需要完成一件事。</p>";
+        $("newChallengeButton").textContent = "选择一个挑战";
+        return;
+      }
+      const today = localDateString();
+      const progress = FaceStyleCore.getChallengeProgress(challenge, today);
+      const checkedIn = Boolean(challenge.checkIns[today]);
+      const finished = progress.day >= progress.total;
+      $("todayChallenge").innerHTML = `<span class="eyebrow">第 ${progress.day} / ${progress.total} 天</span><h3>${escapeHtml(challenge.title)}</h3><p>今天：${escapeHtml(challenge.taskLabel)}</p><button class="today-checkin${checkedIn ? " done" : ""}" type="button" data-challenge-checkin="true" aria-pressed="${checkedIn}"${finished && !checkedIn ? " disabled" : ""}>${checkedIn ? "今天已完成 ✓" : finished ? "挑战已到期" : "完成今天这一项"}</button>`;
+      $("challengeProgress").innerHTML = [
+        ["完成", `${progress.completed} 天`],
+        ["连续", `${progress.streak} 天`],
+        ["进度", `${progress.completionRate}%`]
+      ].map(([label, value]) => `<article><span>${label}</span><strong>${value}</strong></article>`).join("");
+      const photoDays = Array.isArray(challenge.photoDays) ? challenge.photoDays.filter(Number.isFinite).join(" / ") : "";
+      $("challengeHistory").innerHTML = `<p>从 ${escapeHtml(challenge.startedAt)} 开始 · ${photoDays ? `第 ${photoDays} 天留一张对照照` : "按自己的节奏记录"}</p>`;
+      $("newChallengeButton").textContent = "换一个挑战";
+    }
+
+    window.openChallengeCenter = openChallengeCenter;
+    window.closeChallengeCenter = closeChallengeCenter;
+    window.renderChallengeCenter = renderChallengeCenter;
 
     function selectActionCard(actionId) {
       if (!state.report?.actionCards.some((item) => item.id === actionId)) return;
