@@ -38,6 +38,7 @@
     button { -webkit-tap-highlight-color: transparent; }
     .shell { width: min(100%, 32rem); margin: 0 auto; padding: 0 1.25rem 3rem; }
     .masthead { padding: 2.35rem 0 1.8rem; }
+    .challenge-mode .masthead { display: none; }
     .eyebrow {
       display: flex; align-items: center; gap: .65rem;
       color: var(--rose-dark); font-size: .7rem; font-weight: 800;
@@ -269,6 +270,7 @@
     .challenge-template-card strong { font-size: .9rem; }
     .challenge-template-card small { margin-top: .3rem; color: var(--muted); font-size: .72rem; line-height: 1.45; }
     .bottom-sheet .secondary-btn { margin-top: .8rem; }
+    .bottom-sheet .text-btn { min-height: 2.75rem; }
 
     @keyframes pulse { 50% { transform: scale(.72); opacity: .48; } }
     @keyframes scan { 0%,100% { transform: translateX(-50%) translateY(.35rem); opacity: .55; } 50% { transform: translateX(-50%) translateY(5.7rem); opacity: 1; } }
@@ -1066,7 +1068,6 @@
     /* Face-API.js 模型地址：仅加载轻量检测器与 68 点关键点模型。 */
     const MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights";
     const ACTION_STORAGE_KEY = "faceStyleActionStateV1";
-    const CHALLENGE_STORAGE_KEY = "faceStyleChallengeV1";
     const $ = (id) => document.getElementById(id);
     const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0, qualityFailureCount: 0, qualityOverride: false, actionState: null, challenge: null, challengeReturnView: "upload", challengeReturnFocus: null, templateSheetTrigger: null };
 
@@ -1082,7 +1083,6 @@
 
     function init() {
       state.actionState = loadActionState();
-      state.challenge = loadChallenge();
       bindEvents();
       loadModels();
     }
@@ -1100,7 +1100,6 @@
         const button = event.target.closest("[data-template-id]");
         if (button) createChallengeFromTemplate(button.dataset.templateId);
       });
-      $("customChallengeButton").addEventListener("click", createCustomChallenge);
       $("todayChallenge").addEventListener("click", (event) => {
         if (event.target.closest("[data-challenge-checkin]")) toggleTodayChallenge();
       });
@@ -1574,26 +1573,6 @@
       }
     }
 
-    function loadChallenge() {
-      try {
-        const saved = JSON.parse(localStorage.getItem(CHALLENGE_STORAGE_KEY));
-        if (!saved || typeof saved !== "object" || typeof saved.id !== "string" || typeof saved.title !== "string") return null;
-        if (!FaceStyleCore.getChallengeTemplates().some((item) => item.id === saved.templateId) && saved.templateId !== "custom") return null;
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(saved.startedAt) || !Number.isInteger(saved.durationDays) || saved.durationDays < 1) return null;
-        return { ...saved, checkIns: saved.checkIns && typeof saved.checkIns === "object" ? saved.checkIns : {}, tutorials: Array.isArray(saved.tutorials) ? saved.tutorials : [] };
-      } catch (_) {
-        return null;
-      }
-    }
-
-    function saveChallenge() {
-      try {
-        localStorage.setItem(CHALLENGE_STORAGE_KEY, JSON.stringify(state.challenge));
-      } catch (_) {
-        showToast("当前浏览器无法长期保存，挑战仅在本次打开期间有效");
-      }
-    }
-
     function openChallengeCenter(source) {
       state.challengeReturnView = source === "report" && state.report ? "report" : "upload";
       state.challengeReturnFocus = source === "report" ? $("reportChallengeButton") : $("homeChallengeButton");
@@ -1630,29 +1609,14 @@
 
     function createChallengeFromTemplate(templateId) {
       state.challenge = FaceStyleCore.createChallenge({ templateId }, new Date());
-      saveChallenge();
       closeTemplateSheet(false);
       renderChallengeCenter();
       showToast("挑战已开始，今天就做第一步");
     }
 
-    function createCustomChallenge() {
-      const title = window.prompt("给这个挑战起一个名字", "我的变美挑战");
-      if (title === null) return;
-      const taskLabel = window.prompt("今天要做什么？", "完成一次基础护理或造型练习");
-      if (taskLabel === null) return;
-      const durationDays = Number(window.prompt("准备坚持几天？", "7"));
-      state.challenge = FaceStyleCore.createChallenge({ templateId: "custom", title, taskLabel, durationDays }, new Date());
-      saveChallenge();
-      closeTemplateSheet(false);
-      renderChallengeCenter();
-      showToast("自定义挑战已开始");
-    }
-
     function toggleTodayChallenge() {
       if (!state.challenge) return;
       state.challenge = FaceStyleCore.toggleChallengeCheckIn(state.challenge, localDateString());
-      saveChallenge();
       renderChallengeCenter();
     }
 
@@ -1969,6 +1933,7 @@
 
     function showView(name) {
       Object.entries(views).forEach(([key, element]) => element.classList.toggle("hidden", key !== name));
+      document.body.classList.toggle("challenge-mode", name === "challenge");
     }
 
     function showMessage(text, isError = false) {

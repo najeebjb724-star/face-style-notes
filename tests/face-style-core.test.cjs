@@ -177,6 +177,25 @@ test("page exposes a mobile challenge center from home and report", () => {
   assert.match(html, /aria-modal=["']true["']/);
 });
 
+test("challenge center review hides the masthead while its view is active", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /\.challenge-mode \.masthead\s*\{\s*display:\s*none;/);
+  assert.match(html, /document\.body\.classList\.toggle\(["']challenge-mode["'],\s*name === ["']challenge["']\)/);
+});
+
+test("challenge center review defers custom creation and persistence", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /id=["']customChallengeButton["']/);
+  assert.equal(html.includes("window.prompt"), false);
+  assert.equal(html.includes("createCustomChallenge"), false);
+  assert.equal(html.includes("CHALLENGE_STORAGE_KEY"), false);
+});
+
+test("challenge center review gives the sheet cancellation control a 44px target", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /\.bottom-sheet \.text-btn\s*\{\s*min-height:\s*2\.75rem;/);
+});
+
 test("challenge template data cannot be mutated through public APIs", () => {
   const core = loadCore();
   core.CHALLENGE_TEMPLATES[0].title = "已篡改";
