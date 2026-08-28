@@ -173,6 +173,9 @@ test("page exposes a mobile challenge center from home and report", () => {
   ["challengeView", "homeChallengeButton", "reportChallengeButton", "todayChallenge", "challengeProgress", "newChallengeButton", "challengeTemplateSheet"].forEach((id) => {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   });
+  ["todayTaskTitle", "openTutorialButton", "copyTutorialButton", "checkInButton", "undoCheckInButton", "addChallengeCalendarButton"].forEach((id) => {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  });
   assert.match(html, /openChallengeCenter/);
   assert.match(html, /aria-modal=["']true["']/);
 });

@@ -250,8 +250,12 @@
     .today-challenge .eyebrow { color: var(--rose-dark); }
     .today-challenge h3 { margin: .7rem 0 .35rem; font-family: "Noto Serif SC", serif; font-size: 1.35rem; }
     .today-challenge p { margin: 0; color: var(--muted); font-size: .84rem; line-height: 1.65; }
-    .today-checkin { width: 100%; min-height: 3rem; margin-top: 1rem; border: 0; border-radius: .85rem; background: var(--ink); color: #fff; font-weight: 850; cursor: pointer; }
-    .today-checkin.done { background: #6f9b7a; }
+    .today-kicker { color: var(--rose-dark) !important; font-size: .72rem !important; font-weight: 850; }
+    .today-challenge .tutorial-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; margin-top: 1rem; }
+    .today-challenge .tutorial-actions button { min-height: 2.75rem; padding: .55rem; border: 1px solid var(--line); border-radius: .8rem; background: rgba(255,255,255,.72); color: var(--ink); font-size: .76rem; font-weight: 800; cursor: pointer; }
+    .today-challenge .primary-btn, .today-challenge .secondary-btn { margin-top: .7rem; }
+    .today-challenge .text-btn { margin-top: .25rem; }
+    .today-tutorial-url { display: block; margin-top: .55rem; overflow: hidden; color: var(--muted); font-size: .67rem; text-overflow: ellipsis; white-space: nowrap; }
     .challenge-progress { display: grid; grid-template-columns: repeat(3, 1fr); gap: .55rem; margin: .8rem 0 1rem; }
     .challenge-progress article { padding: .75rem .65rem; border: 1px solid var(--line); border-radius: .85rem; background: rgba(255,255,255,.68); }
     .challenge-progress span { display: block; color: var(--muted); font-size: .67rem; }
@@ -542,6 +546,15 @@
         <p class="challenge-history">挑战进度和关联的本地对照照将一并删除，且无法恢复。</p>
         <button id="confirmDeleteChallengeButton" class="primary-btn" type="button">确认删除</button>
         <button id="cancelDeleteChallengeButton" class="text-btn" type="button">保留挑战</button>
+      </div>
+    </div>
+    <div id="tutorialConfirmSheet" class="sheet-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="tutorialConfirmTitle">
+      <div class="bottom-sheet">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <h2 id="tutorialConfirmTitle">打开外部教程？</h2>
+        <p id="tutorialConfirmText" class="challenge-history" aria-live="polite"></p>
+        <button id="confirmTutorialButton" class="primary-btn" type="button">继续打开</button>
+        <button id="cancelTutorialButton" class="text-btn" type="button">留在挑战页</button>
       </div>
     </div>
   </main>
@@ -1103,7 +1116,7 @@
     const ACTION_STORAGE_KEY = "faceStyleActionStateV1";
     const CHALLENGE_STORAGE_KEY = "faceStyleChallengeStateV2";
     const $ = (id) => document.getElementById(id);
-    const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0, qualityFailureCount: 0, qualityOverride: false, actionState: null, challengeState: null, challengeReturnView: "upload", challengeReturnFocus: null, templateSheetTrigger: null, deleteSheetTrigger: null, recommendedTemplateId: "" };
+    const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0, qualityFailureCount: 0, qualityOverride: false, actionState: null, challengeState: null, challengeReturnView: "upload", challengeReturnFocus: null, templateSheetTrigger: null, deleteSheetTrigger: null, tutorialSheetTrigger: null, pendingTutorialUrl: "", recommendedTemplateId: "" };
 
     const views = {
       upload: $("uploadView"),
@@ -1138,7 +1151,12 @@
         if (button) selectChallengeTemplate(button.dataset.templateId);
       });
       $("todayChallenge").addEventListener("click", (event) => {
-        if (event.target.closest("[data-challenge-checkin]")) toggleTodayChallenge();
+        if (event.target.closest("#checkInButton")) completeToday();
+        else if (event.target.closest("#undoCheckInButton")) undoToday();
+        else if (event.target.closest("#openTutorialButton")) openTutorial(event.target.closest("#openTutorialButton").dataset.tutorialUrl);
+        else if (event.target.closest("#copyTutorialButton")) copyTutorial(event.target.closest("#copyTutorialButton").dataset.tutorialUrl);
+        else if (event.target.closest("[data-yesterday-checkin]")) toggleChallengeCheckInFor(event.target.closest("[data-yesterday-checkin]").dataset.yesterdayCheckin);
+        else if (event.target.closest("#addChallengeCalendarButton")) downloadChallengeCalendar();
       });
       $("challengeTemplateSheet").addEventListener("click", (event) => {
         if (event.target === $("challengeTemplateSheet")) closeTemplateSheet();
@@ -1149,9 +1167,15 @@
       $("deleteChallengeSheet").addEventListener("click", (event) => {
         if (event.target === $("deleteChallengeSheet")) closeDeleteChallengeConfirmation();
       });
+      $("confirmTutorialButton").addEventListener("click", confirmTutorialOpen);
+      $("cancelTutorialButton").addEventListener("click", closeTutorialConfirmation);
+      $("tutorialConfirmSheet").addEventListener("click", (event) => {
+        if (event.target === $("tutorialConfirmSheet")) closeTutorialConfirmation();
+      });
       document.addEventListener("keydown", (event) => {
         if (event.key !== "Escape") return;
-        if (!$("deleteChallengeSheet").classList.contains("hidden")) closeDeleteChallengeConfirmation();
+        if (!$("tutorialConfirmSheet").classList.contains("hidden")) closeTutorialConfirmation();
+        else if (!$("deleteChallengeSheet").classList.contains("hidden")) closeDeleteChallengeConfirmation();
         else if (!$("challengeTemplateSheet").classList.contains("hidden")) closeTemplateSheet();
       });
       $("modelRetry").addEventListener("click", loadModels);
@@ -1786,12 +1810,109 @@
       showToast(photoCleanupFailed ? "照片清理失败，但挑战已删除" : "当前挑战已删除");
     }
 
-    function toggleTodayChallenge() {
+    function toggleChallengeCheckInFor(date) {
       const challenge = state.challengeState.active;
       if (!challenge) return;
-      state.challengeState.active = FaceStyleCore.toggleChallengeCheckIn(challenge, localDateString());
+      state.challengeState.active = FaceStyleCore.toggleChallengeCheckIn(challenge, date);
       saveChallengeState();
       renderChallengeCenter();
+    }
+
+    function completeToday() {
+      const challenge = state.challengeState.active;
+      const today = localDateString();
+      if (!challenge || FaceStyleCore.getChallengeDay(challenge, today) < 1 || FaceStyleCore.getChallengeDay(challenge, today) > challenge.durationDays) {
+        showToast("今天不在挑战周期内");
+        return;
+      }
+      if (!challenge.checkIns[today]) toggleChallengeCheckInFor(today);
+    }
+
+    function undoToday() {
+      const challenge = state.challengeState.active;
+      const today = localDateString();
+      if (challenge?.checkIns[today]) toggleChallengeCheckInFor(today);
+    }
+
+    function getTodayTutorial(challenge, day) {
+      const tutorials = Array.isArray(challenge.tutorials) ? challenge.tutorials : [];
+      if (!tutorials.length) return null;
+      const index = challenge.frequency === "scheduled" ? (day - 1) % tutorials.length : 0;
+      return tutorials[index];
+    }
+
+    function openTutorial(url) {
+      const safeUrl = FaceStyleCore.validateTutorialUrl(url);
+      if (!safeUrl) {
+        showToast("这个教程链接不可用");
+        return;
+      }
+      const domain = new URL(safeUrl).hostname;
+      state.pendingTutorialUrl = safeUrl;
+      state.tutorialSheetTrigger = document.activeElement;
+      $("tutorialConfirmText").textContent = `将前往 ${domain} 查看教程。该页面由第三方提供。`;
+      $("tutorialConfirmSheet").classList.remove("hidden");
+      requestAnimationFrame(() => $("confirmTutorialButton").focus());
+    }
+
+    function closeTutorialConfirmation(returnFocus = true) {
+      if ($("tutorialConfirmSheet").classList.contains("hidden")) return;
+      $("tutorialConfirmSheet").classList.add("hidden");
+      state.pendingTutorialUrl = "";
+      if (returnFocus) state.tutorialSheetTrigger?.focus();
+      state.tutorialSheetTrigger = null;
+    }
+
+    async function copyTutorial(url, successMessage = "教程链接已复制") {
+      const safeUrl = FaceStyleCore.validateTutorialUrl(url);
+      if (!safeUrl) {
+        showToast("这个教程链接不可用");
+        return false;
+      }
+      try {
+        if (window.navigator?.clipboard?.writeText) await window.navigator.clipboard.writeText(safeUrl);
+        else {
+          const input = document.createElement("textarea");
+          input.value = safeUrl;
+          input.setAttribute("readonly", "");
+          input.style.position = "fixed";
+          input.style.opacity = "0";
+          document.body.append(input);
+          input.select();
+          const copied = document.execCommand("copy");
+          input.remove();
+          if (!copied) throw new Error("copy failed");
+        }
+        showToast(successMessage);
+        return true;
+      } catch (_) {
+        showToast("无法自动复制，请手动复制教程链接");
+        return false;
+      }
+    }
+
+    async function confirmTutorialOpen() {
+      const url = state.pendingTutorialUrl;
+      closeTutorialConfirmation(false);
+      if (!url) return;
+      const popup = window.open(url, "_blank", "noopener,noreferrer");
+      if (!popup) await copyTutorial(url, "未能打开新窗口，教程链接已复制");
+    }
+
+    function downloadChallengeCalendar() {
+      const challenge = state.challengeState.active;
+      if (!challenge) return;
+      const returnUrl = location.protocol === "https:" ? `${location.origin}${location.pathname}?view=challenge` : "";
+      const content = FaceStyleCore.buildChallengeCalendarText(challenge, returnUrl);
+      const objectUrl = URL.createObjectURL(new Blob(["\uFEFF", content], { type: "text/calendar;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `${challenge.title.replace(/[\\\\/:*?\"<>|]/g, "-") || "我的变美挑战"}.ics`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+      showToast(returnUrl ? "日历文件已下载" : "日历文件已下载；部署到 HTTPS 后可从日历返回挑战页");
     }
 
     function renderChallengeCenter() {
@@ -1807,8 +1928,16 @@
       const today = localDateString();
       const progress = FaceStyleCore.getChallengeProgress(challenge, today);
       const checkedIn = Boolean(challenge.checkIns[today]);
-      const finished = progress.day >= progress.total;
-      $("todayChallenge").innerHTML = `<span class="eyebrow">第 ${progress.day} / ${progress.total} 天</span><h3>${escapeHtml(challenge.title)}</h3><p>今天：${escapeHtml(challenge.taskLabel)}</p><button class="today-checkin${checkedIn ? " done" : ""}" type="button" data-challenge-checkin="true" aria-pressed="${checkedIn}"${finished && !checkedIn ? " disabled" : ""}>${checkedIn ? "今天已完成 ✓" : finished ? "挑战已到期" : "完成今天这一项"}</button>`;
+      const todayInChallenge = FaceStyleCore.getChallengeDay(challenge, today) >= 1 && FaceStyleCore.getChallengeDay(challenge, today) <= challenge.durationDays;
+      const tutorial = getTodayTutorial(challenge, progress.day);
+      const yesterday = new Date(`${today}T12:00:00`);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayDate = localDateString(yesterday);
+      const yesterdayAvailable = FaceStyleCore.getChallengeDay(challenge, yesterdayDate) >= 1 && FaceStyleCore.getChallengeDay(challenge, yesterdayDate) <= challenge.durationDays && !challenge.checkIns[yesterdayDate];
+      const tutorialActions = tutorial
+        ? `<div class="tutorial-actions"><button id="openTutorialButton" type="button" data-tutorial-url="${escapeHtml(tutorial.url)}">打开今天的教程</button><button id="copyTutorialButton" type="button" data-tutorial-url="${escapeHtml(tutorial.url)}">复制链接</button></div><span class="today-tutorial-url">${escapeHtml(tutorial.url)}</span>`
+        : "";
+      $("todayChallenge").innerHTML = `<p class="today-kicker">今天 · 第 <span id="todayDayNumber">${progress.day}</span> 天</p><h3 id="todayTaskTitle">${escapeHtml(challenge.taskLabel)}</h3><p>${escapeHtml(challenge.title)}</p>${tutorialActions}<button id="checkInButton" class="primary-btn" type="button"${todayInChallenge && !checkedIn ? "" : " disabled"}>完成今日打卡</button><button id="undoCheckInButton" class="text-btn${checkedIn ? "" : " hidden"}" type="button">撤销今天的打卡</button>${yesterdayAvailable ? `<button class="text-btn" type="button" data-yesterday-checkin="${yesterdayDate}">补记昨天</button>` : ""}<button id="addChallengeCalendarButton" class="secondary-btn" type="button">加入手机日历</button>`;
       $("challengeProgress").innerHTML = [
         ["完成", `${progress.completed} 天`],
         ["连续", `${progress.streak} 天`],
@@ -1828,6 +1957,10 @@
     window.selectChallengeTemplate = selectChallengeTemplate;
     window.submitCustomChallenge = submitCustomChallenge;
     window.deleteActiveChallenge = deleteActiveChallenge;
+    window.completeToday = completeToday;
+    window.undoToday = undoToday;
+    window.openTutorial = openTutorial;
+    window.downloadChallengeCalendar = downloadChallengeCalendar;
 
     function selectActionCard(actionId) {
       if (!state.report?.actionCards.some((item) => item.id === actionId)) return;
