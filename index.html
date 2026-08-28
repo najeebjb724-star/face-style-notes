@@ -114,11 +114,40 @@
     .care-columns { display: grid; gap: .8rem; }
     .care-columns h4 { margin: 0 0 .35rem; font-size: .78rem; }
     .care-columns ul, .limitations { margin: 0; padding-left: 1.1rem; color: var(--muted); font-size: .72rem; line-height: 1.65; }
-    .action-list { display: grid; gap: .65rem; counter-reset: actions; }
-    .action-item { display: grid; grid-template-columns: 2rem 1fr; gap: .7rem; align-items: start; padding: .8rem; border: 1px solid var(--line); border-radius: .85rem; }
-    .action-number { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; background: var(--ink); color: white; font-weight: 900; }
-    .action-item h4 { margin: .05rem 0 .2rem; font-size: .8rem; }
-    .action-item p { margin: 0; color: var(--muted); font-size: .72rem; line-height: 1.5; }
+    .action-card-grid { display: grid; gap: .75rem; }
+    .action-card { width: 100%; padding: 1rem; border: 1px solid var(--line); border-radius: 1rem; background: rgba(255,255,255,.78); color: var(--ink); text-align: left; cursor: pointer; transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease; }
+    .action-card:hover { transform: translateY(-1px); border-color: var(--sand); }
+    .action-card.selected { border-color: var(--rose-dark); box-shadow: inset 0 0 0 1px var(--rose-dark), 0 9px 24px rgba(173,98,103,.1); background: rgba(229,152,155,.08); }
+    .action-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: .7rem; }
+    .action-title { font-family: "Noto Serif SC", serif; font-size: .95rem; }
+    .action-check { flex: none; display: grid; place-items: center; width: 1.4rem; height: 1.4rem; border: 1px solid var(--line); border-radius: 50%; color: transparent; font-size: .72rem; }
+    .action-card.selected .action-check { border-color: var(--rose-dark); background: var(--rose-dark); color: #fff; }
+    .action-reason { margin: .5rem 0 .7rem; color: var(--muted); font-size: .72rem; line-height: 1.55; }
+    .action-do { margin: 0; padding: .7rem .75rem; border-radius: .75rem; background: var(--cream); font-size: .75rem; line-height: 1.6; }
+    .action-meta { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .65rem; }
+    .action-meta span { padding: .25rem .45rem; border-radius: 999px; background: rgba(212,163,115,.13); color: var(--muted); font-size: .62rem; font-weight: 750; }
+    .action-card details { margin-top: .65rem; color: var(--muted); font-size: .68rem; line-height: 1.55; }
+    .action-card details summary { color: var(--rose-dark); cursor: pointer; font-weight: 800; }
+    .action-setup { margin-top: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: 1rem; background: rgba(244,231,218,.42); }
+    .action-setup h4 { margin: 0; font-size: .82rem; }
+    .setup-copy { margin: .35rem 0 .75rem; color: var(--muted); font-size: .7rem; line-height: 1.5; }
+    .reminder-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: .45rem; }
+    .reminder-card { min-height: 4.2rem; padding: .55rem .35rem; border: 1px solid var(--line); border-radius: .75rem; background: #fff; color: var(--ink); font-size: .67rem; font-weight: 800; line-height: 1.35; cursor: pointer; }
+    .reminder-card small { display: block; margin-top: .2rem; color: var(--muted); font-size: .56rem; font-weight: 600; }
+    .reminder-card.selected { border-color: var(--rose-dark); background: rgba(229,152,155,.1); box-shadow: inset 0 0 0 1px var(--rose-dark); }
+    .time-cards { display: flex; gap: .45rem; margin-top: .65rem; }
+    .time-card { flex: 1; padding: .45rem; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--muted); font-size: .64rem; font-weight: 800; cursor: pointer; }
+    .time-card.selected { border-color: var(--rose-dark); background: var(--rose-dark); color: #fff; }
+    .milestone-list { display: grid; gap: .45rem; margin-top: .9rem; }
+    .milestone-button { display: grid; grid-template-columns: 1.35rem 1fr auto; gap: .55rem; align-items: center; width: 100%; padding: .65rem .7rem; border: 1px solid var(--line); border-radius: .75rem; background: #fff; color: var(--ink); text-align: left; cursor: pointer; }
+    .milestone-mark { display: grid; place-items: center; width: 1.25rem; height: 1.25rem; border: 1px solid var(--sand); border-radius: 50%; color: transparent; }
+    .milestone-button.done .milestone-mark { border-color: #6f9b7a; background: #6f9b7a; color: #fff; }
+    .milestone-button strong { font-size: .7rem; }
+    .milestone-button time { color: var(--muted); font-size: .6rem; }
+    .action-tools { display: grid; grid-template-columns: 1fr auto; gap: .55rem; margin-top: .85rem; }
+    .calendar-btn { min-height: 2.7rem; border: 0; border-radius: 999px; background: var(--ink); color: #fff; font-size: .72rem; font-weight: 850; cursor: pointer; }
+    .clear-action-btn { border: 0; background: transparent; color: var(--rose-dark); font-size: .66rem; font-weight: 800; text-decoration: underline; cursor: pointer; }
+    .calendar-note { margin: .65rem 0 0; color: var(--muted); font-size: .62rem; line-height: 1.5; }
     .evidence-details summary { cursor: pointer; font-size: .8rem; font-weight: 800; }
     .source-list { display: grid; gap: .45rem; margin: .8rem 0; }
     .source-list a { color: var(--rose-dark); font-size: .72rem; text-decoration: underline; text-underline-offset: 2px; }
@@ -383,8 +412,21 @@
           </section>
 
           <section class="report-section">
-            <h3 class="section-heading">30 天行动卡 <span>一次只改变一件事</span></h3>
-            <div id="actionPlan" class="action-list"></div>
+            <h3 class="section-heading">选择你的下一步 <span>系统推荐，直接选卡</span></h3>
+            <p class="question-intro">一次只选择一张。每张卡都写清原因、动作、成本和停止边界，不需要你自己制定计划。</p>
+            <div id="actionCards" class="action-card-grid"></div>
+            <div id="actionSetup" class="action-setup hidden">
+              <h4>你希望怎么提醒？</h4>
+              <p class="setup-copy">选择一种现成节奏。打卡只保存在当前浏览器，不保存照片和脸部数据。</p>
+              <div id="reminderCards" class="reminder-cards"></div>
+              <div id="timeCards" class="time-cards"></div>
+              <div id="milestoneList" class="milestone-list"></div>
+              <div class="action-tools">
+                <button id="calendarButton" class="calendar-btn" type="button">加入手机日历</button>
+                <button id="clearActionButton" class="clear-action-btn" type="button">清除进度</button>
+              </div>
+              <p id="calendarNote" class="calendar-note">网页版会下载日历文件，不会读取你的日历；是否导入由手机系统确认。</p>
+            </div>
           </section>
 
           <section class="report-section">
@@ -427,6 +469,43 @@
         Number.isFinite(numerator) && Number.isFinite(denominator) && Math.abs(denominator) > 1e-9
           ? numerator / denominator
           : fallback;
+
+      const formatCalendarDate = (value, offsetDays = 0) => {
+        const date = new Date(`${value}T12:00:00`);
+        date.setDate(date.getDate() + offsetDays);
+        return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
+      };
+
+      const escapeCalendarText = (value) => String(value).replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
+
+      function buildCalendarText(card, reminderId, startedAt, reminderTime = "21:30") {
+        if (!card || reminderId === "none") return "";
+        const stamp = `${formatCalendarDate(startedAt)}T000000Z`;
+        const time = reminderTime.replace(":", "");
+        const event = ({ suffix, offset = 0, label, repeat = "" }) => [
+          "BEGIN:VEVENT",
+          `UID:${escapeCalendarText(`${card.id}-${startedAt}-${suffix}@face-style-notes`)}`,
+          `DTSTAMP:${stamp}`,
+          `DTSTART:${formatCalendarDate(startedAt, offset)}T${time}00`,
+          `SUMMARY:${escapeCalendarText(`${label}｜${card.title}`)}`,
+          `DESCRIPTION:${escapeCalendarText(card.action)}`,
+          repeat,
+          "BEGIN:VALARM",
+          "TRIGGER:-PT0M",
+          "ACTION:DISPLAY",
+          `DESCRIPTION:${escapeCalendarText(card.title)}`,
+          "END:VALARM",
+          "END:VEVENT"
+        ].filter(Boolean).join("\r\n");
+        const events = reminderId === "weekly"
+          ? [event({ suffix: "weekly", label: "每周行动提醒", repeat: "RRULE:FREQ=WEEKLY;COUNT=4" })]
+          : [
+              event({ suffix: "day-1", label: "开始行动", offset: 0 }),
+              event({ suffix: "day-7", label: "第 7 天复盘", offset: 6 }),
+              event({ suffix: "day-30", label: "第 30 天对比", offset: 29 })
+            ];
+        return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Face Style Notes//Action Card//ZH-CN", "CALSCALE:GREGORIAN", ...events, "END:VCALENDAR", ""].join("\r\n");
+      }
 
       const averagePoint = (points, indexes) => ({
         x: indexes.reduce((sum, index) => sum + points[index].x, 0) / indexes.length,
@@ -756,11 +835,54 @@
           evidenceType: "care",
           sourceIds: ["aadBasics"]
         } : null;
-        const actionPlan = profile?.complete ? [
-          { number: 1, title: "固定基础", text: "连续 7 天只稳定清洁、保湿和白天广谱 SPF 30+ 防晒。" },
-          { number: 2, title: "只改一个造型变量", text: profile.primaryGoal === "hair" ? hairNote : eyeRule.advice },
-          { number: 3, title: "同条件复盘", text: "第 30 天在相同距离、光线和表情下拍照，只记录舒适度与执行难度。" }
-        ] : [{ number: 1, title: "先做几何对照", text: eyeRule.advice }];
+        const goalLabels = { skin: "稳定基础护理", makeup: "调整一个妆容变量", hair: "调整一个发型变量", overall: "调整一个造型变量" };
+        const styleAction = profile?.primaryGoal === "hair" ? hairNote : eyeRule.advice;
+        const styleKeyword = profile?.primaryGoal === "hair" ? `${readableProfile.faceShape.primary} 低维护 发型 对照` : `${readableProfile.fiveEyes.term} 眉形 眼线 对照`;
+        const actionCards = profile?.complete ? [
+          {
+            id: "style-focus",
+            title: goalLabels[profile.primaryGoal] || goalLabels.overall,
+            reason: `与你的“${readableProfile.faceShape.primary}倾向、${readableProfile.fiveEyes.term}”观察直接相关，先只比较一个变量。`,
+            action: styleAction,
+            duration: profile.dailyMinutes <= 5 ? "每天约 2–5 分钟" : "每次约 10–15 分钟",
+            cost: profile.monthlyBudget === "basic" ? "优先使用现有物品" : "无需立即购买新品",
+            successSignal: "你能清楚说出哪一种更协调、更容易执行。",
+            stopRule: "如果连续三次都觉得步骤负担大，就降低强度或换卡。",
+            searchKeyword: styleKeyword
+          },
+          {
+            id: "foundation",
+            title: "先稳定基础状态",
+            reason: `你的自评为“${skinLabels[profile.skinTendency]} · ${sensitivityLabels[profile.sensitivityTendency]}”，先减少变量更容易观察。`,
+            action: "连续 7 天只稳定清洁、保湿和白天广谱 SPF 30+ 防晒，不同时新增多件产品。",
+            duration: "早晚各约 3 分钟",
+            cost: "不要求新增预算",
+            successSignal: "能够稳定执行，并知道哪一步让自己更舒适。",
+            stopRule: "出现持续刺痛、红肿或皮疹时停止新增产品并咨询皮肤科医生。",
+            searchKeyword: "科学护肤 基础三件套 敏感肌 精简"
+          },
+          {
+            id: "photo-review",
+            title: "做一次同条件复盘",
+            reason: "单次照片容易受角度和光线影响，同条件记录比追求某个数字更可靠。",
+            action: "今天保存一张基线照，第 7 天和第 30 天在相同距离、光线和表情下复拍，只比较舒适度与执行难度。",
+            duration: "每次约 3 分钟",
+            cost: "零成本",
+            successSignal: "三张照片条件接近，能看出所选动作是否值得保留。",
+            stopRule: "如果拍摄条件差异明显，不做前后结论，只重新建立基线。",
+            searchKeyword: "妆前妆后 同光线 对比记录 方法"
+          }
+        ] : [{
+          id: "geometry-compare",
+          title: "先做一次几何对照",
+          reason: "问卷信息不完整，先从照片内可观察的造型变量开始。",
+          action: eyeRule.advice,
+          duration: "约 5 分钟",
+          cost: "零成本",
+          successSignal: "能分辨两种方案带来的视觉差异。",
+          stopRule: "如果照片角度不同，不比较结果。",
+          searchKeyword: "眉形 眼线 同角度 对照"
+        }];
         const sourceIds = new Set(["southernChineseCanons", "interEthnicReview", "faceApi", "photoStandard"]);
         if (carePlan) sourceIds.add("aadBasics");
         const sources = Array.from(sourceIds, (id) => ({ id, ...KNOWLEDGE_BASE.sources[id] }));
@@ -771,7 +893,7 @@
           dataGroups,
           styleAdvice,
           carePlan,
-          actionPlan,
+          actionCards,
           sources,
           limitations: [
             "结果依赖单张照片的角度、镜头距离、光线和表情。",
@@ -782,15 +904,16 @@
         };
       }
 
-      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, overridePhotoQuality, capMeasurementConfidence, inferQuestionnaire, computeMeasurements, deriveReadableProfile, composeReport, KNOWLEDGE_BASE };
+      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, overridePhotoQuality, capMeasurementConfidence, inferQuestionnaire, computeMeasurements, deriveReadableProfile, composeReport, buildCalendarText, KNOWLEDGE_BASE };
     })();
   </script>
 
   <script>
     /* Face-API.js 模型地址：仅加载轻量检测器与 68 点关键点模型。 */
     const MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights";
+    const ACTION_STORAGE_KEY = "faceStyleActionStateV1";
     const $ = (id) => document.getElementById(id);
-    const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0, qualityFailureCount: 0, qualityOverride: false };
+    const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0, qualityFailureCount: 0, qualityOverride: false, actionState: null };
 
     const views = {
       upload: $("uploadView"),
@@ -802,6 +925,7 @@
     window.addEventListener("load", init);
 
     function init() {
+      state.actionState = loadActionState();
       bindEvents();
       loadModels();
     }
@@ -825,6 +949,24 @@
       });
       $("questionBack").addEventListener("click", () => moveQuestion(-1));
       $("questionNext").addEventListener("click", () => moveQuestion(1));
+      $("actionCards").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-action-id]");
+        if (button) selectActionCard(button.dataset.actionId);
+      });
+      $("reminderCards").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-reminder-id]");
+        if (button) selectReminder(button.dataset.reminderId);
+      });
+      $("timeCards").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-reminder-time]");
+        if (button) selectReminderTime(button.dataset.reminderTime);
+      });
+      $("milestoneList").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-milestone-id]");
+        if (button) toggleMilestone(button.dataset.milestoneId);
+      });
+      $("calendarButton").addEventListener("click", downloadCalendar);
+      $("clearActionButton").addEventListener("click", clearActionProgress);
 
       const dropZone = $("dropZone");
       ["dragenter", "dragover"].forEach((name) => dropZone.addEventListener(name, (event) => {
@@ -1226,6 +1368,155 @@
       return { labels, makeup, hair, outfit, avoid, keywords };
     }
 
+    function localDateString(date = new Date()) {
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    }
+
+    function loadActionState() {
+      const fallback = { version: 1, actionId: "", reminderId: "milestones", reminderTime: "21:30", startedAt: "", completed: [] };
+      try {
+        const saved = JSON.parse(localStorage.getItem(ACTION_STORAGE_KEY));
+        if (!saved || saved.version !== 1 || !["milestones", "weekly", "none"].includes(saved.reminderId)) return fallback;
+        return {
+          ...fallback,
+          actionId: typeof saved.actionId === "string" ? saved.actionId : "",
+          reminderId: saved.reminderId,
+          reminderTime: ["08:00", "12:30", "21:30"].includes(saved.reminderTime) ? saved.reminderTime : fallback.reminderTime,
+          startedAt: /^\d{4}-\d{2}-\d{2}$/.test(saved.startedAt) ? saved.startedAt : "",
+          completed: Array.isArray(saved.completed) ? saved.completed.filter((item) => ["day-1", "day-7", "day-30"].includes(item)) : []
+        };
+      } catch (_) {
+        return fallback;
+      }
+    }
+
+    function saveActionState() {
+      try {
+        localStorage.setItem(ACTION_STORAGE_KEY, JSON.stringify(state.actionState));
+      } catch (_) {
+        showToast("当前浏览器无法长期保存，进度仅在本次打开期间有效");
+      }
+    }
+
+    function selectActionCard(actionId) {
+      if (!state.report?.actionCards.some((item) => item.id === actionId)) return;
+      const changed = state.actionState.actionId !== actionId;
+      state.actionState = {
+        ...state.actionState,
+        actionId,
+        startedAt: changed || !state.actionState.startedAt ? localDateString() : state.actionState.startedAt,
+        completed: changed ? [] : state.actionState.completed
+      };
+      saveActionState();
+      renderActionWorkspace(state.report);
+      showToast("行动卡已选择");
+    }
+
+    function selectReminder(reminderId) {
+      if (!["milestones", "weekly", "none"].includes(reminderId) || !state.actionState.actionId) return;
+      state.actionState.reminderId = reminderId;
+      saveActionState();
+      renderActionWorkspace(state.report);
+    }
+
+    function selectReminderTime(reminderTime) {
+      if (!["08:00", "12:30", "21:30"].includes(reminderTime) || !state.actionState.actionId) return;
+      state.actionState.reminderTime = reminderTime;
+      saveActionState();
+      renderActionWorkspace(state.report);
+    }
+
+    function toggleMilestone(milestoneId) {
+      if (!["day-1", "day-7", "day-30"].includes(milestoneId) || !state.actionState.actionId) return;
+      const completed = new Set(state.actionState.completed);
+      completed.has(milestoneId) ? completed.delete(milestoneId) : completed.add(milestoneId);
+      state.actionState.completed = Array.from(completed);
+      saveActionState();
+      renderActionWorkspace(state.report);
+    }
+
+    function clearActionProgress() {
+      state.actionState = { version: 1, actionId: "", reminderId: "milestones", reminderTime: "21:30", startedAt: "", completed: [] };
+      try { localStorage.removeItem(ACTION_STORAGE_KEY); } catch (_) { /* 当前会话仍可继续 */ }
+      renderActionWorkspace(state.report);
+      showToast("行动进度已清除");
+    }
+
+    function renderKeywordGuide(selectedCard) {
+      const keywords = [
+        selectedCard?.searchKeyword || "面部比例 妆容思路 对照",
+        "科学护肤 基础三件套",
+        state.profile?.primaryGoal === "hair" ? "低维护 发型 脸侧层次" : "眼距 眉形 眼线 对照"
+      ];
+      $("keywordList").innerHTML = Array.from(new Set(keywords)).map((keyword) => `<div class="keyword-row"><span>${escapeHtml(keyword)}</span><button class="copy-btn" type="button" data-keyword="${escapeHtml(keyword)}">复制</button></div>`).join("");
+      $("keywordList").querySelectorAll(".copy-btn").forEach((button) => button.addEventListener("click", () => copyKeyword(button)));
+    }
+
+    function renderActionWorkspace(report) {
+      const selected = report.actionCards.find((item) => item.id === state.actionState.actionId) || null;
+      if (state.actionState.actionId && !selected) state.actionState = { version: 1, actionId: "", reminderId: "milestones", reminderTime: "21:30", startedAt: "", completed: [] };
+      $("actionCards").innerHTML = report.actionCards.map((item) => {
+        const isSelected = selected?.id === item.id;
+        return `<button class="action-card${isSelected ? " selected" : ""}" type="button" data-action-id="${escapeHtml(item.id)}" aria-pressed="${isSelected}">
+          <span class="action-card-top"><strong class="action-title">${escapeHtml(item.title)}</strong><span class="action-check" aria-hidden="true">✓</span></span>
+          <span class="action-reason">推荐原因：${escapeHtml(item.reason)}</span>
+          <span class="action-do"><b>具体行动：</b>${escapeHtml(item.action)}</span>
+          <span class="action-meta"><span>${escapeHtml(item.duration)}</span><span>${escapeHtml(item.cost)}</span></span>
+          <span class="action-reason"><b>观察：</b>${escapeHtml(item.successSignal)}<br><b>停止边界：</b>${escapeHtml(item.stopRule)}</span>
+        </button>`;
+      }).join("");
+      $("actionSetup").classList.toggle("hidden", !selected);
+      if (!selected) {
+        $("monthlyFocus").textContent = report.actionCards[0]?.action || "在相同条件下记录一次造型对照。";
+        $("reminderCards").replaceChildren();
+        $("timeCards").replaceChildren();
+        $("milestoneList").replaceChildren();
+        renderKeywordGuide(null);
+        return;
+      }
+      $("monthlyFocus").textContent = selected.action;
+      const reminders = [
+        { id: "milestones", title: "轻量体验", note: "第 1 / 7 / 30 天" },
+        { id: "weekly", title: "稳定执行", note: "每周一次，共 4 周" },
+        { id: "none", title: "暂不提醒", note: "只在本机打卡" }
+      ];
+      $("reminderCards").innerHTML = reminders.map((item) => `<button class="reminder-card${state.actionState.reminderId === item.id ? " selected" : ""}" type="button" data-reminder-id="${item.id}" aria-pressed="${state.actionState.reminderId === item.id}">${item.title}<small>${item.note}</small></button>`).join("");
+      const times = [{ value: "08:00", label: "早上 8:00" }, { value: "12:30", label: "中午 12:30" }, { value: "21:30", label: "晚上 21:30" }];
+      $("timeCards").innerHTML = state.actionState.reminderId === "none" ? "" : times.map((item) => `<button class="time-card${state.actionState.reminderTime === item.value ? " selected" : ""}" type="button" data-reminder-time="${item.value}" aria-pressed="${state.actionState.reminderTime === item.value}">${item.label}</button>`).join("");
+      const start = new Date(`${state.actionState.startedAt}T12:00:00`);
+      const milestones = [
+        { id: "day-1", label: "开始行动", offset: 0 },
+        { id: "day-7", label: "第 7 天复盘", offset: 6 },
+        { id: "day-30", label: "第 30 天对比", offset: 29 }
+      ];
+      $("milestoneList").innerHTML = milestones.map((item) => {
+        const date = new Date(start);
+        date.setDate(date.getDate() + item.offset);
+        const done = state.actionState.completed.includes(item.id);
+        return `<button class="milestone-button${done ? " done" : ""}" type="button" data-milestone-id="${item.id}" aria-pressed="${done}"><span class="milestone-mark" aria-hidden="true">✓</span><strong>${item.label}</strong><time>${date.getMonth() + 1}月${date.getDate()}日</time></button>`;
+      }).join("");
+      $("calendarButton").classList.toggle("hidden", state.actionState.reminderId === "none");
+      $("calendarButton").textContent = state.actionState.reminderId === "weekly" ? "加入每周提醒" : "加入 3 个关键提醒";
+      $("calendarNote").textContent = state.actionState.reminderId === "none" ? "已选择不提醒；三个关键节点仍可在本机打卡。" : "网页版会下载日历文件，不会读取你的日历；是否导入由手机系统确认。";
+      renderKeywordGuide(selected);
+    }
+
+    function downloadCalendar() {
+      const card = state.report?.actionCards.find((item) => item.id === state.actionState.actionId);
+      const content = FaceStyleCore.buildCalendarText(card, state.actionState.reminderId, state.actionState.startedAt, state.actionState.reminderTime);
+      if (!content) {
+        showToast("请先选择行动卡和提醒方式");
+        return;
+      }
+      const url = URL.createObjectURL(new Blob(["\uFEFF", content], { type: "text/calendar;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `行动提醒-${state.actionState.startedAt}.ics`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast("日历文件已生成，请选择系统日历导入");
+    }
+
     function renderReport(report, photo) {
       const readable = report.readableProfile;
       const terminology = [
@@ -1241,7 +1532,7 @@
       $("terminologyGrid").innerHTML = terminology.map(([label, value]) => `<article class="term-card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
       $("strengthList").innerHTML = readable.strengths.map((item) => `<p>${escapeHtml(item)}</p>`).join("");
       $("attentionDirection").innerHTML = readable.attention.map((item) => `<p>${escapeHtml(item)}</p>`).join("");
-      $("monthlyFocus").textContent = report.actionPlan[1]?.text || report.actionPlan[0]?.text || "在相同条件下记录一次造型对照。";
+      $("monthlyFocus").textContent = report.actionCards[0]?.action || "在相同条件下记录一次造型对照。";
       if (report.quality.overridden || report.quality.level === "low") {
         $("qualityBanner").textContent = `参考级照片：${report.quality.issues.map((item) => item.message).join("、")}。部分数据已降低置信度。`;
         $("qualityBanner").classList.remove("hidden");
@@ -1280,14 +1571,9 @@
         $("carePlan").classList.add("hidden");
       }
 
-      $("actionPlan").innerHTML = report.actionPlan.map((item) => `
-        <article class="action-item"><span class="action-number">${item.number}</span><div><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.text)}</p></div></article>`).join("");
+      renderActionWorkspace(report);
       $("sourceList").innerHTML = report.sources.map((source) => `<a href="${source.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title)} · ${source.type}</a>`).join("");
       $("limitations").innerHTML = report.limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
-
-      const keywords = ["科学护肤 基础三件套", "面部比例 妆容思路", state.profile?.primaryGoal === "hair" ? "低维护 发型 脸侧层次" : "眼距 眉形 眼线 对照"];
-      $("keywordList").innerHTML = keywords.map((keyword) => `<div class="keyword-row"><span>${escapeHtml(keyword)}</span><button class="copy-btn" type="button" data-keyword="${escapeHtml(keyword)}">复制</button></div>`).join("");
-      $("keywordList").querySelectorAll(".copy-btn").forEach((button) => button.addEventListener("click", () => copyKeyword(button)));
     }
 
     function renderMetric(item) {
@@ -1375,9 +1661,10 @@
     }
 
     function clearRenderedReport() {
-      ["memorySentence", "terminologyGrid", "strengthList", "attentionDirection", "monthlyFocus", "coreTraits", "dataGroups", "styleAdviceGrid", "carePlanContent", "actionPlan", "sourceList", "limitations", "keywordList"].forEach((id) => {
+      ["memorySentence", "terminologyGrid", "strengthList", "attentionDirection", "monthlyFocus", "coreTraits", "dataGroups", "styleAdviceGrid", "carePlanContent", "actionCards", "reminderCards", "timeCards", "milestoneList", "sourceList", "limitations", "keywordList"].forEach((id) => {
         $(id).replaceChildren();
       });
+      $("actionSetup").classList.add("hidden");
       $("qualityBanner").textContent = "";
       $("qualityBanner").classList.add("hidden");
       $("carePlan").classList.remove("hidden");

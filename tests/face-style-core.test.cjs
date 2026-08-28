@@ -103,27 +103,32 @@ test("asymmetry confidence is reduced for medium quality", () => {
   assert.match(result.symmetry.note, /拍摄角度/);
 });
 
-test("report conclusions are traceable and action plan has three items", () => {
+test("report conclusions are traceable and complete profile gets three action cards", () => {
   const core = loadCore();
   const quality = { accepted: true, level: "high", issues: [], metrics: {} };
   const measurements = core.computeMeasurements(makeFrontLandmarks(), "high");
   const profile = core.inferQuestionnaire({ postCleanse: "tzone", reactivity: "rarely", primaryGoal: "makeup", dailyMinutes: 15, hairMaintenance: "light", monthlyBudget: "moderate" });
   const report = core.composeReport({ quality, measurements, profile });
-  assert.equal(report.actionPlan.length, 3);
+  assert.equal(report.actionCards.length, 3);
+  assert.equal(new Set(report.actionCards.map((item) => item.id)).size, 3);
+  report.actionCards.forEach((item) => {
+    ["title", "reason", "action", "duration", "cost", "successSignal", "stopRule", "searchKeyword"].forEach((key) => assert.ok(item[key], `${item.id}.${key} must be present`));
+  });
   assert.ok(report.coreTraits.every((item) => item.evidenceType && item.metricIds.length));
   assert.ok(report.sources.some((source) => source.id === "southernChineseCanons"));
 });
 
-test("incomplete profile omits care and complete action plan", () => {
+test("incomplete profile omits care and keeps one safe action card", () => {
   const core = loadCore();
   const report = core.composeReport({ quality: { accepted: true, level: "high" }, measurements: core.computeMeasurements(makeFrontLandmarks(), "high"), profile: core.inferQuestionnaire({ postCleanse: "tight" }) });
   assert.equal(report.carePlan, null);
-  assert.equal(report.actionPlan.length, 1);
+  assert.equal(report.actionCards.length, 1);
+  assert.equal(report.actionCards[0].id, "geometry-compare");
 });
 
 test("page contains required accessible views and no prohibited claims", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  ["uploadView", "analysisView", "questionnaireView", "reportView", "qualityLevel", "coreTraits", "dataGroups", "carePlan", "actionPlan", "evidenceDrawer"].forEach((id) => {
+  ["uploadView", "analysisView", "questionnaireView", "reportView", "qualityLevel", "coreTraits", "dataGroups", "carePlan", "actionCards", "reminderCards", "timeCards", "milestoneList", "calendarButton", "clearActionButton", "evidenceDrawer"].forEach((id) => {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   });
   ["qualityBanner", "memorySentence", "terminologyGrid", "strengthList", "attentionDirection", "monthlyFocus"].forEach((id) => {
@@ -135,6 +140,23 @@ test("page contains required accessible views and no prohibited claims", () => {
   assert.match(html, /prefers-reduced-motion/);
   assert.match(html, /qualityFailureCount\s*=\s*0/);
   assert.match(html, /qualityOverride\s*=\s*false/);
+  assert.match(html, /faceStyleActionStateV1/);
+  assert.match(html, /selectActionCard/);
+  assert.match(html, /selectReminder/);
+  assert.match(html, /selectReminderTime/);
+  assert.match(html, /toggleMilestone/);
+});
+
+test("calendar helper builds milestone and weekly ICS variants", () => {
+  const core = loadCore();
+  const card = { id: "style-focus", title: "调整一个造型变量", action: "比较两种眉形。" };
+  const milestones = core.buildCalendarText(card, "milestones", "2026-08-28");
+  assert.match(milestones, /BEGIN:VCALENDAR/);
+  assert.match(milestones, /调整一个造型变量/);
+  assert.equal((milestones.match(/BEGIN:VEVENT/g) || []).length, 3);
+  const weekly = core.buildCalendarText(card, "weekly", "2026-08-28");
+  assert.match(weekly, /RRULE:FREQ=WEEKLY;COUNT=4/);
+  assert.equal((weekly.match(/BEGIN:VEVENT/g) || []).length, 1);
 });
 
 test("photo quality override preserves issues and marks result as reference-only", () => {
