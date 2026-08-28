@@ -235,6 +235,20 @@ test("challenge ICS only emits an HTTPS return URL", () => {
   assert.doesNotMatch(ics, /URL:http:\/\/example\.app/);
 });
 
+test("challenge ICS normalizes CRLF and CR in descriptions", () => {
+  const core = loadCore();
+  const challenge = core.createChallenge({
+    templateId: "custom",
+    title: "自定义挑战",
+    taskLabel: "第一行\r\n第二行\r第三行",
+    tutorials: [{ label: "教程\r\n标题\r续", url: "https://example.com/tutorial" }]
+  }, new Date("2026-08-28T08:00:00"));
+  const ics = core.buildChallengeCalendarText(challenge, "https://example.app/?view=challenge");
+  const description = ics.slice(ics.indexOf("DESCRIPTION:"), ics.indexOf("\r\nRRULE:"));
+  assert.equal(description.includes("\r"), false);
+  assert.match(description, /第一行\\n第二行\\n第三行\\n教程\\n标题\\n续/);
+});
+
 test("photo quality override preserves issues and marks result as reference-only", () => {
   const core = loadCore();
   const rejected = core.evaluatePhotoQuality({

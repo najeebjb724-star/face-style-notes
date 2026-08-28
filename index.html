@@ -476,7 +476,7 @@
         return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
       };
 
-      const escapeCalendarText = (value) => String(value).replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
+      const escapeCalendarText = (value) => String(value).replace(/\\/g, "\\\\").replace(/\r\n|\r|\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
 
       const CHALLENGE_TEMPLATES = Object.freeze([
         { id: "body-lotion-30", kind: "habit", title: "30 天身体乳习惯", durationDays: 30, frequency: "daily", taskLabel: "今天涂身体乳", photoDays: [1, 30], tutorialSlots: 0 },
