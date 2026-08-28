@@ -487,7 +487,7 @@
         { id: "brow-makeup-7", kind: "training", title: "7 天眉妆练习", durationDays: 7, frequency: "daily", taskLabel: "完成今天的眉妆练习", photoDays: [1, 7], tutorialSlots: 3 }
       ].map((item) => Object.freeze({ ...item, photoDays: Object.freeze([...item.photoDays]) })));
 
-      function localCalendarDate(date) {
+      function localCalendarDate(date = new Date()) {
         return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
       }
 
@@ -526,6 +526,57 @@
           status: "active",
           createdAt: now.toISOString()
         };
+      }
+
+      function getChallengeDay(challenge, date = localCalendarDate()) {
+        const start = new Date(`${challenge.startedAt}T12:00:00`);
+        const current = new Date(`${date}T12:00:00`);
+        return Math.floor((current - start) / 86400000) + 1;
+      }
+
+      function toggleChallengeCheckIn(challenge, date = localCalendarDate()) {
+        const day = getChallengeDay(challenge, date);
+        if (day < 1 || day > challenge.durationDays) return challenge;
+        const checkIns = { ...challenge.checkIns };
+        if (checkIns[date]) delete checkIns[date];
+        else checkIns[date] = { completedAt: new Date().toISOString() };
+        return { ...challenge, checkIns };
+      }
+
+      function getChallengeProgress(challenge, date = localCalendarDate()) {
+        const day = Math.min(challenge.durationDays, Math.max(1, getChallengeDay(challenge, date)));
+        const completedDates = Object.keys(challenge.checkIns).sort();
+        let streak = 0;
+        const cursor = new Date(`${date}T12:00:00`);
+        while (challenge.checkIns[localCalendarDate(cursor)]) {
+          streak += 1;
+          cursor.setDate(cursor.getDate() - 1);
+        }
+        const completed = completedDates.length;
+        return { day, total: challenge.durationDays, completed, completionRate: Math.round(completed / challenge.durationDays * 100), streak, isComplete: day >= challenge.durationDays && completed > 0 };
+      }
+
+      function buildChallengeCalendarText(challenge, pageUrl) {
+        const returnUrl = validateTutorialUrl(pageUrl);
+        const challengeUrl = returnUrl.startsWith("https:") ? returnUrl : "";
+        const tutorialLines = challenge.tutorials.map((item) => `${item.label}: ${item.url}`);
+        const description = [challenge.taskLabel, ...tutorialLines].join("\n");
+        const frequency = challenge.frequency === "weekly"
+          ? "RRULE:FREQ=WEEKLY;COUNT=4"
+          : `RRULE:FREQ=DAILY;COUNT=${challenge.durationDays}`;
+        const time = challenge.reminderTime.replace(":", "");
+        const event = [
+          "BEGIN:VEVENT",
+          `UID:${escapeCalendarText(`${challenge.id}@face-style-notes`)}`,
+          `DTSTAMP:${formatCalendarDate(challenge.startedAt)}T000000Z`,
+          `DTSTART:${formatCalendarDate(challenge.startedAt)}T${time}00`,
+          `SUMMARY:${escapeCalendarText(challenge.title)}`,
+          `DESCRIPTION:${escapeCalendarText(description)}`,
+          frequency,
+          challengeUrl ? `URL:${challengeUrl}` : "",
+          "END:VEVENT"
+        ].filter(Boolean).join("\r\n");
+        return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Face Style Notes//Challenge//ZH-CN", "CALSCALE:GREGORIAN", event, "END:VCALENDAR", ""].join("\r\n");
       }
 
       function buildCalendarText(card, reminderId, startedAt, reminderTime = "21:30") {
@@ -954,7 +1005,7 @@
         };
       }
 
-      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, overridePhotoQuality, capMeasurementConfidence, inferQuestionnaire, computeMeasurements, deriveReadableProfile, composeReport, buildCalendarText, CHALLENGE_TEMPLATES, getChallengeTemplates, validateTutorialUrl, createChallenge, KNOWLEDGE_BASE };
+      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, overridePhotoQuality, capMeasurementConfidence, inferQuestionnaire, computeMeasurements, deriveReadableProfile, composeReport, buildCalendarText, CHALLENGE_TEMPLATES, getChallengeTemplates, validateTutorialUrl, createChallenge, getChallengeDay, getChallengeProgress, toggleChallengeCheckIn, buildChallengeCalendarText, KNOWLEDGE_BASE };
     })();
   </script>
 

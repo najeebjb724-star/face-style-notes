@@ -203,6 +203,38 @@ test("createChallenge normalizes a template into one active challenge", () => {
   assert.equal(challenge.tutorials[0].url, "https://example.com/look-1");
 });
 
+test("challenge progress counts completion and current streak", () => {
+  const core = loadCore();
+  let challenge = core.createChallenge({ templateId: "body-lotion-30" }, new Date("2026-08-28T08:00:00"));
+  challenge = core.toggleChallengeCheckIn(challenge, "2026-08-28");
+  challenge = core.toggleChallengeCheckIn(challenge, "2026-08-29");
+  const progress = core.getChallengeProgress(challenge, "2026-08-29");
+  assert.equal(progress.day, 2);
+  assert.equal(progress.completed, 2);
+  assert.equal(progress.streak, 2);
+  assert.equal(progress.completionRate, 7);
+});
+
+test("challenge ICS includes task, tutorial and return URL", () => {
+  const core = loadCore();
+  const challenge = core.createChallenge({
+    templateId: "eye-makeup-7",
+    tutorials: [{ label: "眼妆教程", url: "https://example.com/tutorial" }]
+  }, new Date("2026-08-28T08:00:00"));
+  const ics = core.buildChallengeCalendarText(challenge, "https://example.app/?view=challenge");
+  assert.match(ics, /BEGIN:VCALENDAR/);
+  assert.match(ics, /RRULE:FREQ=DAILY;COUNT=7/);
+  assert.match(ics, /URL:https:\/\/example\.app\/\?view=challenge/);
+  assert.match(ics, /https:\/\/example\.com\/tutorial/);
+});
+
+test("challenge ICS only emits an HTTPS return URL", () => {
+  const core = loadCore();
+  const challenge = core.createChallenge({ templateId: "eye-makeup-7" }, new Date("2026-08-28T08:00:00"));
+  const ics = core.buildChallengeCalendarText(challenge, "http://example.app/?view=challenge");
+  assert.doesNotMatch(ics, /URL:http:\/\/example\.app/);
+});
+
 test("photo quality override preserves issues and marks result as reference-only", () => {
   const core = loadCore();
   const rejected = core.evaluatePhotoQuality({
