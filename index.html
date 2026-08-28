@@ -478,6 +478,56 @@
 
       const escapeCalendarText = (value) => String(value).replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
 
+      const CHALLENGE_TEMPLATES = [
+        { id: "body-lotion-30", kind: "habit", title: "30 天身体乳习惯", durationDays: 30, frequency: "daily", taskLabel: "今天涂身体乳", photoDays: [1, 30], tutorialSlots: 0 },
+        { id: "sunscreen-21", kind: "habit", title: "21 天每日防晒", durationDays: 21, frequency: "daily", taskLabel: "今天完成防晒", photoDays: [1, 21], tutorialSlots: 0 },
+        { id: "clean-tools-4", kind: "habit", title: "4 周清洁化妆工具", durationDays: 28, frequency: "weekly", taskLabel: "本周清洁化妆工具", photoDays: [], tutorialSlots: 0 },
+        { id: "makeup-3-in-7", kind: "training", title: "7 天学会 3 个完整妆容", durationDays: 7, frequency: "scheduled", taskLabel: "完成今天的妆容练习", photoDays: [1, 7], tutorialSlots: 3 },
+        { id: "eye-makeup-7", kind: "training", title: "7 天眼妆练习", durationDays: 7, frequency: "daily", taskLabel: "完成今天的眼妆练习", photoDays: [1, 7], tutorialSlots: 3 },
+        { id: "brow-makeup-7", kind: "training", title: "7 天眉妆练习", durationDays: 7, frequency: "daily", taskLabel: "完成今天的眉妆练习", photoDays: [1, 7], tutorialSlots: 3 }
+      ];
+
+      function localCalendarDate(date) {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      }
+
+      function getChallengeTemplates() {
+        return CHALLENGE_TEMPLATES.map((item) => ({ ...item, photoDays: [...item.photoDays] }));
+      }
+
+      function validateTutorialUrl(value) {
+        try {
+          const url = new URL(String(value).trim());
+          return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+        } catch (_) {
+          return "";
+        }
+      }
+
+      function createChallenge(input, now = new Date()) {
+        const template = CHALLENGE_TEMPLATES.find((item) => item.id === input.templateId);
+        const custom = input.templateId === "custom";
+        if (!template && !custom) throw new Error("请选择一个挑战模板");
+        const durationDays = custom ? Math.min(90, Math.max(1, Number(input.durationDays) || 7)) : template.durationDays;
+        const startedAt = input.startedAt || localCalendarDate(now);
+        return {
+          version: 2,
+          id: `challenge-${now.getTime()}`,
+          templateId: input.templateId,
+          title: custom ? String(input.title || "我的变美挑战").trim().slice(0, 30) : template.title,
+          kind: custom ? "custom" : template.kind,
+          durationDays,
+          frequency: custom ? (input.frequency === "weekly" ? "weekly" : "daily") : template.frequency,
+          reminderTime: /^([01]\d|2[0-3]):[0-5]\d$/.test(input.reminderTime) ? input.reminderTime : "21:30",
+          startedAt,
+          taskLabel: custom ? String(input.taskLabel || input.title || "完成今天的挑战").trim().slice(0, 40) : template.taskLabel,
+          tutorials: (input.tutorials || []).map((item) => ({ label: String(item.label || "教程").slice(0, 30), url: validateTutorialUrl(item.url) })).filter((item) => item.url),
+          checkIns: {},
+          status: "active",
+          createdAt: now.toISOString()
+        };
+      }
+
       function buildCalendarText(card, reminderId, startedAt, reminderTime = "21:30") {
         if (!card || reminderId === "none") return "";
         const stamp = `${formatCalendarDate(startedAt)}T000000Z`;
@@ -904,7 +954,7 @@
         };
       }
 
-      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, overridePhotoQuality, capMeasurementConfidence, inferQuestionnaire, computeMeasurements, deriveReadableProfile, composeReport, buildCalendarText, KNOWLEDGE_BASE };
+      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, overridePhotoQuality, capMeasurementConfidence, inferQuestionnaire, computeMeasurements, deriveReadableProfile, composeReport, buildCalendarText, CHALLENGE_TEMPLATES, getChallengeTemplates, validateTutorialUrl, createChallenge, KNOWLEDGE_BASE };
     })();
   </script>
 

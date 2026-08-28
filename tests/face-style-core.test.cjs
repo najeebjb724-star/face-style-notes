@@ -9,7 +9,7 @@ function loadCore() {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
   const match = html.match(/<script id="face-style-core">([\s\S]*?)<\/script>/);
   assert.ok(match, "index.html must contain #face-style-core");
-  const context = { window: {}, console };
+  const context = { window: {}, console, URL };
   vm.createContext(context);
   vm.runInContext(match[1], context, { filename: "face-style-core.js" });
   return context.window.FaceStyleCore;
@@ -157,6 +157,36 @@ test("calendar helper builds milestone and weekly ICS variants", () => {
   const weekly = core.buildCalendarText(card, "weekly", "2026-08-28");
   assert.match(weekly, /RRULE:FREQ=WEEKLY;COUNT=4/);
   assert.equal((weekly.match(/BEGIN:VEVENT/g) || []).length, 1);
+});
+
+test("challenge templates cover habits and makeup camps", () => {
+  const templates = loadCore().getChallengeTemplates();
+  assert.ok(templates.some((item) => item.kind === "habit"));
+  assert.ok(templates.some((item) => item.kind === "training"));
+  assert.ok(templates.some((item) => item.id === "body-lotion-30" && item.durationDays === 30));
+  assert.ok(templates.some((item) => item.id === "makeup-3-in-7" && item.durationDays === 7));
+  templates.forEach((item) => assert.ok(item.id && item.title && item.taskLabel));
+});
+
+test("tutorial links only accept web URLs", () => {
+  const core = loadCore();
+  assert.equal(core.validateTutorialUrl("https://www.xiaohongshu.com/explore/1"), "https://www.xiaohongshu.com/explore/1");
+  assert.equal(core.validateTutorialUrl("http://example.com/a"), "http://example.com/a");
+  assert.equal(core.validateTutorialUrl("javascript:alert(1)"), "");
+  assert.equal(core.validateTutorialUrl("not a url"), "");
+});
+
+test("createChallenge normalizes a template into one active challenge", () => {
+  const challenge = loadCore().createChallenge({
+    templateId: "makeup-3-in-7",
+    reminderTime: "20:30",
+    tutorials: [{ label: "第一个妆容", url: "https://example.com/look-1" }]
+  }, new Date("2026-08-28T08:00:00"));
+  assert.equal(challenge.kind, "training");
+  assert.equal(challenge.durationDays, 7);
+  assert.equal(challenge.status, "active");
+  assert.deepEqual(Object.keys(challenge.checkIns), []);
+  assert.equal(challenge.tutorials[0].url, "https://example.com/look-1");
 });
 
 test("photo quality override preserves issues and marks result as reference-only", () => {
