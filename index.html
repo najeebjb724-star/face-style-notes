@@ -1648,7 +1648,7 @@
       showView("challenge");
       window.scrollTo({ top: 0, behavior: "smooth" });
       requestAnimationFrame(() => $("closeChallengeButton").focus());
-      if (source === "report") openTemplateSheet(getRecommendedChallengeTemplateId());
+      if (source === "report") openTemplateSheet(getRecommendedChallengeTemplateId(), $("newChallengeButton"));
     }
 
     function closeChallengeCenter() {
@@ -1663,8 +1663,8 @@
       return "";
     }
 
-    function openTemplateSheet(recommendedTemplateId = "") {
-      state.templateSheetTrigger = document.activeElement;
+    function openTemplateSheet(recommendedTemplateId = "", focusTrigger = document.activeElement) {
+      state.templateSheetTrigger = focusTrigger;
       state.recommendedTemplateId = recommendedTemplateId;
       showTemplateOptions();
       $("challengeTemplateSheet").classList.remove("hidden");
@@ -1724,23 +1724,31 @@
       event.preventDefault();
       const title = $("customChallengeTitle").value.trim();
       const durationDays = Number($("customChallengeDays").value);
+      const frequency = $("customChallengeFrequency").value;
+      const reminderTime = $("challengeReminderTime").value;
+      const [hours, minutes] = reminderTime.split(":").map(Number);
+      const validReminderTime = /^\d{2}:\d{2}$/.test(reminderTime) && hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60;
       const tutorialLabels = [...document.querySelectorAll("#tutorialInputs [name=tutorialLabel]")];
       const tutorialUrls = [...document.querySelectorAll("#tutorialInputs [name=tutorialUrl]")];
-      if (!title || !Number.isInteger(durationDays) || durationDays < 1 || durationDays > 90) {
-        $("customChallengeMessage").textContent = "请填写挑战名称和 1–90 天的持续时间。";
+      if (!title || !Number.isInteger(durationDays) || durationDays < 1 || durationDays > 90 || !["daily", "weekly"].includes(frequency) || !validReminderTime) {
+        $("customChallengeMessage").textContent = "请填写挑战名称、1–90 天的持续时间、完成频率和提醒时间。";
         return;
       }
       const tutorials = [];
       for (let index = 0; index < tutorialUrls.length; index += 1) {
         const url = tutorialUrls[index].value.trim();
         const label = tutorialLabels[index].value.trim();
+        if (Boolean(label) !== Boolean(url)) {
+          $("customChallengeMessage").textContent = "教程名称和链接需要同时填写。";
+          return;
+        }
         if (url && !FaceStyleCore.validateTutorialUrl(url)) {
           $("customChallengeMessage").textContent = "教程链接请填写完整的 http 或 https 地址。";
           return;
         }
-        if (url) tutorials.push({ label: label || "参考教程", url });
+        if (url) tutorials.push({ label, url });
       }
-      startChallenge({ templateId: "custom", title, durationDays, frequency: $("customChallengeFrequency").value, reminderTime: $("challengeReminderTime").value, tutorials });
+      startChallenge({ templateId: "custom", title, durationDays, frequency, reminderTime, tutorials });
     }
 
     function openDeleteChallengeConfirmation() {
@@ -1758,19 +1766,24 @@
       state.deleteSheetTrigger = null;
     }
 
-    function deleteActiveChallenge() {
+    async function deleteActiveChallenge() {
       const challenge = state.challengeState.active;
       if (!challenge) return;
       if ($("deleteChallengeSheet").classList.contains("hidden")) {
         openDeleteChallengeConfirmation();
         return;
       }
-      if (typeof window.deleteChallengePhotos === "function") window.deleteChallengePhotos(challenge.id);
+      let photoCleanupFailed = false;
+      try {
+        if (typeof window.deleteChallengePhotos === "function") await Promise.resolve(window.deleteChallengePhotos(challenge.id));
+      } catch (_) {
+        photoCleanupFailed = true;
+      }
       state.challengeState.active = null;
       saveChallengeState();
       closeDeleteChallengeConfirmation(false);
       renderChallengeCenter();
-      showToast("当前挑战已删除");
+      showToast(photoCleanupFailed ? "照片清理失败，但挑战已删除" : "当前挑战已删除");
     }
 
     function toggleTodayChallenge() {

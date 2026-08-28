@@ -192,6 +192,29 @@ test("challenge creation provides templates and optional custom fields", () => {
   assert.equal(html.includes("window.prompt"), false);
 });
 
+test("custom challenge submission validates reminder time and complete tutorial pairs", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /const reminderTime = \$\("challengeReminderTime"\)\.value;/);
+  assert.match(html, /!validReminderTime/);
+  assert.match(html, /教程名称和链接需要同时填写/);
+  assert.doesNotMatch(html, /label \|\| "参考教程"/);
+});
+
+test("report challenge sheet returns focus to a visible challenge control", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /openTemplateSheet\(getRecommendedChallengeTemplateId\(\), \$\("newChallengeButton"\)\)/);
+  assert.match(html, /function openTemplateSheet\(recommendedTemplateId = "", focusTrigger = document\.activeElement\)/);
+});
+
+test("challenge deletion survives photo cleanup errors", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /async function deleteActiveChallenge\(\)/);
+  assert.match(html, /await Promise\.resolve\(window\.deleteChallengePhotos\(challenge\.id\)\)/);
+  assert.match(html, /catch \(_\) \{\s*photoCleanupFailed = true;/);
+  assert.match(html, /state\.challengeState\.active = null;/);
+  assert.match(html, /照片清理失败，但挑战已删除/);
+});
+
 test("challenge center review gives the sheet cancellation control a 44px target", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
   assert.match(html, /\.bottom-sheet \.text-btn\s*\{\s*min-height:\s*2\.75rem;/);
