@@ -216,7 +216,15 @@ test("daily check-in rerenders restore focus to a visible daily control", () => 
   assert.match(html, /function focusTodayControl\(preferredId = ["']checkInButton["']\)/);
   assert.match(html, /toggleChallengeCheckInFor\(today, ["']undoCheckInButton["']\)/);
   assert.match(html, /toggleChallengeCheckInFor\(today, ["']checkInButton["']\)/);
-  assert.match(html, /toggleChallengeCheckInFor\([^,]+, ["']checkInButton["']\)/);
+  assert.match(html, /toggleChallengeCheckInFor\([^,]+, ["']undoCheckInButton["']\)/);
+  assert.match(html, /\[preferred, \$\(["']undoCheckInButton["']\), \$\(["']yesterdayCheckInButton["']\), \$\(["']newChallengeButton["']\)\]/);
+  assert.match(html, /\.find\(\(item\) => item && !item\.classList\.contains\(["']hidden["']\) && !item\.disabled\)/);
+});
+
+test("tutorial actions are omitted outside the active challenge date range", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /const tutorial = todayInChallenge \? getTodayTutorial\(challenge, progress\.day\) : null;/);
+  assert.match(html, /id=["']yesterdayCheckInButton["']/);
 });
 
 test("custom challenge submission validates reminder time and complete tutorial pairs", () => {

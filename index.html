@@ -1163,7 +1163,7 @@
         else if (event.target.closest("#undoCheckInButton")) undoToday();
         else if (event.target.closest("#openTutorialButton")) openTutorial(event.target.closest("#openTutorialButton").dataset.tutorialUrl);
         else if (event.target.closest("#copyTutorialButton")) copyTutorial(event.target.closest("#copyTutorialButton").dataset.tutorialUrl);
-        else if (event.target.closest("[data-yesterday-checkin]")) toggleChallengeCheckInFor(event.target.closest("[data-yesterday-checkin]").dataset.yesterdayCheckin, "checkInButton");
+        else if (event.target.closest("[data-yesterday-checkin]")) toggleChallengeCheckInFor(event.target.closest("[data-yesterday-checkin]").dataset.yesterdayCheckin, "undoCheckInButton");
         else if (event.target.closest("#addChallengeCalendarButton")) downloadChallengeCalendar();
       });
       $("challengeTemplateSheet").addEventListener("click", (event) => {
@@ -1862,8 +1862,8 @@
     function focusTodayControl(preferredId = "checkInButton") {
       requestAnimationFrame(() => {
         const preferred = $(preferredId);
-        const fallback = $("checkInButton");
-        const target = preferred && !preferred.classList.contains("hidden") && !preferred.disabled ? preferred : fallback;
+        const controls = [preferred, $("undoCheckInButton"), $("yesterdayCheckInButton"), $("newChallengeButton")];
+        const target = controls.find((item) => item && !item.classList.contains("hidden") && !item.disabled);
         target?.focus();
       });
     }
@@ -1990,7 +1990,7 @@
       const challengeDay = FaceStyleCore.getChallengeDay(challenge, today);
       const todayInChallenge = challengeDay >= 1 && challengeDay <= challenge.durationDays;
       const checkInLabel = challengeDay > challenge.durationDays ? "挑战已结束" : challengeDay < 1 ? "挑战尚未开始" : "完成今日打卡";
-      const tutorial = getTodayTutorial(challenge, progress.day);
+      const tutorial = todayInChallenge ? getTodayTutorial(challenge, progress.day) : null;
       const yesterday = new Date(`${today}T12:00:00`);
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayDate = localDateString(yesterday);
@@ -1998,7 +1998,7 @@
       const tutorialActions = tutorial
         ? `<div class="tutorial-actions"><button id="openTutorialButton" type="button" data-tutorial-url="${escapeHtml(tutorial.url)}">打开今天的教程</button><button id="copyTutorialButton" type="button" data-tutorial-url="${escapeHtml(tutorial.url)}">复制链接</button></div><span class="today-tutorial-url">${escapeHtml(tutorial.url)}</span>`
         : "";
-      $("todayChallenge").innerHTML = `<p class="today-kicker">今天 · 第 <span id="todayDayNumber">${progress.day}</span> 天</p><h3 id="todayTaskTitle">${escapeHtml(challenge.taskLabel)}</h3><p>${escapeHtml(challenge.title)}</p>${tutorialActions}<button id="checkInButton" class="primary-btn" type="button"${todayInChallenge && !checkedIn ? "" : " disabled"}>${checkedIn ? "今天已完成" : checkInLabel}</button><button id="undoCheckInButton" class="text-btn${checkedIn ? "" : " hidden"}" type="button">撤销今天的打卡</button>${yesterdayAvailable ? `<button class="text-btn" type="button" data-yesterday-checkin="${yesterdayDate}">补记昨天</button>` : ""}<button id="addChallengeCalendarButton" class="secondary-btn" type="button">加入手机日历</button>`;
+      $("todayChallenge").innerHTML = `<p class="today-kicker">今天 · 第 <span id="todayDayNumber">${progress.day}</span> 天</p><h3 id="todayTaskTitle">${escapeHtml(challenge.taskLabel)}</h3><p>${escapeHtml(challenge.title)}</p>${tutorialActions}<button id="checkInButton" class="primary-btn" type="button"${todayInChallenge && !checkedIn ? "" : " disabled"}>${checkedIn ? "今天已完成" : checkInLabel}</button><button id="undoCheckInButton" class="text-btn${checkedIn ? "" : " hidden"}" type="button">撤销今天的打卡</button>${yesterdayAvailable ? `<button id="yesterdayCheckInButton" class="text-btn" type="button" data-yesterday-checkin="${yesterdayDate}">补记昨天</button>` : ""}<button id="addChallengeCalendarButton" class="secondary-btn" type="button">加入手机日历</button>`;
       $("challengeProgress").innerHTML = [
         ["完成", `${progress.completed} 天`],
         ["连续", `${progress.streak} 天`],
