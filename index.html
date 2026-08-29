@@ -2120,16 +2120,17 @@
         openDeleteChallengeConfirmation();
         return;
       }
-      let photoCleanupFailed = false;
-      try {
-        if (typeof window.deleteChallengePhotos === "function") await Promise.resolve(window.deleteChallengePhotos(challenge.id));
-      } catch (_) {
-        photoCleanupFailed = true;
-      }
+      const challengeId = challenge.id;
       state.challengeState.active = null;
       saveChallengeState();
       closeDeleteChallengeConfirmation(false);
       renderChallengeCenter();
+      let photoCleanupFailed = false;
+      try {
+        if (typeof window.deleteChallengePhotos === "function") await Promise.resolve(window.deleteChallengePhotos(challengeId));
+      } catch (_) {
+        photoCleanupFailed = true;
+      }
       showToast(photoCleanupFailed ? "照片清理失败，但挑战已删除" : "当前挑战已删除");
     }
 

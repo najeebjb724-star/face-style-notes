@@ -244,10 +244,26 @@ test("report challenge sheet returns focus to a visible challenge control", () =
 test("challenge deletion survives photo cleanup errors", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
   assert.match(html, /async function deleteActiveChallenge\(\)/);
-  assert.match(html, /await Promise\.resolve\(window\.deleteChallengePhotos\(challenge\.id\)\)/);
+  assert.match(html, /const challengeId = challenge\.id;/);
+  assert.match(html, /await Promise\.resolve\(window\.deleteChallengePhotos\(challengeId\)\)/);
   assert.match(html, /catch \(_\) \{\s*photoCleanupFailed = true;/);
   assert.match(html, /state\.challengeState\.active = null;/);
   assert.match(html, /照片清理失败，但挑战已删除/);
+});
+
+test("challenge deletion clears active state before awaiting photo cleanup", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  const match = html.match(/async function deleteActiveChallenge\(\) \{([\s\S]*?)\n    function focusTodayControl/);
+  assert.ok(match, "deleteActiveChallenge body must be present");
+  const body = match[1];
+  const challengeId = body.indexOf("const challengeId = challenge.id;");
+  const clearActive = body.indexOf("state.challengeState.active = null;");
+  const persist = body.indexOf("saveChallengeState();");
+  const render = body.indexOf("renderChallengeCenter();");
+  const cleanup = body.indexOf("await Promise.resolve(window.deleteChallengePhotos(challengeId))");
+  assert.ok(challengeId >= 0 && clearActive > challengeId);
+  assert.ok(persist > clearActive && render > persist);
+  assert.ok(cleanup > render);
 });
 
 test("challenge photos expose start, end, comparison, and deletion controls", () => {
