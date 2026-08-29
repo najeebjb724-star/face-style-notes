@@ -281,6 +281,24 @@ test("challenge photos expose start, end, comparison, and deletion controls", ()
   assert.match(html, /当前浏览器仍可打卡，但不能保存对比照片/);
 });
 
+test("completed challenges expose a downloadable, privacy-safe poster", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  ["completionCard", "downloadPosterButton", "posterCanvas"].forEach((id) => {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  });
+  assert.match(html, /<div id=["']completionComparisonPreview["'] class=["']completion-comparison["']/);
+  assert.match(html, /async function buildChallengePoster\(challenge, progress, photos\)/);
+  assert.match(html, /async function downloadChallengePoster\(\)/);
+  assert.match(html, /canvas\.width\s*=\s*1080/);
+  assert.match(html, /canvas\.height\s*=\s*1440/);
+  assert.match(html, /canvas\.toBlob\([\s\S]*?["']image\/png["']/);
+  assert.match(html, /我完成了 \$\{progress\.completed\}\/\$\{progress\.total\} 天挑战/);
+  assert.match(html, /state\.challengeState\.history\.push\(/);
+  assert.match(html, /URL\.revokeObjectURL\(objectUrl\)/);
+  assert.match(html, /Promise\.allSettled\(\[loadChallengePosterImage\(start\), loadChallengePosterImage\(end\)\]\)/);
+  assert.doesNotMatch(html, /poster[^\n]*?(?:肤色|脸型|五官|变白|治疗|疗效)/i);
+});
+
 test("challenge photo capture only saves for the still-active challenge", () => {
   const core = loadCore();
   const active = { id: "challenge-1", status: "active" };
