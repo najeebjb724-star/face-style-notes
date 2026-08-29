@@ -260,6 +260,19 @@
     .challenge-progress article { padding: .75rem .65rem; border: 1px solid var(--line); border-radius: .85rem; background: rgba(255,255,255,.68); }
     .challenge-progress span { display: block; color: var(--muted); font-size: .67rem; }
     .challenge-progress strong { display: block; margin-top: .22rem; font-variant-numeric: tabular-nums; font-size: 1rem; }
+    .comparison-view { margin-top: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: 1.1rem; background: rgba(255,255,255,.68); }
+    .comparison-view h3 { margin: 0; font-family: "Noto Serif SC", serif; font-size: 1rem; }
+    .comparison-view > p { margin: .38rem 0 0; color: var(--muted); font-size: .73rem; line-height: 1.55; }
+    .comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; margin-top: .8rem; }
+    .comparison-frame { position: relative; min-width: 0; aspect-ratio: 1 / 1.22; margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: .8rem; background: linear-gradient(145deg, rgba(229,152,155,.11), rgba(212,163,115,.08)); }
+    .comparison-frame img { width: 100%; height: 100%; object-fit: cover; }
+    .comparison-frame figcaption { position: absolute; right: .45rem; bottom: .45rem; padding: .22rem .45rem; border-radius: 999px; background: rgba(62,39,35,.72); color: #fff; font-size: .64rem; font-weight: 800; }
+    .comparison-placeholder { display: grid; height: 100%; place-items: center; padding: .75rem; color: var(--muted); font-size: .72rem; line-height: 1.45; text-align: center; }
+    .photo-capture-controls { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; margin-top: .75rem; }
+    .photo-capture-controls label { display: grid; min-height: 2.7rem; place-items: center; padding: .5rem; border: 1px solid var(--line); border-radius: .75rem; background: #fff; color: var(--ink); font-size: .75rem; font-weight: 800; cursor: pointer; }
+    .photo-capture-controls label:focus-within { outline: 3px solid rgba(229,152,155,.42); outline-offset: 2px; }
+    .photo-capture-controls input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; }
+    .photo-storage-note { min-height: 1.2rem; margin-top: .65rem !important; color: var(--rose-dark) !important; }
     .challenge-history { margin-top: 1rem; color: var(--muted); font-size: .75rem; line-height: 1.6; }
     .challenge-history p { margin: 0; }
     .challenge-view > .primary-btn { position: sticky; bottom: calc(.75rem + env(safe-area-inset-bottom)); z-index: 2; min-height: 3.2rem; }
@@ -514,6 +527,19 @@
       </header>
       <div id="todayChallenge" class="today-challenge"></div>
       <div id="challengeProgress" class="challenge-progress"></div>
+      <section id="comparisonView" class="comparison-view hidden" aria-labelledby="comparisonTitle">
+        <h3 id="comparisonTitle">开始与结束对照</h3>
+        <p>照片仅保存在这台设备的浏览器中，不会上传。</p>
+        <div class="comparison-grid">
+          <figure class="comparison-frame"><span id="beforePhotoPlaceholder" class="comparison-placeholder">添加开始照片后在这里查看</span><img id="beforePhoto" class="hidden" alt="挑战开始照片"><figcaption>开始</figcaption></figure>
+          <figure class="comparison-frame"><span id="afterPhotoPlaceholder" class="comparison-placeholder">添加结束照片后在这里查看</span><img id="afterPhoto" class="hidden" alt="挑战结束照片"><figcaption>结束</figcaption></figure>
+        </div>
+        <div id="photoCaptureControls" class="photo-capture-controls">
+          <label>添加开始照片<input id="startPhotoInput" type="file" accept="image/*" capture="user"></label>
+          <label>添加结束照片<input id="endPhotoInput" type="file" accept="image/*" capture="user"></label>
+        </div>
+        <p id="photoStorageNote" class="photo-storage-note" aria-live="polite"></p>
+      </section>
       <button id="newChallengeButton" class="primary-btn" type="button">选择一个挑战</button>
       <button id="deleteChallengeButton" class="text-btn danger-btn hidden" type="button">结束并删除当前挑战</button>
       <section id="challengeHistory" class="challenge-history" aria-label="挑战记录"></section>
@@ -1122,7 +1148,7 @@
     const ACTION_STORAGE_KEY = "faceStyleActionStateV1";
     const CHALLENGE_STORAGE_KEY = "faceStyleChallengeStateV2";
     const $ = (id) => document.getElementById(id);
-    const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0, qualityFailureCount: 0, qualityOverride: false, actionState: null, challengeState: null, challengeReturnView: "upload", challengeReturnFocus: null, templateSheetTrigger: null, deleteSheetTrigger: null, tutorialSheetTrigger: null, pendingTutorialUrl: "", pendingTemplateId: "", recommendedTemplateId: "" };
+    const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0, qualityFailureCount: 0, qualityOverride: false, actionState: null, challengeState: null, challengeReturnView: "upload", challengeReturnFocus: null, templateSheetTrigger: null, deleteSheetTrigger: null, tutorialSheetTrigger: null, pendingTutorialUrl: "", pendingTemplateId: "", recommendedTemplateId: "", photoStorageAvailable: null, challengePhotoUrls: { start: "", end: "" }, challengePhotoRenderToken: 0 };
 
     const views = {
       upload: $("uploadView"),
@@ -1138,12 +1164,15 @@
       state.actionState = loadActionState();
       state.challengeState = loadChallengeState();
       bindEvents();
+      configureChallengePhotoStorage();
       if (new URLSearchParams(window.location.search).get("view") === "challenge") openChallengeCenter("calendar");
       loadModels();
     }
 
     function bindEvents() {
       $("fileInput").addEventListener("change", (event) => handleFile(event.target.files[0]));
+      $("startPhotoInput").addEventListener("change", (event) => handleChallengePhotoCapture("start", event.target.files[0]));
+      $("endPhotoInput").addEventListener("change", (event) => handleChallengePhotoCapture("end", event.target.files[0]));
       $("retryButton").addEventListener("click", resetApp);
       $("saveButton").addEventListener("click", saveReport);
       $("homeChallengeButton").addEventListener("click", () => openChallengeCenter("home"));
@@ -1319,6 +1348,120 @@
         image.onerror = () => {
           URL.revokeObjectURL(objectUrl);
           reject(new Error("无法读取这张照片，请换一张重试。"));
+        };
+        image.src = objectUrl;
+      });
+    }
+
+    function openChallengePhotoDb() {
+      return new Promise((resolve, reject) => {
+        if (!window.indexedDB) {
+          reject(new Error("当前浏览器不支持本地照片存储"));
+          return;
+        }
+        const request = indexedDB.open("faceStyleChallengePhotos", 1);
+        request.onupgradeneeded = () => {
+          const database = request.result;
+          const store = database.objectStoreNames.contains("photos")
+            ? request.transaction.objectStore("photos")
+            : database.createObjectStore("photos", { keyPath: "key" });
+          if (!store.indexNames.contains("challengeId")) store.createIndex("challengeId", "challengeId", { unique: false });
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error("本地照片存储不可用"));
+        request.onblocked = () => reject(new Error("本地照片存储暂时不可用"));
+      });
+    }
+
+    function saveChallengePhoto(challengeId, slot, blob) {
+      return openChallengePhotoDb().then((database) => new Promise((resolve, reject) => {
+        const transaction = database.transaction("photos", "readwrite");
+        transaction.objectStore("photos").put({ key: `${challengeId}:${slot}`, challengeId, slot, blob, createdAt: new Date().toISOString() });
+        transaction.oncomplete = () => { database.close(); resolve(); };
+        transaction.onerror = () => { database.close(); reject(transaction.error || new Error("照片保存失败")); };
+        transaction.onabort = () => { database.close(); reject(transaction.error || new Error("照片保存失败")); };
+      }));
+    }
+
+    function getChallengePhotos(challengeId) {
+      return openChallengePhotoDb().then((database) => new Promise((resolve, reject) => {
+        const transaction = database.transaction("photos", "readonly");
+        const request = transaction.objectStore("photos").index("challengeId").getAll(challengeId);
+        request.onsuccess = () => resolve(request.result.sort((a, b) => String(a.slot).localeCompare(String(b.slot))));
+        request.onerror = () => reject(request.error || new Error("照片读取失败"));
+        transaction.oncomplete = () => database.close();
+        transaction.onabort = () => { database.close(); reject(transaction.error || new Error("照片读取失败")); };
+      }));
+    }
+
+    function deleteChallengePhotos(challengeId) {
+      return openChallengePhotoDb().then((database) => new Promise((resolve, reject) => {
+        const transaction = database.transaction("photos", "readwrite");
+        const index = transaction.objectStore("photos").index("challengeId");
+        const request = index.openCursor(challengeId);
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (cursor) {
+            cursor.delete();
+            cursor.continue();
+          }
+        };
+        request.onerror = () => reject(request.error || new Error("照片删除失败"));
+        transaction.oncomplete = () => { database.close(); resolve(); };
+        transaction.onerror = () => { database.close(); reject(transaction.error || new Error("照片删除失败")); };
+        transaction.onabort = () => { database.close(); reject(transaction.error || new Error("照片删除失败")); };
+      }));
+    }
+
+    async function compressChallengePhoto(file) {
+      if (!file || !file.type.startsWith("image/") || file.type === "image/svg+xml") throw new Error("请选择 JPG、PNG、WebP 等支持的图片文件。");
+      if (file.size > 20 * 1024 * 1024) throw new Error("照片文件过大，请选择 20MB 以内的图片。");
+
+      const drawToBlob = (source, width, height) => new Promise((resolve, reject) => {
+        const maxSide = 1280;
+        const scale = Math.min(1, maxSide / Math.max(width, height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(width * scale));
+        canvas.height = Math.max(1, Math.round(height * scale));
+        const context = canvas.getContext("2d", { alpha: false });
+        if (!context) {
+          reject(new Error("当前浏览器无法处理照片"));
+          return;
+        }
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(source, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("照片压缩失败，请换一张重试。")), "image/jpeg", 0.82);
+      });
+
+      if (typeof createImageBitmap === "function") {
+        try {
+          const bitmap = await createImageBitmap(file);
+          try {
+            return await drawToBlob(bitmap, bitmap.width, bitmap.height);
+          } finally {
+            bitmap.close?.();
+          }
+        } catch (_) {
+          // Some mobile browsers expose createImageBitmap but cannot decode every camera format.
+        }
+      }
+
+      return new Promise((resolve, reject) => {
+        const image = new Image();
+        const objectUrl = URL.createObjectURL(file);
+        image.onload = async () => {
+          try {
+            resolve(await drawToBlob(image, image.naturalWidth, image.naturalHeight));
+          } catch (error) {
+            reject(error);
+          } finally {
+            URL.revokeObjectURL(objectUrl);
+          }
+        };
+        image.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error("无法读取这张照片，请换一张 JPG、PNG 或 WebP 图片重试。"));
         };
         image.src = objectUrl;
       });
@@ -1673,6 +1816,111 @@
       }
     }
 
+    async function configureChallengePhotoStorage() {
+      try {
+        const database = await openChallengePhotoDb();
+        database.close();
+        state.photoStorageAvailable = true;
+      } catch (_) {
+        state.photoStorageAvailable = false;
+      }
+      if (state.challengeState?.active) renderChallengeCenter();
+    }
+
+    function clearChallengePhotoUrls() {
+      Object.values(state.challengePhotoUrls).forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+      state.challengePhotoUrls = { start: "", end: "" };
+    }
+
+    function showChallengePhotoStorageUnavailable() {
+      state.photoStorageAvailable = false;
+      clearChallengePhotoUrls();
+      $("beforePhoto").removeAttribute("src");
+      $("afterPhoto").removeAttribute("src");
+      $("beforePhoto").classList.add("hidden");
+      $("afterPhoto").classList.add("hidden");
+      $("beforePhotoPlaceholder").classList.remove("hidden");
+      $("afterPhotoPlaceholder").classList.remove("hidden");
+      $("photoCaptureControls").classList.add("hidden");
+      $("photoStorageNote").textContent = "当前浏览器仍可打卡，但不能保存对比照片";
+    }
+
+    async function renderChallengePhotoComparison(challenge) {
+      const token = ++state.challengePhotoRenderToken;
+      const view = $("comparisonView");
+      if (!challenge) {
+        clearChallengePhotoUrls();
+        view.classList.add("hidden");
+        return;
+      }
+      view.classList.remove("hidden");
+      $("startPhotoInput").value = "";
+      $("endPhotoInput").value = "";
+      if (state.photoStorageAvailable !== true) {
+        $("beforePhoto").classList.add("hidden");
+        $("afterPhoto").classList.add("hidden");
+        $("beforePhotoPlaceholder").classList.remove("hidden");
+        $("afterPhotoPlaceholder").classList.remove("hidden");
+        $("photoCaptureControls").classList.add("hidden");
+        $("photoStorageNote").textContent = state.photoStorageAvailable === false ? "当前浏览器仍可打卡，但不能保存对比照片" : "正在准备本地照片存储…";
+        return;
+      }
+      $("photoCaptureControls").classList.remove("hidden");
+      $("photoStorageNote").textContent = "";
+      clearChallengePhotoUrls();
+      try {
+        const photos = await getChallengePhotos(challenge.id);
+        if (token !== state.challengePhotoRenderToken || state.challengeState.active?.id !== challenge.id) return;
+        ["start", "end"].forEach((slot) => {
+          const photo = photos.find((item) => item.slot === slot);
+          const image = $(slot === "start" ? "beforePhoto" : "afterPhoto");
+          const placeholder = $(slot === "start" ? "beforePhotoPlaceholder" : "afterPhotoPlaceholder");
+          if (!photo?.blob) {
+            image.removeAttribute("src");
+            image.classList.add("hidden");
+            placeholder.classList.remove("hidden");
+            return;
+          }
+          const url = URL.createObjectURL(photo.blob);
+          state.challengePhotoUrls[slot] = url;
+          image.src = url;
+          image.classList.remove("hidden");
+          placeholder.classList.add("hidden");
+        });
+      } catch (_) {
+        if (token === state.challengePhotoRenderToken) {
+          showChallengePhotoStorageUnavailable();
+          showToast("照片无法读取，但挑战打卡不受影响");
+        }
+      }
+    }
+
+    async function handleChallengePhotoCapture(slot, file) {
+      const challenge = state.challengeState.active;
+      const input = $(slot === "start" ? "startPhotoInput" : "endPhotoInput");
+      if (!file || !challenge || state.photoStorageAvailable !== true) {
+        input.value = "";
+        return;
+      }
+      try {
+        const blob = await compressChallengePhoto(file);
+        await saveChallengePhoto(challenge.id, slot, blob);
+        if (state.challengeState.active?.id === challenge.id) {
+          await renderChallengePhotoComparison(challenge);
+          showToast(`${slot === "start" ? "开始" : "结束"}照片已保存在本机`);
+        }
+      } catch (error) {
+        showToast(error?.message || "照片无法保存，仍可继续打卡");
+        if (error?.message?.includes("保存") || error?.message?.includes("存储")) {
+          showChallengePhotoStorageUnavailable();
+        }
+      } finally {
+        input.value = "";
+      }
+    }
+
     function openChallengeCenter(source) {
       state.challengeReturnView = source === "report" && state.report ? "report" : "upload";
       state.challengeReturnFocus = source === "report" ? $("reportChallengeButton") : $("homeChallengeButton");
@@ -1976,6 +2224,7 @@
 
     function renderChallengeCenter() {
       const challenge = state.challengeState.active;
+      renderChallengePhotoComparison(challenge);
       if (!challenge) {
         $("todayChallenge").innerHTML = `<span class="eyebrow">TODAY</span><h3>从一件小事开始</h3><p>选一个 7 或 30 天挑战，把变美的下一步变得清楚、轻松。</p>`;
         $("challengeProgress").replaceChildren();
@@ -2018,6 +2267,11 @@
     window.selectChallengeTemplate = selectChallengeTemplate;
     window.submitCustomChallenge = submitCustomChallenge;
     window.deleteActiveChallenge = deleteActiveChallenge;
+    window.openChallengePhotoDb = openChallengePhotoDb;
+    window.saveChallengePhoto = saveChallengePhoto;
+    window.getChallengePhotos = getChallengePhotos;
+    window.deleteChallengePhotos = deleteChallengePhotos;
+    window.compressChallengePhoto = compressChallengePhoto;
     window.completeToday = completeToday;
     window.undoToday = undoToday;
     window.openTutorial = openTutorial;

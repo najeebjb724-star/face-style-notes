@@ -250,6 +250,21 @@ test("challenge deletion survives photo cleanup errors", () => {
   assert.match(html, /照片清理失败，但挑战已删除/);
 });
 
+test("challenge photos expose start, end, comparison, and deletion controls", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  ["startPhotoInput", "endPhotoInput", "comparisonView", "beforePhoto", "afterPhoto", "deleteChallengeButton"].forEach((id) => {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  });
+  assert.match(html, /indexedDB\.open\(["']faceStyleChallengePhotos["']/);
+  assert.match(html, /deleteChallengePhotos/);
+  ["openChallengePhotoDb", "saveChallengePhoto", "getChallengePhotos", "deleteChallengePhotos", "compressChallengePhoto"].forEach((name) => {
+    assert.match(html, new RegExp(`function ${name}`));
+  });
+  assert.match(html, /createImageBitmap/);
+  assert.match(html, /URL\.revokeObjectURL/);
+  assert.match(html, /当前浏览器仍可打卡，但不能保存对比照片/);
+});
+
 test("challenge center review gives the sheet cancellation control a 44px target", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
   assert.match(html, /\.bottom-sheet \.text-btn\s*\{\s*min-height:\s*2\.75rem;/);
