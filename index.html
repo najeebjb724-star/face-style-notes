@@ -712,6 +712,14 @@
         return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Face Style Notes//Challenge//ZH-CN", "CALSCALE:GREGORIAN", event, "END:VCALENDAR", ""].join("\r\n");
       }
 
+      function maySaveChallengePhoto(challengeId, activeChallenge) {
+        return Boolean(challengeId && activeChallenge?.id === challengeId && activeChallenge.status === "active");
+      }
+
+      function getChallengePhotoFailureScope(stage) {
+        return stage === "storage" ? "storage" : "file";
+      }
+
       function buildCalendarText(card, reminderId, startedAt, reminderTime = "21:30") {
         if (!card || reminderId === "none") return "";
         const stamp = `${formatCalendarDate(startedAt)}T000000Z`;
@@ -1138,7 +1146,7 @@
         };
       }
 
-      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, overridePhotoQuality, capMeasurementConfidence, inferQuestionnaire, computeMeasurements, deriveReadableProfile, composeReport, buildCalendarText, CHALLENGE_TEMPLATES, getChallengeTemplates, validateTutorialUrl, createChallenge, getChallengeDay, getChallengeProgress, toggleChallengeCheckIn, buildChallengeCalendarText, KNOWLEDGE_BASE };
+      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, overridePhotoQuality, capMeasurementConfidence, inferQuestionnaire, computeMeasurements, deriveReadableProfile, composeReport, buildCalendarText, CHALLENGE_TEMPLATES, getChallengeTemplates, validateTutorialUrl, createChallenge, getChallengeDay, getChallengeProgress, toggleChallengeCheckIn, buildChallengeCalendarText, maySaveChallengePhoto, getChallengePhotoFailureScope, KNOWLEDGE_BASE };
     })();
   </script>
 
@@ -1904,18 +1912,36 @@
         input.value = "";
         return;
       }
+      const challengeId = challenge.id;
+      let blob;
       try {
-        const blob = await compressChallengePhoto(file);
-        await saveChallengePhoto(challenge.id, slot, blob);
-        if (state.challengeState.active?.id === challenge.id) {
-          await renderChallengePhotoComparison(challenge);
-          showToast(`${slot === "start" ? "开始" : "结束"}照片已保存在本机`);
-        }
+        blob = await compressChallengePhoto(file);
       } catch (error) {
-        showToast(error?.message || "照片无法保存，仍可继续打卡");
-        if (error?.message?.includes("保存") || error?.message?.includes("存储")) {
+        showToast(error?.message || "照片无法处理，请换一张重试");
+        input.value = "";
+        return;
+      }
+      if (!FaceStyleCore.maySaveChallengePhoto(challengeId, state.challengeState.active)) {
+        input.value = "";
+        return;
+      }
+      try {
+        await saveChallengePhoto(challengeId, slot, blob);
+      } catch (_) {
+        if (FaceStyleCore.getChallengePhotoFailureScope("storage") === "storage") {
           showChallengePhotoStorageUnavailable();
         }
+        showToast("照片无法保存，仍可继续打卡");
+        input.value = "";
+        return;
+      }
+      if (!FaceStyleCore.maySaveChallengePhoto(challengeId, state.challengeState.active)) {
+        input.value = "";
+        return;
+      }
+      try {
+        await renderChallengePhotoComparison(state.challengeState.active);
+        showToast(`${slot === "start" ? "开始" : "结束"}照片已保存在本机`);
       } finally {
         input.value = "";
       }

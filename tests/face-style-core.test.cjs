@@ -265,6 +265,22 @@ test("challenge photos expose start, end, comparison, and deletion controls", ()
   assert.match(html, /当前浏览器仍可打卡，但不能保存对比照片/);
 });
 
+test("challenge photo capture only saves for the still-active challenge", () => {
+  const core = loadCore();
+  const active = { id: "challenge-1", status: "active" };
+  assert.equal(core.maySaveChallengePhoto("challenge-1", active), true);
+  assert.equal(core.maySaveChallengePhoto("challenge-2", active), false);
+  assert.equal(core.maySaveChallengePhoto("challenge-1", { ...active, status: "completed" }), false);
+  assert.equal(core.maySaveChallengePhoto("challenge-1", null), false);
+});
+
+test("challenge photo failures distinguish storage from file processing", () => {
+  const core = loadCore();
+  assert.equal(core.getChallengePhotoFailureScope("storage"), "storage");
+  assert.equal(core.getChallengePhotoFailureScope("file"), "file");
+  assert.equal(core.getChallengePhotoFailureScope("decode"), "file");
+});
+
 test("challenge center review gives the sheet cancellation control a 44px target", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
   assert.match(html, /\.bottom-sheet \.text-btn\s*\{\s*min-height:\s*2\.75rem;/);
