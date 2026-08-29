@@ -536,6 +536,12 @@
           <p id="customChallengeMessage" class="challenge-form-message" aria-live="polite"></p>
           <button class="primary-btn" type="submit">开始我的挑战</button>
         </form>
+        <form id="templateTutorialForm" class="challenge-form hidden" novalidate>
+          <p id="templateTutorialHint" class="challenge-history"></p>
+          <div id="templateTutorialInputs" class="tutorial-inputs" aria-label="妆容教程链接"></div>
+          <p id="templateTutorialMessage" class="challenge-form-message" aria-live="polite"></p>
+          <button class="primary-btn" type="submit">开始这个挑战</button>
+        </form>
         <button id="closeTemplateSheetButton" class="text-btn" type="button">暂不创建</button>
       </div>
     </div>
@@ -1116,7 +1122,7 @@
     const ACTION_STORAGE_KEY = "faceStyleActionStateV1";
     const CHALLENGE_STORAGE_KEY = "faceStyleChallengeStateV2";
     const $ = (id) => document.getElementById(id);
-    const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0, qualityFailureCount: 0, qualityOverride: false, actionState: null, challengeState: null, challengeReturnView: "upload", challengeReturnFocus: null, templateSheetTrigger: null, deleteSheetTrigger: null, tutorialSheetTrigger: null, pendingTutorialUrl: "", recommendedTemplateId: "" };
+    const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0, qualityFailureCount: 0, qualityOverride: false, actionState: null, challengeState: null, challengeReturnView: "upload", challengeReturnFocus: null, templateSheetTrigger: null, deleteSheetTrigger: null, tutorialSheetTrigger: null, pendingTutorialUrl: "", pendingTemplateId: "", recommendedTemplateId: "" };
 
     const views = {
       upload: $("uploadView"),
@@ -1132,6 +1138,7 @@
       state.actionState = loadActionState();
       state.challengeState = loadChallengeState();
       bindEvents();
+      if (new URLSearchParams(window.location.search).get("view") === "challenge") openChallengeCenter("calendar");
       loadModels();
     }
 
@@ -1146,6 +1153,7 @@
       $("closeTemplateSheetButton").addEventListener("click", closeTemplateSheet);
       $("customChallengeButton").addEventListener("click", showCustomChallengeForm);
       $("customChallengeForm").addEventListener("submit", submitCustomChallenge);
+      $("templateTutorialForm").addEventListener("submit", submitTemplateTutorials);
       $("challengeTemplateCards").addEventListener("click", (event) => {
         const button = event.target.closest("[data-template-id]");
         if (button) selectChallengeTemplate(button.dataset.templateId);
@@ -1155,7 +1163,7 @@
         else if (event.target.closest("#undoCheckInButton")) undoToday();
         else if (event.target.closest("#openTutorialButton")) openTutorial(event.target.closest("#openTutorialButton").dataset.tutorialUrl);
         else if (event.target.closest("#copyTutorialButton")) copyTutorial(event.target.closest("#copyTutorialButton").dataset.tutorialUrl);
-        else if (event.target.closest("[data-yesterday-checkin]")) toggleChallengeCheckInFor(event.target.closest("[data-yesterday-checkin]").dataset.yesterdayCheckin);
+        else if (event.target.closest("[data-yesterday-checkin]")) toggleChallengeCheckInFor(event.target.closest("[data-yesterday-checkin]").dataset.yesterdayCheckin, "checkInButton");
         else if (event.target.closest("#addChallengeCalendarButton")) downloadChallengeCalendar();
       });
       $("challengeTemplateSheet").addEventListener("click", (event) => {
@@ -1705,7 +1713,10 @@
       $("challengeTemplateCards").classList.remove("hidden");
       $("customChallengeButton").classList.remove("hidden");
       $("customChallengeForm").classList.add("hidden");
+      $("templateTutorialForm").classList.add("hidden");
       $("customChallengeMessage").textContent = "";
+      $("templateTutorialMessage").textContent = "";
+      state.pendingTemplateId = "";
     }
 
     function showCustomChallengeForm() {
@@ -1741,7 +1752,45 @@
     }
 
     function selectChallengeTemplate(id) {
-      startChallenge({ templateId: id });
+      const template = FaceStyleCore.getChallengeTemplates().find((item) => item.id === id);
+      if (!template) return;
+      if (template.tutorialSlots > 0) showTemplateTutorialSetup(template);
+      else startChallenge({ templateId: id });
+    }
+
+    function showTemplateTutorialSetup(template) {
+      state.pendingTemplateId = template.id;
+      $("challengeTemplateCards").classList.add("hidden");
+      $("customChallengeButton").classList.add("hidden");
+      $("customChallengeForm").classList.add("hidden");
+      $("templateTutorialForm").classList.remove("hidden");
+      $("templateSheetTitle").textContent = `${template.title}的教程`;
+      $("templateTutorialHint").textContent = `可选填写最多 ${template.tutorialSlots} 个教程；第 1 天起会按天轮换。`;
+      $("templateTutorialInputs").innerHTML = Array.from({ length: template.tutorialSlots }).map((_, index) => `<div class="tutorial-row"><label>教程 ${index + 1} 名称<input name="templateTutorialLabel" type="text" maxlength="30" placeholder="可选"></label><label>教程 ${index + 1} 链接<input name="templateTutorialUrl" type="url" placeholder="https://"></label></div>`).join("");
+      $("templateTutorialMessage").textContent = "";
+      requestAnimationFrame(() => $("templateTutorialInputs").querySelector("input")?.focus());
+    }
+
+    function submitTemplateTutorials(event) {
+      event.preventDefault();
+      if (!state.pendingTemplateId) return;
+      const labels = [...document.querySelectorAll("#templateTutorialInputs [name=templateTutorialLabel]")];
+      const urls = [...document.querySelectorAll("#templateTutorialInputs [name=templateTutorialUrl]")];
+      const tutorials = [];
+      for (let index = 0; index < urls.length; index += 1) {
+        const label = labels[index].value.trim();
+        const url = urls[index].value.trim();
+        if (Boolean(label) !== Boolean(url)) {
+          $("templateTutorialMessage").textContent = "教程名称和链接需要同时填写。";
+          return;
+        }
+        if (url && !FaceStyleCore.validateTutorialUrl(url)) {
+          $("templateTutorialMessage").textContent = "教程链接请填写完整的 http 或 https 地址。";
+          return;
+        }
+        if (url) tutorials.push({ label, url });
+      }
+      startChallenge({ templateId: state.pendingTemplateId, tutorials });
     }
 
     function submitCustomChallenge(event) {
@@ -1810,12 +1859,22 @@
       showToast(photoCleanupFailed ? "照片清理失败，但挑战已删除" : "当前挑战已删除");
     }
 
-    function toggleChallengeCheckInFor(date) {
+    function focusTodayControl(preferredId = "checkInButton") {
+      requestAnimationFrame(() => {
+        const preferred = $(preferredId);
+        const fallback = $("checkInButton");
+        const target = preferred && !preferred.classList.contains("hidden") && !preferred.disabled ? preferred : fallback;
+        target?.focus();
+      });
+    }
+
+    function toggleChallengeCheckInFor(date, focusId = "checkInButton") {
       const challenge = state.challengeState.active;
       if (!challenge) return;
       state.challengeState.active = FaceStyleCore.toggleChallengeCheckIn(challenge, date);
       saveChallengeState();
       renderChallengeCenter();
+      focusTodayControl(focusId);
     }
 
     function completeToday() {
@@ -1825,13 +1884,13 @@
         showToast("今天不在挑战周期内");
         return;
       }
-      if (!challenge.checkIns[today]) toggleChallengeCheckInFor(today);
+      if (!challenge.checkIns[today]) toggleChallengeCheckInFor(today, "undoCheckInButton");
     }
 
     function undoToday() {
       const challenge = state.challengeState.active;
       const today = localDateString();
-      if (challenge?.checkIns[today]) toggleChallengeCheckInFor(today);
+      if (challenge?.checkIns[today]) toggleChallengeCheckInFor(today, "checkInButton");
     }
 
     function getTodayTutorial(challenge, day) {
@@ -1893,7 +1952,7 @@
 
     async function confirmTutorialOpen() {
       const url = state.pendingTutorialUrl;
-      closeTutorialConfirmation(false);
+      closeTutorialConfirmation();
       if (!url) return;
       const popup = window.open(url, "_blank", "noopener,noreferrer");
       if (!popup) await copyTutorial(url, "未能打开新窗口，教程链接已复制");
@@ -1928,7 +1987,9 @@
       const today = localDateString();
       const progress = FaceStyleCore.getChallengeProgress(challenge, today);
       const checkedIn = Boolean(challenge.checkIns[today]);
-      const todayInChallenge = FaceStyleCore.getChallengeDay(challenge, today) >= 1 && FaceStyleCore.getChallengeDay(challenge, today) <= challenge.durationDays;
+      const challengeDay = FaceStyleCore.getChallengeDay(challenge, today);
+      const todayInChallenge = challengeDay >= 1 && challengeDay <= challenge.durationDays;
+      const checkInLabel = challengeDay > challenge.durationDays ? "挑战已结束" : challengeDay < 1 ? "挑战尚未开始" : "完成今日打卡";
       const tutorial = getTodayTutorial(challenge, progress.day);
       const yesterday = new Date(`${today}T12:00:00`);
       yesterday.setDate(yesterday.getDate() - 1);
@@ -1937,7 +1998,7 @@
       const tutorialActions = tutorial
         ? `<div class="tutorial-actions"><button id="openTutorialButton" type="button" data-tutorial-url="${escapeHtml(tutorial.url)}">打开今天的教程</button><button id="copyTutorialButton" type="button" data-tutorial-url="${escapeHtml(tutorial.url)}">复制链接</button></div><span class="today-tutorial-url">${escapeHtml(tutorial.url)}</span>`
         : "";
-      $("todayChallenge").innerHTML = `<p class="today-kicker">今天 · 第 <span id="todayDayNumber">${progress.day}</span> 天</p><h3 id="todayTaskTitle">${escapeHtml(challenge.taskLabel)}</h3><p>${escapeHtml(challenge.title)}</p>${tutorialActions}<button id="checkInButton" class="primary-btn" type="button"${todayInChallenge && !checkedIn ? "" : " disabled"}>完成今日打卡</button><button id="undoCheckInButton" class="text-btn${checkedIn ? "" : " hidden"}" type="button">撤销今天的打卡</button>${yesterdayAvailable ? `<button class="text-btn" type="button" data-yesterday-checkin="${yesterdayDate}">补记昨天</button>` : ""}<button id="addChallengeCalendarButton" class="secondary-btn" type="button">加入手机日历</button>`;
+      $("todayChallenge").innerHTML = `<p class="today-kicker">今天 · 第 <span id="todayDayNumber">${progress.day}</span> 天</p><h3 id="todayTaskTitle">${escapeHtml(challenge.taskLabel)}</h3><p>${escapeHtml(challenge.title)}</p>${tutorialActions}<button id="checkInButton" class="primary-btn" type="button"${todayInChallenge && !checkedIn ? "" : " disabled"}>${checkedIn ? "今天已完成" : checkInLabel}</button><button id="undoCheckInButton" class="text-btn${checkedIn ? "" : " hidden"}" type="button">撤销今天的打卡</button>${yesterdayAvailable ? `<button class="text-btn" type="button" data-yesterday-checkin="${yesterdayDate}">补记昨天</button>` : ""}<button id="addChallengeCalendarButton" class="secondary-btn" type="button">加入手机日历</button>`;
       $("challengeProgress").innerHTML = [
         ["完成", `${progress.completed} 天`],
         ["连续", `${progress.streak} 天`],

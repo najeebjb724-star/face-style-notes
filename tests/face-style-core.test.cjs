@@ -188,11 +188,35 @@ test("challenge center review hides the masthead while its view is active", () =
 
 test("challenge creation provides templates and optional custom fields", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  ["challengeTemplateCards", "customChallengeButton", "customChallengeForm", "customChallengeTitle", "customChallengeDays", "customChallengeFrequency", "challengeReminderTime", "tutorialInputs", "deleteChallengeButton"].forEach((id) => {
+  ["challengeTemplateCards", "customChallengeButton", "customChallengeForm", "customChallengeTitle", "customChallengeDays", "customChallengeFrequency", "challengeReminderTime", "tutorialInputs", "templateTutorialForm", "templateTutorialInputs", "deleteChallengeButton"].forEach((id) => {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   });
   assert.match(html, /faceStyleChallengeStateV2/);
   assert.equal(html.includes("window.prompt"), false);
+});
+
+test("training templates collect optional day-mapped tutorial links before creation", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /function showTemplateTutorialSetup\(template\)/);
+  assert.match(html, /template\.tutorialSlots/);
+  assert.match(html, /Array\.from\(\{ length: template\.tutorialSlots \}\)/);
+  assert.match(html, /function submitTemplateTutorials\(event\)/);
+  assert.match(html, /startChallenge\(\{ templateId: state\.pendingTemplateId, tutorials \}\)/);
+});
+
+test("calendar return startup opens the challenge center without opening a creation sheet", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /new URLSearchParams\(window\.location\.search\)\.get\(["']view["']\) === ["']challenge["']/);
+  assert.match(html, /openChallengeCenter\(["']calendar["']\)/);
+  assert.match(html, /if \(source === ["']report["']\) openTemplateSheet/);
+});
+
+test("daily check-in rerenders restore focus to a visible daily control", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /function focusTodayControl\(preferredId = ["']checkInButton["']\)/);
+  assert.match(html, /toggleChallengeCheckInFor\(today, ["']undoCheckInButton["']\)/);
+  assert.match(html, /toggleChallengeCheckInFor\(today, ["']checkInButton["']\)/);
+  assert.match(html, /toggleChallengeCheckInFor\([^,]+, ["']checkInButton["']\)/);
 });
 
 test("custom challenge submission validates reminder time and complete tutorial pairs", () => {
@@ -249,13 +273,21 @@ test("createChallenge normalizes a template into one active challenge", () => {
   const challenge = loadCore().createChallenge({
     templateId: "makeup-3-in-7",
     reminderTime: "20:30",
-    tutorials: [{ label: "第一个妆容", url: "https://example.com/look-1" }]
+    tutorials: [
+      { label: "第一个妆容", url: "https://example.com/look-1" },
+      { label: "第二个妆容", url: "https://example.com/look-2" },
+      { label: "第三个妆容", url: "https://example.com/look-3" }
+    ]
   }, new Date("2026-08-28T08:00:00"));
   assert.equal(challenge.kind, "training");
   assert.equal(challenge.durationDays, 7);
   assert.equal(challenge.status, "active");
   assert.deepEqual(Object.keys(challenge.checkIns), []);
-  assert.equal(challenge.tutorials[0].url, "https://example.com/look-1");
+  assert.deepEqual(challenge.tutorials.map((item) => item.url), [
+    "https://example.com/look-1",
+    "https://example.com/look-2",
+    "https://example.com/look-3"
+  ]);
 });
 
 test("challenge progress counts completion and current streak", () => {
