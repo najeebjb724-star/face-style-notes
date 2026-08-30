@@ -214,11 +214,20 @@ test("challenge creation provides templates and optional custom fields", () => {
 
 test("training templates collect optional day-mapped tutorial links before creation", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  assert.match(html, /function showTemplateTutorialSetup\(template\)/);
+  assert.match(html, /function showTemplateSetup\(template\)/);
   assert.match(html, /template\.tutorialSlots/);
   assert.match(html, /Array\.from\(\{ length: template\.tutorialSlots \}\)/);
   assert.match(html, /function submitTemplateTutorials\(event\)/);
-  assert.match(html, /startChallenge\(\{ templateId: state\.pendingTemplateId, tutorials \}\)/);
+  assert.match(html, /startChallenge\(\{ templateId: state\.pendingTemplateId, reminderTime, tutorials \}\)/);
+});
+
+test("every template uses the in-page reminder setup before starting", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /id=["']templateReminderTime["'][^>]*type=["']time["'][^>]*required/);
+  assert.match(html, /function selectChallengeTemplate\(id\)[\s\S]*?showTemplateSetup\(template\);/);
+  assert.doesNotMatch(html, /else startChallenge\(\{ templateId: id \}\)/);
+  assert.match(html, /const reminderTime = \$\("templateReminderTime"\)\.value;/);
+  assert.match(html, /startChallenge\(\{ templateId: state\.pendingTemplateId, reminderTime, tutorials \}\)/);
 });
 
 test("calendar return startup opens the challenge center without opening a creation sheet", () => {
@@ -240,7 +249,9 @@ test("daily check-in rerenders restore focus to a visible daily control", () => 
 
 test("tutorial actions are omitted outside the active challenge date range", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  assert.match(html, /const tutorial = todayInChallenge \? getTodayTutorial\(challenge, progress\.day\) : null;/);
+  assert.match(html, /const tutorial = canCheckInToday \? FaceStyleCore\.getChallengeTutorialForDay\(challenge, challengeDay\) : null;/);
+  assert.match(html, /今天是休息日/);
+  assert.match(html, /下次任务/);
   assert.match(html, /id=["']yesterdayCheckInButton["']/);
 });
 
@@ -258,14 +269,15 @@ test("report challenge sheet returns focus to a visible challenge control", () =
   assert.match(html, /function openTemplateSheet\(recommendedTemplateId = "", focusTrigger = document\.activeElement\)/);
 });
 
-test("challenge deletion survives photo cleanup errors", () => {
+test("challenge deletion persists a tombstone before cleanup and only clears it after success", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
   assert.match(html, /async function deleteActiveChallenge\(\)/);
   assert.match(html, /const challengeId = challenge\.id;/);
   assert.match(html, /await Promise\.resolve\(window\.deleteChallengePhotos\(challengeId\)\)/);
-  assert.match(html, /catch \(_\) \{\s*photoCleanupFailed = true;/);
+  assert.match(html, /FaceStyleCore\.addPendingPhotoDeletion/);
+  assert.match(html, /FaceStyleCore\.removePendingPhotoDeletion/);
   assert.match(html, /state\.challengeState\.active = null;/);
-  assert.match(html, /照片清理失败，但挑战已删除/);
+  assert.match(html, /照片清理稍后会自动重试/);
 });
 
 test("challenge deletion clears active state before awaiting photo cleanup", () => {
@@ -274,13 +286,27 @@ test("challenge deletion clears active state before awaiting photo cleanup", () 
   assert.ok(match, "deleteActiveChallenge body must be present");
   const body = match[1];
   const challengeId = body.indexOf("const challengeId = challenge.id;");
+  const tombstone = body.indexOf("FaceStyleCore.addPendingPhotoDeletion");
   const clearActive = body.indexOf("state.challengeState.active = null;");
-  const persist = body.indexOf("saveChallengeState();");
+  const persistTombstone = body.indexOf("saveChallengeState();", tombstone);
+  const persistCleared = body.indexOf("saveChallengeState();", clearActive);
   const render = body.indexOf("renderChallengeCenter();");
   const cleanup = body.indexOf("await Promise.resolve(window.deleteChallengePhotos(challengeId))");
-  assert.ok(challengeId >= 0 && clearActive > challengeId);
-  assert.ok(persist > clearActive && render > persist);
+  assert.ok(challengeId >= 0 && tombstone > challengeId);
+  assert.ok(persistTombstone > tombstone && clearActive > persistTombstone);
+  assert.ok(persistCleared > clearActive && render > persistCleared);
   assert.ok(cleanup > render);
+});
+
+test("all aria-modal sheets use centralized focus containment and background isolation", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /function openModalSheet\(sheet, trigger, initialFocus, onEscape\)/);
+  assert.match(html, /function closeModalSheet\(sheet, returnFocus = true\)/);
+  assert.match(html, /function refreshModalIsolation\(\)/);
+  assert.match(html, /element\.inert = true/);
+  assert.match(html, /event\.key !== "Tab"/);
+  assert.match(html, /event\.shiftKey/);
+  assert.match(html, /modalStack\[modalStack\.length - 1\]/);
 });
 
 test("challenge photos expose start, end, comparison, and deletion controls", () => {
@@ -396,6 +422,129 @@ test("challenge progress counts completion and current streak", () => {
   assert.equal(progress.completionRate, 7);
 });
 
+test("one occurrence schedule covers daily, weekly, and persisted scheduled challenges", () => {
+  const core = loadCore();
+  assert.deepEqual(Array.from(core.getChallengeOccurrenceDays({ frequency: "daily", durationDays: 4 })), [1, 2, 3, 4]);
+  assert.deepEqual(Array.from(core.getChallengeOccurrenceDays({ frequency: "weekly", durationDays: 28 })), [1, 8, 15, 22]);
+  assert.deepEqual(Array.from(core.getChallengeOccurrenceDays({ frequency: "weekly", durationDays: 15 })), [1, 8, 15]);
+  assert.deepEqual(Array.from(core.getChallengeOccurrenceDays({ frequency: "scheduled", durationDays: 7, taskDays: [7, 1, 4, 4] })), [1, 4, 7]);
+  assert.deepEqual(Array.from(core.getChallengeOccurrenceDays({ frequency: "scheduled", durationDays: 7, taskDays: [0, 8, "4"] })), []);
+  assert.deepEqual(Array.from(core.getChallengeOccurrenceDays({ frequency: "scheduled", durationDays: 7 })), []);
+});
+
+test("off-day check-ins are rejected and progress ignores invalid dates", () => {
+  const core = loadCore();
+  const challenge = core.createChallenge({ templateId: "makeup-3-in-7" }, new Date("2026-08-28T08:00:00Z"));
+  const unchanged = core.toggleChallengeCheckIn(challenge, "2026-08-29");
+  assert.deepEqual({ ...unchanged.checkIns }, {});
+  const withInvalid = { ...challenge, checkIns: { "2026-08-29": { completedAt: "2026-08-29T08:00:00Z" }, "2026-08-31": { completedAt: "2026-08-31T08:00:00Z" } } };
+  const progress = core.getChallengeProgress(withInvalid, "2026-09-03");
+  assert.equal(progress.total, 3);
+  assert.equal(progress.completed, 1);
+});
+
+test("streak follows consecutive scheduled occurrences instead of calendar days", () => {
+  const core = loadCore();
+  let challenge = core.createChallenge({ templateId: "makeup-3-in-7" }, new Date("2026-08-28T08:00:00Z"));
+  challenge = core.toggleChallengeCheckIn(challenge, "2026-08-28");
+  challenge = core.toggleChallengeCheckIn(challenge, "2026-08-31");
+  assert.equal(core.getChallengeProgress(challenge, "2026-09-01").streak, 2);
+  challenge = core.toggleChallengeCheckIn(challenge, "2026-09-03");
+  assert.equal(core.getChallengeProgress(challenge, "2026-09-03").streak, 3);
+});
+
+test("tutorials map by occurrence order and are absent on rest days", () => {
+  const core = loadCore();
+  const challenge = core.createChallenge({
+    templateId: "makeup-3-in-7",
+    tutorials: [
+      { label: "一", url: "https://example.com/1" },
+      { label: "二", url: "https://example.com/2" },
+      { label: "三", url: "https://example.com/3" }
+    ]
+  }, new Date("2026-08-28T08:00:00Z"));
+  assert.equal(core.getChallengeTutorialForDay(challenge, 1).label, "一");
+  assert.equal(core.getChallengeTutorialForDay(challenge, 4).label, "二");
+  assert.equal(core.getChallengeTutorialForDay(challenge, 7).label, "三");
+  assert.equal(core.getChallengeTutorialForDay(challenge, 2), null);
+});
+
+test("date-only challenge arithmetic stays exact across DST boundaries", () => {
+  const core = loadCore();
+  const challenge = { startedAt: "2026-03-07" };
+  assert.equal(core.getChallengeDay(challenge, "2026-03-08"), 2);
+  assert.equal(core.getChallengeDay(challenge, "2026-03-09"), 3);
+  assert.equal(core.getChallengeDay({ startedAt: "2026-10-31" }, "2026-11-02"), 3);
+});
+
+test("challenge creation defensively copies template photo and task days", () => {
+  const core = loadCore();
+  const templates = core.getChallengeTemplates();
+  const challenge = core.createChallenge({ templateId: "makeup-3-in-7" }, new Date("2026-08-28T08:00:00Z"));
+  assert.deepEqual(Array.from(challenge.photoDays), [1, 7]);
+  assert.deepEqual(Array.from(challenge.taskDays), [1, 4, 7]);
+  challenge.photoDays[0] = 99;
+  challenge.taskDays[0] = 99;
+  assert.deepEqual(Array.from(core.createChallenge({ templateId: "makeup-3-in-7" }).photoDays), [1, 7]);
+  assert.deepEqual(Array.from(core.createChallenge({ templateId: "makeup-3-in-7" }).taskDays), [1, 4, 7]);
+  templates.find((item) => item.id === "makeup-3-in-7").taskDays[0] = 88;
+  assert.deepEqual(Array.from(core.getChallengeTemplates().find((item) => item.id === "makeup-3-in-7").taskDays), [1, 4, 7]);
+  const custom = core.createChallenge({ templateId: "custom", title: "自定义", durationDays: 7 });
+  assert.deepEqual(Array.from(custom.photoDays), []);
+  assert.deepEqual(Array.from(custom.taskDays), []);
+});
+
+test("V2 state normalization validates active, history, and deletion tombstones", () => {
+  const core = loadCore();
+  const valid = core.createChallenge({ templateId: "makeup-3-in-7", reminderTime: "20:15" }, new Date("2026-08-28T08:00:00Z"));
+  const normalized = core.normalizeChallengeState({
+    version: 2,
+    active: { ...valid, checkIns: { "2026-08-28": {}, nope: true }, tutorials: [{ label: "好", url: "https://example.com/a" }, { label: "坏", url: "javascript:bad" }], photoDays: [1, 7, 99], taskDays: [7, 1, 4, 4] },
+    history: [
+      { id: " old ", title: "已完成", startedAt: "2026-08-01", completedAt: "2026-08-28", durationDays: 28, completed: 99, completionRate: 140, streak: -2 },
+      { id: "array-dates", title: "坏日期", startedAt: ["2026-08-01"], completedAt: ["2026-08-28"], durationDays: 28, completed: 1, completionRate: 4, streak: 1 },
+      { id: "", title: "坏记录" }
+    ],
+    pendingPhotoDeletionIds: [" abc ", "abc", 42, "", "def"]
+  });
+  assert.equal(normalized.active.id, valid.id);
+  assert.deepEqual(Object.keys(normalized.active.checkIns), ["2026-08-28"]);
+  assert.equal(normalized.active.tutorials.length, 1);
+  assert.deepEqual(Array.from(normalized.active.photoDays), [1, 7]);
+  assert.deepEqual(Array.from(normalized.active.taskDays), [1, 4, 7]);
+  assert.equal(normalized.history.length, 1);
+  assert.equal(normalized.history[0].completed, 28);
+  assert.equal(normalized.history[0].completionRate, 100);
+  assert.equal(normalized.history[0].streak, 0);
+  assert.deepEqual(Array.from(normalized.pendingPhotoDeletionIds), ["abc", "def"]);
+  const scheduledHistory = core.normalizeChallengeState({
+    version: 2,
+    history: [{ id: "scheduled", title: "排期挑战", startedAt: "2026-08-01", completedAt: "2026-08-28", durationDays: 28, total: 3, completed: 9, completionRate: 140, streak: 9 }]
+  }).history[0];
+  assert.equal(scheduledHistory.completed, 3);
+  assert.equal(scheduledHistory.streak, 3);
+});
+
+test("V2 state normalization drops unusable active challenges without throwing", () => {
+  const core = loadCore();
+  for (const active of [null, {}, { id: "x", title: "x", startedAt: "bad", durationDays: 7, frequency: "daily", reminderTime: "21:30", status: "active" }, { id: "x", title: "x", startedAt: "2026-08-28", durationDays: 999, frequency: "daily", reminderTime: "21:30", status: "active" }]) {
+    assert.doesNotThrow(() => core.normalizeChallengeState({ version: 2, active }));
+    assert.equal(core.normalizeChallengeState({ version: 2, active }).active, null);
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify(core.normalizeChallengeState(null))), { version: 2, active: null, history: [], pendingPhotoDeletionIds: [] });
+});
+
+test("photo-deletion tombstone helpers trim, deduplicate, and resolve IDs", () => {
+  const core = loadCore();
+  let challengeState = core.normalizeChallengeState({ version: 2, pendingPhotoDeletionIds: [" old "] });
+  challengeState = core.addPendingPhotoDeletion(challengeState, " new ");
+  challengeState = core.addPendingPhotoDeletion(challengeState, "new");
+  challengeState = core.addPendingPhotoDeletion(challengeState, "   ");
+  assert.deepEqual(Array.from(challengeState.pendingPhotoDeletionIds), ["old", "new"]);
+  challengeState = core.removePendingPhotoDeletion(challengeState, "new");
+  assert.deepEqual(Array.from(challengeState.pendingPhotoDeletionIds), ["old"]);
+});
+
 test("completion helpers use the scheduled finish date and retain metadata only", () => {
   const core = loadCore();
   const challenge = core.createChallenge({
@@ -416,6 +565,7 @@ test("completion helpers use the scheduled finish date and retain metadata only"
     startedAt: "2026-08-28",
     completedAt: "2026-09-01",
     durationDays: 3,
+    total: 3,
     completed: 2,
     completionRate: 67,
     streak: 1
@@ -443,6 +593,8 @@ test("challenge ICS includes task, tutorial and return URL", () => {
   assert.match(ics, /RRULE:FREQ=DAILY;COUNT=7/);
   assert.match(ics, /URL:https:\/\/example\.app\/\?view=challenge/);
   assert.match(ics, /https:\/\/example\.com\/tutorial/);
+  assert.match(ics, /回到挑战中心完成打卡/);
+  assert.match(ics, /https:\/\/example\.app\/\?view=challenge/);
 });
 
 test("challenge ICS only emits an HTTPS return URL", () => {
@@ -450,6 +602,24 @@ test("challenge ICS only emits an HTTPS return URL", () => {
   const challenge = core.createChallenge({ templateId: "eye-makeup-7" }, new Date("2026-08-28T08:00:00"));
   const ics = core.buildChallengeCalendarText(challenge, "http://example.app/?view=challenge");
   assert.doesNotMatch(ics, /URL:http:\/\/example\.app/);
+  assert.doesNotMatch(ics, /DESCRIPTION:[^\r\n]*http:\/\/example\.app/);
+  assert.match(ics, /DESCRIPTION:[^\r\n]*回到挑战中心完成打卡/);
+});
+
+test("challenge ICS derives weekly count and emits irregular events per occurrence", () => {
+  const core = loadCore();
+  const weekly = core.createChallenge({ templateId: "custom", title: "15 天每周", durationDays: 15, frequency: "weekly", reminderTime: "08:10" }, new Date("2026-08-28T08:00:00Z"));
+  const weeklyIcs = core.buildChallengeCalendarText(weekly, "https://example.app/?view=challenge");
+  assert.match(weeklyIcs, /RRULE:FREQ=WEEKLY;COUNT=3/);
+  assert.equal((weeklyIcs.match(/BEGIN:VEVENT/g) || []).length, 1);
+
+  const scheduled = core.createChallenge({ templateId: "makeup-3-in-7", reminderTime: "20:30" }, new Date("2026-08-28T08:00:00Z"));
+  const scheduledIcs = core.buildChallengeCalendarText(scheduled, "https://example.app/?view=challenge");
+  assert.equal((scheduledIcs.match(/BEGIN:VEVENT/g) || []).length, 3);
+  assert.doesNotMatch(scheduledIcs, /RRULE:/);
+  assert.match(scheduledIcs, /DTSTART:20260828T203000/);
+  assert.match(scheduledIcs, /DTSTART:20260831T203000/);
+  assert.match(scheduledIcs, /DTSTART:20260903T203000/);
 });
 
 test("challenge ICS normalizes CRLF and CR in descriptions", () => {
