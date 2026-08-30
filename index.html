@@ -711,6 +711,41 @@
         return { day, total: challenge.durationDays, completed, completionRate: Math.round(completed / challenge.durationDays * 100), streak, isComplete: day >= challenge.durationDays && completed > 0 };
       }
 
+      function getChallengeFinishDate(challenge) {
+        const finish = new Date(`${challenge.startedAt}T12:00:00`);
+        finish.setDate(finish.getDate() + challenge.durationDays - 1);
+        return localCalendarDate(finish);
+      }
+
+      function getChallengePosterFinishDate(challenge) {
+        return /^\d{4}-\d{2}-\d{2}$/.test(challenge?.completedAt || "") ? challenge.completedAt : getChallengeFinishDate(challenge);
+      }
+
+      function isChallengeCompletionEligible(challenge, date = localCalendarDate()) {
+        return Boolean(challenge && getChallengeDay(challenge, date) >= challenge.durationDays);
+      }
+
+      function createChallengeHistoryEntry(challenge, progress, completedAt = localCalendarDate()) {
+        return {
+          id: challenge.id,
+          title: challenge.title,
+          startedAt: challenge.startedAt,
+          completedAt,
+          durationDays: challenge.durationDays,
+          completed: progress.completed,
+          completionRate: progress.completionRate,
+          streak: progress.streak
+        };
+      }
+
+      function normalizeChallengePosterPhotos(photos) {
+        return Array.isArray(photos) ? photos.filter((item) => item?.blob && ["start", "end"].includes(item.slot)) : [];
+      }
+
+      function sanitizeChallengePosterFilename(value) {
+        return String(value || "").replace(/[\\/:*?"<>|\u0000-\u001F\u007F]+/g, "-").trim().replace(/^-+|-+$/g, "") || "我的挑战";
+      }
+
       function buildChallengeCalendarText(challenge, pageUrl) {
         const returnUrl = validateTutorialUrl(pageUrl);
         const challengeUrl = returnUrl.startsWith("https:") ? returnUrl : "";
@@ -1168,7 +1203,7 @@
         };
       }
 
-      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, overridePhotoQuality, capMeasurementConfidence, inferQuestionnaire, computeMeasurements, deriveReadableProfile, composeReport, buildCalendarText, CHALLENGE_TEMPLATES, getChallengeTemplates, validateTutorialUrl, createChallenge, getChallengeDay, getChallengeProgress, toggleChallengeCheckIn, buildChallengeCalendarText, maySaveChallengePhoto, getChallengePhotoFailureScope, KNOWLEDGE_BASE };
+      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, overridePhotoQuality, capMeasurementConfidence, inferQuestionnaire, computeMeasurements, deriveReadableProfile, composeReport, buildCalendarText, CHALLENGE_TEMPLATES, getChallengeTemplates, validateTutorialUrl, createChallenge, getChallengeDay, getChallengeProgress, getChallengeFinishDate, getChallengePosterFinishDate, isChallengeCompletionEligible, createChallengeHistoryEntry, normalizeChallengePosterPhotos, sanitizeChallengePosterFilename, toggleChallengeCheckIn, buildChallengeCalendarText, maySaveChallengePhoto, getChallengePhotoFailureScope, KNOWLEDGE_BASE };
     })();
   </script>
 
@@ -2180,19 +2215,10 @@
     async function completeActiveChallenge() {
       const challenge = state.challengeState.active;
       const today = localDateString();
-      if (!challenge || FaceStyleCore.getChallengeDay(challenge, today) < challenge.durationDays) return;
+      if (!FaceStyleCore.isChallengeCompletionEligible(challenge, today)) return;
       const progress = FaceStyleCore.getChallengeProgress(challenge, today);
       const challengeId = challenge.id;
-      state.challengeState.history.push({
-        id: challengeId,
-        title: challenge.title,
-        startedAt: challenge.startedAt,
-        completedAt: today,
-        durationDays: challenge.durationDays,
-        completed: progress.completed,
-        completionRate: progress.completionRate,
-        streak: progress.streak
-      });
+      state.challengeState.history.push(FaceStyleCore.createChallengeHistoryEntry(challenge, progress, today));
       state.challengeState.active = null;
       saveChallengeState();
       renderChallengeCenter();
@@ -2338,15 +2364,29 @@
         } catch (_) { /* fall back to a temporary object URL */ }
       }
       return new Promise((resolve, reject) => {
-        const objectUrl = URL.createObjectURL(blob);
-        const image = new Image();
-        const cleanup = () => URL.revokeObjectURL(objectUrl);
-        image.onload = () => resolve({ image, cleanup });
-        image.onerror = () => {
-          cleanup();
-          reject(new Error("照片无法用于生成海报"));
+        let objectUrl = "";
+        const cleanup = () => {
+          if (!objectUrl) return;
+          const url = objectUrl;
+          objectUrl = "";
+          try { URL.revokeObjectURL(url); } catch (_) { /* no URL remains to clean */ }
         };
-        image.src = objectUrl;
+        try {
+          objectUrl = URL.createObjectURL(blob);
+          const image = new Image();
+          image.onload = () => {
+            cleanup();
+            resolve({ image, cleanup });
+          };
+          image.onerror = () => {
+            cleanup();
+            reject(new Error("照片无法用于生成海报"));
+          };
+          image.src = objectUrl;
+        } catch (error) {
+          cleanup();
+          reject(error);
+        }
       });
     }
 
@@ -2362,7 +2402,7 @@
       canvas.height = 1440;
       const context = canvas.getContext("2d");
       if (!context) throw new Error("当前浏览器无法生成海报");
-      const storedPhotos = Array.isArray(photos) ? photos : [];
+      const storedPhotos = FaceStyleCore.normalizeChallengePosterPhotos(photos);
       const start = storedPhotos.find((item) => item.slot === "start")?.blob;
       const end = storedPhotos.find((item) => item.slot === "end")?.blob;
       let posterImages = [];
@@ -2387,7 +2427,7 @@
         context.fillText((challenge.title || "我的挑战").slice(0, 16), 90, 220);
         context.fillStyle = "#7b6762";
         context.font = "400 30px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
-        context.fillText(`完成日期 ${localDateString()}`, 90, 276);
+        context.fillText(`完成日期 ${FaceStyleCore.getChallengePosterFinishDate(challenge)}`, 90, 276);
         context.fillStyle = "#3e2723";
         context.font = "700 46px 'Noto Serif SC', 'Songti SC', serif";
         context.fillText(`我完成了 ${progress.completed}/${progress.total} 天挑战`, 90, 376);
@@ -2445,23 +2485,32 @@
       const progress = FaceStyleCore.getChallengeProgress(challenge, localDateString());
       button.disabled = true;
       button.textContent = "正在生成海报…";
+      let photos = [];
       try {
-        const photos = await getChallengePhotos(challenge.id);
+        photos = await getChallengePhotos(challenge.id);
+      } catch (_) {
+        photos = [];
+        showToast("本机照片暂时无法读取，将使用进度海报");
+      }
+      let objectUrl = "";
+      let link;
+      try {
         const blob = await buildChallengePoster(challenge, progress, photos);
-        const objectUrl = URL.createObjectURL(blob);
-        const link = document.createElement("a");
+        objectUrl = URL.createObjectURL(blob);
+        link = document.createElement("a");
         link.href = objectUrl;
-        link.download = `变美挑战-${challenge.title.replace(/[\\\\/:*?\"<>|]/g, "-") || "我的挑战"}.png`;
+        link.download = `变美挑战-${FaceStyleCore.sanitizeChallengePosterFilename(challenge.title)}.png`;
         document.body.append(link);
         link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
         button.disabled = false;
         button.textContent = "下载结营海报";
         showToast("结营海报已下载");
       } catch (_) {
         button.textContent = "海报导出失败，请刷新后重试";
         showToast("海报导出失败，请刷新后重试");
+      } finally {
+        link?.remove();
+        if (objectUrl) setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
       }
     }
 

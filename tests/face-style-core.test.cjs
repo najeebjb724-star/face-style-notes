@@ -296,6 +296,10 @@ test("completed challenges expose a downloadable, privacy-safe poster", () => {
   assert.match(html, /state\.challengeState\.history\.push\(/);
   assert.match(html, /URL\.revokeObjectURL\(objectUrl\)/);
   assert.match(html, /Promise\.allSettled\(\[loadChallengePosterImage\(start\), loadChallengePosterImage\(end\)\]\)/);
+  assert.match(html, /getChallengePhotos\(challenge\.id\)[\s\S]*?catch \(_\) \{\s*photos = \[\];/);
+  assert.match(html, /FaceStyleCore\.getChallengePosterFinishDate\(challenge\)/);
+  assert.match(html, /FaceStyleCore\.sanitizeChallengePosterFilename\(challenge\.title\)/);
+  assert.match(html, /finally \{[\s\S]*?if \(objectUrl\) setTimeout\(\(\) => URL\.revokeObjectURL\(objectUrl\), 0\);/);
   assert.doesNotMatch(html, /poster[^\n]*?(?:肤色|脸型|五官|变白|治疗|疗效)/i);
 });
 
@@ -373,6 +377,42 @@ test("challenge progress counts completion and current streak", () => {
   assert.equal(progress.completed, 2);
   assert.equal(progress.streak, 2);
   assert.equal(progress.completionRate, 7);
+});
+
+test("completion helpers use the scheduled finish date and retain metadata only", () => {
+  const core = loadCore();
+  const challenge = core.createChallenge({
+    templateId: "custom",
+    title: "晚间习惯",
+    durationDays: 3,
+    taskLabel: "完成今天的习惯"
+  }, new Date("2026-08-28T08:00:00"));
+  const progress = { completed: 2, completionRate: 67, streak: 1 };
+  assert.equal(core.isChallengeCompletionEligible(challenge, "2026-08-29"), false);
+  assert.equal(core.isChallengeCompletionEligible(challenge, "2026-08-30"), true);
+  assert.equal(core.getChallengePosterFinishDate(challenge), "2026-08-30");
+  assert.equal(core.getChallengePosterFinishDate({ ...challenge, completedAt: "2026-09-01" }), "2026-09-01");
+  const summary = core.createChallengeHistoryEntry(challenge, progress, "2026-09-01");
+  assert.deepEqual({ ...summary }, {
+    id: challenge.id,
+    title: "晚间习惯",
+    startedAt: "2026-08-28",
+    completedAt: "2026-09-01",
+    durationDays: 3,
+    completed: 2,
+    completionRate: 67,
+    streak: 1
+  });
+  assert.equal("checkIns" in summary, false);
+  assert.equal("tutorials" in summary, false);
+});
+
+test("poster helpers fall back safely and sanitize download filenames", () => {
+  const core = loadCore();
+  assert.deepEqual(Array.from(core.normalizeChallengePosterPhotos(null)), []);
+  assert.deepEqual(Array.from(core.normalizeChallengePosterPhotos([{ slot: "start", blob: "local" }, { slot: "other", blob: "skip" }])), [{ slot: "start", blob: "local" }]);
+  assert.equal(core.sanitizeChallengePosterFilename("春\n夏/秋\u0000"), "春-夏-秋");
+  assert.equal(core.sanitizeChallengePosterFilename("  "), "我的挑战");
 });
 
 test("challenge ICS includes task, tutorial and return URL", () => {
