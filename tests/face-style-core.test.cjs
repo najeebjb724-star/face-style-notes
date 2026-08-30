@@ -147,6 +147,23 @@ test("page contains required accessible views and no prohibited claims", () => {
   assert.match(html, /toggleMilestone/);
 });
 
+test("challenge MVP keeps privacy copy and avoids prohibited promises", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /照片仅保存在当前浏览器|不会上传/);
+  assert.match(html, /删除挑战与照片|删除挑战/);
+  ["保证变美", "治疗", "疗效", "颜值提升分", "缺点排行"].forEach((phrase) => assert.equal(html.includes(phrase), false));
+});
+
+test("text-only challenge controls retain a 44px touch target", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /\.text-btn\s*\{\s*width:\s*100%;\s*min-height:\s*2\.75rem;/s);
+});
+
+test("challenge photo controls retain a 44px touch target", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /\.photo-capture-controls label\s*\{\s*display:\s*grid;\s*min-height:\s*2\.75rem;/s);
+});
+
 test("calendar helper builds milestone and weekly ICS variants", () => {
   const core = loadCore();
   const card = { id: "style-focus", title: "调整一个造型变量", action: "比较两种眉形。" };

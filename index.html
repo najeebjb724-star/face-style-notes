@@ -233,7 +233,7 @@
     .primary-btn, .secondary-btn { width: 100%; min-height: 3.2rem; border-radius: 999px; font-weight: 850; cursor: pointer; transition: transform .18s ease, box-shadow .18s ease; }
     .primary-btn { border: 0; background: var(--ink); color: #fff; box-shadow: 0 10px 24px rgba(62,39,35,.18); }
     .secondary-btn { border: 1px solid var(--sand); background: transparent; color: var(--ink); }
-    .text-btn { width: 100%; margin-top: .45rem; padding: .7rem; border: 0; background: transparent; color: var(--rose-dark); font-size: .76rem; font-weight: 850; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+    .text-btn { width: 100%; min-height: 2.75rem; margin-top: .45rem; padding: .7rem; border: 0; background: transparent; color: var(--rose-dark); font-size: .76rem; font-weight: 850; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
     .primary-btn:hover, .secondary-btn:hover { transform: translateY(-1px); }
     .primary-btn:disabled { opacity: .55; cursor: wait; transform: none; }
     button:focus-visible, label:focus-visible { outline: 3px solid rgba(229,152,155,.38); outline-offset: 3px; }
@@ -281,7 +281,7 @@
     .comparison-frame figcaption { position: absolute; right: .45rem; bottom: .45rem; padding: .22rem .45rem; border-radius: 999px; background: rgba(62,39,35,.72); color: #fff; font-size: .64rem; font-weight: 800; }
     .comparison-placeholder { display: grid; height: 100%; place-items: center; padding: .75rem; color: var(--muted); font-size: .72rem; line-height: 1.45; text-align: center; }
     .photo-capture-controls { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; margin-top: .75rem; }
-    .photo-capture-controls label { display: grid; min-height: 2.7rem; place-items: center; padding: .5rem; border: 1px solid var(--line); border-radius: .75rem; background: #fff; color: var(--ink); font-size: .75rem; font-weight: 800; cursor: pointer; }
+    .photo-capture-controls label { display: grid; min-height: 2.75rem; place-items: center; padding: .5rem; border: 1px solid var(--line); border-radius: .75rem; background: #fff; color: var(--ink); font-size: .75rem; font-weight: 800; cursor: pointer; }
     .photo-capture-controls label:focus-within { outline: 3px solid rgba(229,152,155,.42); outline-offset: 2px; }
     .photo-capture-controls input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; }
     .photo-storage-note { min-height: 1.2rem; margin-top: .65rem !important; color: var(--rose-dark) !important; }
@@ -596,7 +596,7 @@
     <div id="deleteChallengeSheet" class="sheet-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="deleteChallengeTitle">
       <div class="bottom-sheet">
         <div class="sheet-handle" aria-hidden="true"></div>
-        <h2 id="deleteChallengeTitle">删除当前挑战？</h2>
+        <h2 id="deleteChallengeTitle">删除挑战与照片？</h2>
         <p class="challenge-history">挑战进度和关联的本地对照照将一并删除，且无法恢复。</p>
         <button id="confirmDeleteChallengeButton" class="primary-btn" type="button">确认删除</button>
         <button id="cancelDeleteChallengeButton" class="text-btn" type="button">保留挑战</button>
