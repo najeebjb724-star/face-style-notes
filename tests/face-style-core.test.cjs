@@ -159,7 +159,7 @@ test("page exposes the aesthetic identity card hierarchy", () => {
     "identityTraitBars", "identityMemories", "identityDirections",
     "identityCollection", "shareIdentityButton"
   ].forEach((id) => assert.match(html, new RegExp(`id=["']${id}["']`)));
-  assert.match(html, /id=["']reportView["'][^>]*aria-labelledby=["']identityTitle["']/);
+  assert.match(html, /id=["']reportView["'][^>]*aria-labelledby=["']reportTitle["']/);
   assert.match(html, /\.identity-share-button\s*\{\s*min-height:\s*2\.75rem;/s);
 });
 
