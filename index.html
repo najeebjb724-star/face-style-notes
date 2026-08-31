@@ -129,26 +129,6 @@
     .action-meta span { padding: .25rem .45rem; border-radius: 999px; background: rgba(212,163,115,.13); color: var(--muted); font-size: .62rem; font-weight: 750; }
     .action-card details { margin-top: .65rem; color: var(--muted); font-size: .68rem; line-height: 1.55; }
     .action-card details summary { color: var(--rose-dark); cursor: pointer; font-weight: 800; }
-    .action-setup { margin-top: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: 1rem; background: rgba(244,231,218,.42); }
-    .action-setup h4 { margin: 0; font-size: .82rem; }
-    .setup-copy { margin: .35rem 0 .75rem; color: var(--muted); font-size: .7rem; line-height: 1.5; }
-    .reminder-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: .45rem; }
-    .reminder-card { min-height: 4.2rem; padding: .55rem .35rem; border: 1px solid var(--line); border-radius: .75rem; background: #fff; color: var(--ink); font-size: .67rem; font-weight: 800; line-height: 1.35; cursor: pointer; }
-    .reminder-card small { display: block; margin-top: .2rem; color: var(--muted); font-size: .56rem; font-weight: 600; }
-    .reminder-card.selected { border-color: var(--rose-dark); background: rgba(229,152,155,.1); box-shadow: inset 0 0 0 1px var(--rose-dark); }
-    .time-cards { display: flex; gap: .45rem; margin-top: .65rem; }
-    .time-card { flex: 1; padding: .45rem; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--muted); font-size: .64rem; font-weight: 800; cursor: pointer; }
-    .time-card.selected { border-color: var(--rose-dark); background: var(--rose-dark); color: #fff; }
-    .milestone-list { display: grid; gap: .45rem; margin-top: .9rem; }
-    .milestone-button { display: grid; grid-template-columns: 1.35rem 1fr auto; gap: .55rem; align-items: center; width: 100%; padding: .65rem .7rem; border: 1px solid var(--line); border-radius: .75rem; background: #fff; color: var(--ink); text-align: left; cursor: pointer; }
-    .milestone-mark { display: grid; place-items: center; width: 1.25rem; height: 1.25rem; border: 1px solid var(--sand); border-radius: 50%; color: transparent; }
-    .milestone-button.done .milestone-mark { border-color: #6f9b7a; background: #6f9b7a; color: #fff; }
-    .milestone-button strong { font-size: .7rem; }
-    .milestone-button time { color: var(--muted); font-size: .6rem; }
-    .action-tools { display: grid; grid-template-columns: 1fr auto; gap: .55rem; margin-top: .85rem; }
-    .calendar-btn { min-height: 2.7rem; border: 0; border-radius: 999px; background: var(--ink); color: #fff; font-size: .72rem; font-weight: 850; cursor: pointer; }
-    .clear-action-btn { border: 0; background: transparent; color: var(--rose-dark); font-size: .66rem; font-weight: 800; text-decoration: underline; cursor: pointer; }
-    .calendar-note { margin: .65rem 0 0; color: var(--muted); font-size: .62rem; line-height: 1.5; }
     .evidence-details summary { cursor: pointer; font-size: .8rem; font-weight: 800; }
     .source-list { display: grid; gap: .45rem; margin: .8rem 0; }
     .source-list a { color: var(--rose-dark); font-size: .72rem; text-decoration: underline; text-underline-offset: 2px; }
@@ -485,22 +465,11 @@
             <div id="carePlanContent" class="care-box"></div>
           </section>
 
-          <section class="report-section">
-            <h3 class="section-heading">选择你的下一步 <span>系统推荐，直接选卡</span></h3>
-            <p class="question-intro">一次只选择一张。每张卡都写清原因、动作、成本和停止边界，不需要你自己制定计划。</p>
-            <div id="actionCards" class="action-card-grid"></div>
-            <div id="actionSetup" class="action-setup hidden">
-              <h4>你希望怎么提醒？</h4>
-              <p class="setup-copy">选择一种现成节奏。打卡只保存在当前浏览器，不保存照片和脸部数据。</p>
-              <div id="reminderCards" class="reminder-cards"></div>
-              <div id="timeCards" class="time-cards"></div>
-              <div id="milestoneList" class="milestone-list"></div>
-              <div class="action-tools">
-                <button id="calendarButton" class="calendar-btn" type="button">加入手机日历</button>
-                <button id="clearActionButton" class="clear-action-btn" type="button">清除进度</button>
-              </div>
-              <p id="calendarNote" class="calendar-note">网页版会下载日历文件，不会读取你的日历；是否导入由手机系统确认。</p>
-            </div>
+          <section id="reportChallengeSection" class="report-section">
+            <h3 class="section-heading">把这次建议变成挑战 <span>直接选卡开始</span></h3>
+            <p class="question-intro">选择一张建议卡，设置提醒后，它会直接进入“我的变美挑战”；两处看到的是同一份任务和进度。</p>
+            <div id="reportChallengeCards" class="action-card-grid"></div>
+            <div id="reportActiveChallenge" class="hidden"></div>
           </section>
 
           <section class="report-section">
@@ -526,7 +495,6 @@
 
       <div class="action-stack">
         <button id="saveButton" class="primary-btn" type="button">保存报告图</button>
-        <button id="reportChallengeButton" class="secondary-btn" type="button">把建议变成挑战</button>
         <button id="retryButton" class="secondary-btn" type="button">重新测试</button>
       </div>
       <div id="reportMessage" class="notice hidden" role="alert"></div>
@@ -947,35 +915,6 @@
         return stage === "storage" ? "storage" : "file";
       }
 
-      function buildCalendarText(card, reminderId, startedAt, reminderTime = "21:30") {
-        if (!card || reminderId === "none") return "";
-        const stamp = `${formatCalendarDate(startedAt)}T000000Z`;
-        const time = reminderTime.replace(":", "");
-        const event = ({ suffix, offset = 0, label, repeat = "" }) => [
-          "BEGIN:VEVENT",
-          `UID:${escapeCalendarText(`${card.id}-${startedAt}-${suffix}@face-style-notes`)}`,
-          `DTSTAMP:${stamp}`,
-          `DTSTART:${formatCalendarDate(startedAt, offset)}T${time}00`,
-          `SUMMARY:${escapeCalendarText(`${label}｜${card.title}`)}`,
-          `DESCRIPTION:${escapeCalendarText(card.action)}`,
-          repeat,
-          "BEGIN:VALARM",
-          "TRIGGER:-PT0M",
-          "ACTION:DISPLAY",
-          `DESCRIPTION:${escapeCalendarText(card.title)}`,
-          "END:VALARM",
-          "END:VEVENT"
-        ].filter(Boolean).join("\r\n");
-        const events = reminderId === "weekly"
-          ? [event({ suffix: "weekly", label: "每周行动提醒", repeat: "RRULE:FREQ=WEEKLY;COUNT=4" })]
-          : [
-              event({ suffix: "day-1", label: "开始行动", offset: 0 }),
-              event({ suffix: "day-7", label: "第 7 天复盘", offset: 6 }),
-              event({ suffix: "day-30", label: "第 30 天对比", offset: 29 })
-            ];
-        return foldCalendarText(["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Face Style Notes//Action Card//ZH-CN", "CALSCALE:GREGORIAN", ...events, "END:VCALENDAR", ""].join("\r\n"));
-      }
-
       const averagePoint = (points, indexes) => ({
         x: indexes.reduce((sum, index) => sum + points[index].x, 0) / indexes.length,
         y: indexes.reduce((sum, index) => sum + points[index].y, 0) / indexes.length
@@ -1373,17 +1312,16 @@
         };
       }
 
-      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, overridePhotoQuality, capMeasurementConfidence, inferQuestionnaire, computeMeasurements, deriveReadableProfile, composeReport, buildCalendarText, CHALLENGE_TEMPLATES, getChallengeTemplates, validateTutorialUrl, dateToUtcDayOrdinal, createChallenge, getChallengeDay, getChallengeOccurrenceDays, isChallengeOccurrenceDay, getChallengeDateForDay, getNextChallengeOccurrenceDay, getChallengeTutorialForDay, getChallengeProgress, getChallengeFinishDate, getChallengePosterFinishDate, isChallengeCompletionEligible, createChallengeHistoryEntry, normalizeChallengeState, addPendingPhotoDeletion, removePendingPhotoDeletion, normalizeChallengePosterPhotos, sanitizeChallengePosterFilename, toggleChallengeCheckIn, buildChallengeCalendarText, maySaveChallengePhoto, getChallengePhotoFailureScope, KNOWLEDGE_BASE };
+      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, overridePhotoQuality, capMeasurementConfidence, inferQuestionnaire, computeMeasurements, deriveReadableProfile, composeReport, CHALLENGE_TEMPLATES, getChallengeTemplates, validateTutorialUrl, dateToUtcDayOrdinal, createChallenge, getChallengeDay, getChallengeOccurrenceDays, isChallengeOccurrenceDay, getChallengeDateForDay, getNextChallengeOccurrenceDay, getChallengeTutorialForDay, getChallengeProgress, getChallengeFinishDate, getChallengePosterFinishDate, isChallengeCompletionEligible, createChallengeHistoryEntry, normalizeChallengeState, addPendingPhotoDeletion, removePendingPhotoDeletion, normalizeChallengePosterPhotos, sanitizeChallengePosterFilename, toggleChallengeCheckIn, buildChallengeCalendarText, maySaveChallengePhoto, getChallengePhotoFailureScope, KNOWLEDGE_BASE };
     })();
   </script>
 
   <script>
     /* Face-API.js 模型地址：仅加载轻量检测器与 68 点关键点模型。 */
     const MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights";
-    const ACTION_STORAGE_KEY = "faceStyleActionStateV1";
     const CHALLENGE_STORAGE_KEY = "faceStyleChallengeStateV2";
     const $ = (id) => document.getElementById(id);
-    const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0, qualityFailureCount: 0, qualityOverride: false, actionState: null, challengeState: null, challengeReturnView: "upload", challengeReturnFocus: null, pendingTutorialUrl: "", pendingTemplateId: "", recommendedTemplateId: "", photoStorageAvailable: null, challengePhotoUrls: { start: "", end: "" }, challengePhotoRenderToken: 0 };
+    const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0, qualityFailureCount: 0, qualityOverride: false, challengeState: null, challengeReturnView: "upload", challengeReturnFocus: null, pendingTutorialUrl: "", pendingTemplateId: "", pendingCustomTaskLabel: "", recommendedTemplateId: "", photoStorageAvailable: null, challengePhotoUrls: { start: "", end: "" }, challengePhotoRenderToken: 0 };
 
     const views = {
       upload: $("uploadView"),
@@ -1463,7 +1401,6 @@
     window.addEventListener("load", init);
 
     function init() {
-      state.actionState = loadActionState();
       state.challengeState = loadChallengeState();
       bindEvents();
       configureChallengePhotoStorage();
@@ -1478,7 +1415,6 @@
       $("retryButton").addEventListener("click", resetApp);
       $("saveButton").addEventListener("click", saveReport);
       $("homeChallengeButton").addEventListener("click", () => openChallengeCenter("home"));
-      $("reportChallengeButton").addEventListener("click", () => openChallengeCenter("report"));
       $("closeChallengeButton").addEventListener("click", closeChallengeCenter);
       $("newChallengeButton").addEventListener("click", openTemplateSheet);
       $("downloadPosterButton").addEventListener("click", downloadChallengePoster);
@@ -1529,24 +1465,13 @@
       });
       $("questionBack").addEventListener("click", () => moveQuestion(-1));
       $("questionNext").addEventListener("click", () => moveQuestion(1));
-      $("actionCards").addEventListener("click", (event) => {
-        const button = event.target.closest("[data-action-id]");
-        if (button) selectActionCard(button.dataset.actionId);
+      $("reportChallengeCards").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-report-challenge-id]");
+        if (button) openReportChallengeSetup(button.dataset.reportChallengeId, button);
       });
-      $("reminderCards").addEventListener("click", (event) => {
-        const button = event.target.closest("[data-reminder-id]");
-        if (button) selectReminder(button.dataset.reminderId);
+      $("reportActiveChallenge").addEventListener("click", (event) => {
+        if (event.target.closest("[data-open-active-challenge]")) openChallengeCenter("report");
       });
-      $("timeCards").addEventListener("click", (event) => {
-        const button = event.target.closest("[data-reminder-time]");
-        if (button) selectReminderTime(button.dataset.reminderTime);
-      });
-      $("milestoneList").addEventListener("click", (event) => {
-        const button = event.target.closest("[data-milestone-id]");
-        if (button) toggleMilestone(button.dataset.milestoneId);
-      });
-      $("calendarButton").addEventListener("click", downloadCalendar);
-      $("clearActionButton").addEventListener("click", clearActionProgress);
 
       const dropZone = $("dropZone");
       ["dragenter", "dragover"].forEach((name) => dropZone.addEventListener(name, (event) => {
@@ -2066,32 +1991,6 @@
       return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     }
 
-    function loadActionState() {
-      const fallback = { version: 1, actionId: "", reminderId: "milestones", reminderTime: "21:30", startedAt: "", completed: [] };
-      try {
-        const saved = JSON.parse(localStorage.getItem(ACTION_STORAGE_KEY));
-        if (!saved || saved.version !== 1 || !["milestones", "weekly", "none"].includes(saved.reminderId)) return fallback;
-        return {
-          ...fallback,
-          actionId: typeof saved.actionId === "string" ? saved.actionId : "",
-          reminderId: saved.reminderId,
-          reminderTime: ["08:00", "12:30", "21:30"].includes(saved.reminderTime) ? saved.reminderTime : fallback.reminderTime,
-          startedAt: /^\d{4}-\d{2}-\d{2}$/.test(saved.startedAt) ? saved.startedAt : "",
-          completed: Array.isArray(saved.completed) ? saved.completed.filter((item) => ["day-1", "day-7", "day-30"].includes(item)) : []
-        };
-      } catch (_) {
-        return fallback;
-      }
-    }
-
-    function saveActionState() {
-      try {
-        localStorage.setItem(ACTION_STORAGE_KEY, JSON.stringify(state.actionState));
-      } catch (_) {
-        showToast("当前浏览器无法长期保存，进度仅在本次打开期间有效");
-      }
-    }
-
     function emptyChallengeState() {
       return { version: 2, active: null, history: [], pendingPhotoDeletionIds: [] };
     }
@@ -2272,26 +2171,23 @@
       }
     }
 
-    function openChallengeCenter(source) {
+    function openChallengeCenter(source, focusTrigger = document.activeElement) {
       state.challengeReturnView = source === "report" && state.report ? "report" : "upload";
-      state.challengeReturnFocus = source === "report" ? $("reportChallengeButton") : $("homeChallengeButton");
+      state.challengeReturnFocus = source === "report" ? focusTrigger : $("homeChallengeButton");
       renderChallengeCenter();
       showView("challenge");
       window.scrollTo({ top: 0, behavior: "smooth" });
       requestAnimationFrame(() => $("closeChallengeButton").focus());
-      if (source === "report") openTemplateSheet(getRecommendedChallengeTemplateId(), $("newChallengeButton"));
     }
 
     function closeChallengeCenter() {
       closeTemplateSheet(false);
+      if (state.challengeReturnView === "report" && state.report) renderReportChallengeRecommendations(state.report);
       showView(state.challengeReturnView);
-      state.challengeReturnFocus?.focus();
-    }
-
-    function getRecommendedChallengeTemplateId() {
-      if (state.profile?.primaryGoal === "makeup") return "makeup-3-in-7";
-      if (state.profile?.primaryGoal === "skin") return "sunscreen-21";
-      return "";
+      const returnTarget = state.challengeReturnView === "report" && state.challengeState.active
+        ? $("reportActiveChallenge").querySelector("[data-open-active-challenge]")
+        : state.challengeReturnFocus;
+      requestAnimationFrame(() => returnTarget?.focus());
     }
 
     function openTemplateSheet(recommendedTemplateId = "", focusTrigger = document.activeElement) {
@@ -2314,13 +2210,18 @@
       $("customChallengeMessage").textContent = "";
       $("templateTutorialMessage").textContent = "";
       state.pendingTemplateId = "";
+      state.pendingCustomTaskLabel = "";
     }
 
-    function showCustomChallengeForm() {
+    function showCustomChallengeForm(prefill = {}) {
       $("challengeTemplateCards").classList.add("hidden");
       $("customChallengeButton").classList.add("hidden");
       $("customChallengeForm").classList.remove("hidden");
       $("templateSheetTitle").textContent = "自定义你的挑战";
+      if (prefill.title) $("customChallengeTitle").value = prefill.title;
+      if (prefill.durationDays) $("customChallengeDays").value = prefill.durationDays;
+      if (prefill.frequency) $("customChallengeFrequency").value = prefill.frequency;
+      state.pendingCustomTaskLabel = typeof prefill.taskLabel === "string" ? prefill.taskLabel : "";
       requestAnimationFrame(() => $("customChallengeTitle").focus());
     }
 
@@ -2423,7 +2324,7 @@
         }
         if (url) tutorials.push({ label, url });
       }
-      startChallenge({ templateId: "custom", title, durationDays, frequency, reminderTime, tutorials });
+      startChallenge({ templateId: "custom", title, taskLabel: state.pendingCustomTaskLabel || title, durationDays, frequency, reminderTime, tutorials });
     }
 
     function openDeleteChallengeConfirmation() {
@@ -2834,50 +2735,6 @@
     window.buildChallengePoster = buildChallengePoster;
     window.downloadChallengePoster = downloadChallengePoster;
 
-    function selectActionCard(actionId) {
-      if (!state.report?.actionCards.some((item) => item.id === actionId)) return;
-      const changed = state.actionState.actionId !== actionId;
-      state.actionState = {
-        ...state.actionState,
-        actionId,
-        startedAt: changed || !state.actionState.startedAt ? localDateString() : state.actionState.startedAt,
-        completed: changed ? [] : state.actionState.completed
-      };
-      saveActionState();
-      renderActionWorkspace(state.report);
-      showToast("行动卡已选择");
-    }
-
-    function selectReminder(reminderId) {
-      if (!["milestones", "weekly", "none"].includes(reminderId) || !state.actionState.actionId) return;
-      state.actionState.reminderId = reminderId;
-      saveActionState();
-      renderActionWorkspace(state.report);
-    }
-
-    function selectReminderTime(reminderTime) {
-      if (!["08:00", "12:30", "21:30"].includes(reminderTime) || !state.actionState.actionId) return;
-      state.actionState.reminderTime = reminderTime;
-      saveActionState();
-      renderActionWorkspace(state.report);
-    }
-
-    function toggleMilestone(milestoneId) {
-      if (!["day-1", "day-7", "day-30"].includes(milestoneId) || !state.actionState.actionId) return;
-      const completed = new Set(state.actionState.completed);
-      completed.has(milestoneId) ? completed.delete(milestoneId) : completed.add(milestoneId);
-      state.actionState.completed = Array.from(completed);
-      saveActionState();
-      renderActionWorkspace(state.report);
-    }
-
-    function clearActionProgress() {
-      state.actionState = { version: 1, actionId: "", reminderId: "milestones", reminderTime: "21:30", startedAt: "", completed: [] };
-      try { localStorage.removeItem(ACTION_STORAGE_KEY); } catch (_) { /* 当前会话仍可继续 */ }
-      renderActionWorkspace(state.report);
-      showToast("行动进度已清除");
-    }
-
     function renderKeywordGuide(selectedCard) {
       const keywords = [
         selectedCard?.searchKeyword || "面部比例 妆容思路 对照",
@@ -2888,69 +2745,42 @@
       $("keywordList").querySelectorAll(".copy-btn").forEach((button) => button.addEventListener("click", () => copyKeyword(button)));
     }
 
-    function renderActionWorkspace(report) {
-      const selected = report.actionCards.find((item) => item.id === state.actionState.actionId) || null;
-      if (state.actionState.actionId && !selected) state.actionState = { version: 1, actionId: "", reminderId: "milestones", reminderTime: "21:30", startedAt: "", completed: [] };
-      $("actionCards").innerHTML = report.actionCards.map((item) => {
-        const isSelected = selected?.id === item.id;
-        return `<button class="action-card${isSelected ? " selected" : ""}" type="button" data-action-id="${escapeHtml(item.id)}" aria-pressed="${isSelected}">
-          <span class="action-card-top"><strong class="action-title">${escapeHtml(item.title)}</strong><span class="action-check" aria-hidden="true">✓</span></span>
-          <span class="action-reason">推荐原因：${escapeHtml(item.reason)}</span>
-          <span class="action-do"><b>具体行动：</b>${escapeHtml(item.action)}</span>
-          <span class="action-meta"><span>${escapeHtml(item.duration)}</span><span>${escapeHtml(item.cost)}</span></span>
-          <span class="action-reason"><b>观察：</b>${escapeHtml(item.successSignal)}<br><b>停止边界：</b>${escapeHtml(item.stopRule)}</span>
-        </button>`;
-      }).join("");
-      $("actionSetup").classList.toggle("hidden", !selected);
-      if (!selected) {
-        $("monthlyFocus").textContent = report.actionCards[0]?.action || "在相同条件下记录一次造型对照。";
-        $("reminderCards").replaceChildren();
-        $("timeCards").replaceChildren();
-        $("milestoneList").replaceChildren();
-        renderKeywordGuide(null);
+    function openReportChallengeSetup(actionId, trigger) {
+      const action = state.report?.actionCards.find((item) => item.id === actionId);
+      if (!action) return;
+      if (state.challengeState.active) {
+        openChallengeCenter("report", trigger);
+        showToast("你已有进行中的挑战");
         return;
       }
-      $("monthlyFocus").textContent = selected.action;
-      const reminders = [
-        { id: "milestones", title: "轻量体验", note: "第 1 / 7 / 30 天" },
-        { id: "weekly", title: "稳定执行", note: "每周一次，共 4 周" },
-        { id: "none", title: "暂不提醒", note: "只在本机打卡" }
-      ];
-      $("reminderCards").innerHTML = reminders.map((item) => `<button class="reminder-card${state.actionState.reminderId === item.id ? " selected" : ""}" type="button" data-reminder-id="${item.id}" aria-pressed="${state.actionState.reminderId === item.id}">${item.title}<small>${item.note}</small></button>`).join("");
-      const times = [{ value: "08:00", label: "早上 8:00" }, { value: "12:30", label: "中午 12:30" }, { value: "21:30", label: "晚上 21:30" }];
-      $("timeCards").innerHTML = state.actionState.reminderId === "none" ? "" : times.map((item) => `<button class="time-card${state.actionState.reminderTime === item.value ? " selected" : ""}" type="button" data-reminder-time="${item.value}" aria-pressed="${state.actionState.reminderTime === item.value}">${item.label}</button>`).join("");
-      const start = new Date(`${state.actionState.startedAt}T12:00:00`);
-      const milestones = [
-        { id: "day-1", label: "开始行动", offset: 0 },
-        { id: "day-7", label: "第 7 天复盘", offset: 6 },
-        { id: "day-30", label: "第 30 天对比", offset: 29 }
-      ];
-      $("milestoneList").innerHTML = milestones.map((item) => {
-        const date = new Date(start);
-        date.setDate(date.getDate() + item.offset);
-        const done = state.actionState.completed.includes(item.id);
-        return `<button class="milestone-button${done ? " done" : ""}" type="button" data-milestone-id="${item.id}" aria-pressed="${done}"><span class="milestone-mark" aria-hidden="true">✓</span><strong>${item.label}</strong><time>${date.getMonth() + 1}月${date.getDate()}日</time></button>`;
-      }).join("");
-      $("calendarButton").classList.toggle("hidden", state.actionState.reminderId === "none");
-      $("calendarButton").textContent = state.actionState.reminderId === "weekly" ? "加入每周提醒" : "加入 3 个关键提醒";
-      $("calendarNote").textContent = state.actionState.reminderId === "none" ? "已选择不提醒；三个关键节点仍可在本机打卡。" : "网页版会下载日历文件，不会读取你的日历；是否导入由手机系统确认。";
-      renderKeywordGuide(selected);
+      const templateId = action.id === "style-focus" && state.profile?.primaryGoal === "makeup" ? "makeup-3-in-7" : "";
+      openChallengeCenter("report", trigger);
+      openTemplateSheet(templateId, $("newChallengeButton"));
+      if (templateId) {
+        const template = FaceStyleCore.getChallengeTemplates().find((item) => item.id === templateId);
+        if (template) showTemplateSetup(template);
+      } else {
+        const durationDays = action.id === "photo-review" ? 30 : 7;
+        const prefill = { title: action.title, taskLabel: action.action, durationDays, frequency: "daily" };
+        showCustomChallengeForm(prefill);
+      }
     }
 
-    function downloadCalendar() {
-      const card = state.report?.actionCards.find((item) => item.id === state.actionState.actionId);
-      const content = FaceStyleCore.buildCalendarText(card, state.actionState.reminderId, state.actionState.startedAt, state.actionState.reminderTime);
-      if (!content) {
-        showToast("请先选择行动卡和提醒方式");
-        return;
-      }
-      const url = URL.createObjectURL(new Blob(["\uFEFF", content], { type: "text/calendar;charset=utf-8" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `行动提醒-${state.actionState.startedAt}.ics`;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      showToast("日历文件已生成，请选择系统日历导入");
+    function renderReportChallengeRecommendations(report) {
+      const active = state.challengeState?.active;
+      $("reportActiveChallenge").classList.toggle("hidden", !active);
+      $("reportActiveChallenge").innerHTML = active
+        ? `<article class="action-card selected"><span class="action-card-top"><strong class="action-title">进行中：${escapeHtml(active.title)}</strong><span class="action-check" aria-hidden="true">✓</span></span><span class="action-reason">报告页和“我的变美挑战”共用这一份进度。</span><button class="secondary-btn" type="button" data-open-active-challenge>去今日任务</button></article>`
+        : "";
+      $("reportChallengeCards").classList.toggle("hidden", Boolean(active));
+      $("reportChallengeCards").innerHTML = report.actionCards.map((item) => `<button class="action-card" type="button" data-report-challenge-id="${escapeHtml(item.id)}">
+        <span class="action-card-top"><strong class="action-title">${escapeHtml(item.title)}</strong><span class="action-check" aria-hidden="true">→</span></span>
+        <span class="action-reason">推荐原因：${escapeHtml(item.reason)}</span>
+        <span class="action-do"><b>挑战任务：</b>${escapeHtml(item.action)}</span>
+        <span class="action-meta"><span>${escapeHtml(item.duration)}</span><span>${escapeHtml(item.cost)}</span></span>
+        <span class="action-reason"><b>观察：</b>${escapeHtml(item.successSignal)}<br><b>停止边界：</b>${escapeHtml(item.stopRule)}</span>
+      </button>`).join("");
+      renderKeywordGuide(report.actionCards[0] || null);
     }
 
     function renderReport(report, photo) {
@@ -3007,7 +2837,7 @@
         $("carePlan").classList.add("hidden");
       }
 
-      renderActionWorkspace(report);
+      renderReportChallengeRecommendations(report);
       $("sourceList").innerHTML = report.sources.map((source) => `<a href="${source.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title)} · ${source.type}</a>`).join("");
       $("limitations").innerHTML = report.limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
     }
@@ -3097,10 +2927,11 @@
     }
 
     function clearRenderedReport() {
-      ["memorySentence", "terminologyGrid", "strengthList", "attentionDirection", "monthlyFocus", "coreTraits", "dataGroups", "styleAdviceGrid", "carePlanContent", "actionCards", "reminderCards", "timeCards", "milestoneList", "sourceList", "limitations", "keywordList"].forEach((id) => {
+      ["memorySentence", "terminologyGrid", "strengthList", "attentionDirection", "monthlyFocus", "coreTraits", "dataGroups", "styleAdviceGrid", "carePlanContent", "reportChallengeCards", "reportActiveChallenge", "sourceList", "limitations", "keywordList"].forEach((id) => {
         $(id).replaceChildren();
       });
-      $("actionSetup").classList.add("hidden");
+      $("reportActiveChallenge").classList.add("hidden");
+      $("reportChallengeCards").classList.remove("hidden");
       $("qualityBanner").textContent = "";
       $("qualityBanner").classList.add("hidden");
       $("carePlan").classList.remove("hidden");

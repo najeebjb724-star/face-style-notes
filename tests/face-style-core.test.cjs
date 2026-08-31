@@ -132,7 +132,7 @@ test("incomplete profile omits care and keeps one safe action card", () => {
 
 test("page contains required accessible views and no prohibited claims", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  ["uploadView", "analysisView", "questionnaireView", "reportView", "qualityLevel", "coreTraits", "dataGroups", "carePlan", "actionCards", "reminderCards", "timeCards", "milestoneList", "calendarButton", "clearActionButton", "evidenceDrawer"].forEach((id) => {
+  ["uploadView", "analysisView", "questionnaireView", "reportView", "qualityLevel", "coreTraits", "dataGroups", "carePlan", "reportChallengeCards", "reportActiveChallenge", "evidenceDrawer"].forEach((id) => {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   });
   ["qualityBanner", "memorySentence", "terminologyGrid", "strengthList", "attentionDirection", "monthlyFocus"].forEach((id) => {
@@ -144,11 +144,11 @@ test("page contains required accessible views and no prohibited claims", () => {
   assert.match(html, /prefers-reduced-motion/);
   assert.match(html, /qualityFailureCount\s*=\s*0/);
   assert.match(html, /qualityOverride\s*=\s*false/);
-  assert.match(html, /faceStyleActionStateV1/);
-  assert.match(html, /selectActionCard/);
-  assert.match(html, /selectReminder/);
-  assert.match(html, /selectReminderTime/);
-  assert.match(html, /toggleMilestone/);
+  assert.doesNotMatch(html, /faceStyleActionStateV1/);
+  assert.doesNotMatch(html, /id=["']actionSetup["']/);
+  assert.doesNotMatch(html, /id=["']reportChallengeButton["']/);
+  assert.match(html, /renderReportChallengeRecommendations/);
+  assert.match(html, /openReportChallengeSetup/);
 });
 
 test("challenge MVP keeps privacy copy and avoids prohibited promises", () => {
@@ -168,16 +168,10 @@ test("challenge photo controls retain a 44px touch target", () => {
   assert.match(html, /\.photo-capture-controls label\s*\{\s*display:\s*grid;\s*min-height:\s*2\.75rem;/s);
 });
 
-test("calendar helper builds milestone and weekly ICS variants", () => {
+test("core exposes only the unified challenge calendar helper", () => {
   const core = loadCore();
-  const card = { id: "style-focus", title: "调整一个造型变量", action: "比较两种眉形。" };
-  const milestones = core.buildCalendarText(card, "milestones", "2026-08-28");
-  assert.match(milestones, /BEGIN:VCALENDAR/);
-  assert.match(milestones, /调整一个造型变量/);
-  assert.equal((milestones.match(/BEGIN:VEVENT/g) || []).length, 3);
-  const weekly = core.buildCalendarText(card, "weekly", "2026-08-28");
-  assert.match(weekly, /RRULE:FREQ=WEEKLY;COUNT=4/);
-  assert.equal((weekly.match(/BEGIN:VEVENT/g) || []).length, 1);
+  assert.equal(core.buildCalendarText, undefined);
+  assert.equal(typeof core.buildChallengeCalendarText, "function");
 });
 
 test("challenge templates cover habits and makeup camps", () => {
@@ -191,7 +185,7 @@ test("challenge templates cover habits and makeup camps", () => {
 
 test("page exposes a mobile challenge center from home and report", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  ["challengeView", "homeChallengeButton", "reportChallengeButton", "todayChallenge", "challengeProgress", "newChallengeButton", "challengeTemplateSheet"].forEach((id) => {
+  ["challengeView", "homeChallengeButton", "reportChallengeCards", "todayChallenge", "challengeProgress", "newChallengeButton", "challengeTemplateSheet"].forEach((id) => {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   });
   ["todayTaskTitle", "openTutorialButton", "copyTutorialButton", "checkInButton", "undoCheckInButton", "addChallengeCalendarButton"].forEach((id) => {
@@ -240,7 +234,7 @@ test("calendar return startup opens the challenge center without opening a creat
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
   assert.match(html, /new URLSearchParams\(window\.location\.search\)\.get\(["']view["']\) === ["']challenge["']/);
   assert.match(html, /openChallengeCenter\(["']calendar["']\)/);
-  assert.match(html, /if \(source === ["']report["']\) openTemplateSheet/);
+  assert.doesNotMatch(html, /if \(source === ["']report["']\) openTemplateSheet/);
 });
 
 test("daily check-in rerenders restore focus to a visible daily control", () => {
@@ -269,9 +263,14 @@ test("custom challenge submission validates reminder time and complete tutorial 
   assert.doesNotMatch(html, /label \|\| "参考教程"/);
 });
 
-test("report challenge sheet returns focus to a visible challenge control", () => {
+test("report recommendation cards enter the shared challenge setup directly", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  assert.match(html, /openTemplateSheet\(getRecommendedChallengeTemplateId\(\), \$\("newChallengeButton"\)\)/);
+  assert.match(html, /data-report-challenge-id/);
+  assert.match(html, /function openReportChallengeSetup\(actionId, trigger\)/);
+  assert.match(html, /showTemplateSetup\(template\)/);
+  assert.match(html, /showCustomChallengeForm\(prefill\)/);
+  assert.match(html, /taskLabel: action\.action/);
+  assert.match(html, /data-open-active-challenge/);
   assert.match(html, /function openTemplateSheet\(recommendedTemplateId = "", focusTrigger = document\.activeElement\)/);
 });
 
