@@ -156,7 +156,7 @@ test("identity redesign uses the approved warm token system", () => {
   const approved = ["#F7F3EE", "#FFFDF9", "#C9A87C", "#2C2420", "#7A6B5A", "#D4C4B0", "#EDE5D8"];
   approved
     .forEach((color) => assert.match(html.toUpperCase(), new RegExp(color.toUpperCase())));
-  ["#fffbf7", "#f4e7da", "#ad6267", "#3e2723", "#7b6762", "#e5989b", "#8b704b", "#9c8b86", "#5d765f", "#6f9b7a", "#9b3e47", "rgba(212,163,115", "rgba(229,152,155", "rgba(173,98,103"].forEach((color) => {
+  ["#fffbf7", "#f4e7da", "#ad6267", "#3e2723", "#7b6762", "#e5989b", "#8b704b", "#9c8b86", "#5d765f", "#6f9b7a", "#9b3e47", "rgba(139,112,75", "rgba(212,163,115", "rgba(229,152,155", "rgba(173,98,103"].forEach((color) => {
     assert.equal(html.toLowerCase().includes(color.toLowerCase()), false, `legacy palette remains: ${color}`);
   });
   assert.match(html, /--font-display:/);
