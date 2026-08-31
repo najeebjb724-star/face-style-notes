@@ -850,3 +850,17 @@ test("report renders the identity model as svg and readable trait bars", () => {
   assert.match(html, /FaceStyleCore\.buildIdentityPresentation/);
   assert.match(html, /查看解读依据/);
 });
+
+test("identity report renderer normalizes untrusted percentage values", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /function normalizeIdentityPercent\(value\)/);
+  assert.match(html, /const numeric = Number\(value\);/);
+  assert.match(html, /Number\.isFinite\(numeric\) \? Math\.min\(100, Math\.max\(0, numeric\)\) : 0/);
+  assert.match(html, /const normalizedAxes = axes\.map\(\(axis\) => \(\{ \.\.\.axis, value: normalizeIdentityPercent\(axis\.value\) \}\)\);/);
+  assert.match(html, /const values = normalizedAxes\.map\(\(axis, index\) => point\(index, axis\.value\)\.join\(","\)\)\.join\(" "\);/);
+  assert.match(html, /const courtValues = court\.values\.map\(normalizeIdentityPercent\);/);
+  assert.match(html, /courtValues\.map\(\(value, index\) => `<i style="--segment:\$\{value\}"/);
+  assert.match(html, /const identityAxes = identity\.axes\.slice\(0, 3\)\.map\(\(axis\) => \(\{ \.\.\.axis, value: normalizeIdentityPercent\(axis\.value\) \}\)\);/);
+  assert.doesNotMatch(html, /const values = axes\.map/);
+  assert.doesNotMatch(html, /court\.values\.map\(\(value, index\)/);
+});
