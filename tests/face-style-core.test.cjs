@@ -817,5 +817,27 @@ test("identity presentation is deterministic, non-ranked, and bounded", () => {
     assert.ok(Number.isFinite(axis.value));
     assert.ok(axis.value >= 0 && axis.value <= 100);
   });
+  assert.equal(identity.axes.find((axis) => axis.id === "features").label, "五官量感差异");
   assert.equal(identity.title.includes("评分"), false);
+});
+
+test("identity presentation rejects missing or non-finite required measurements", () => {
+  const core = loadCore();
+  const measurements = core.computeMeasurements(makeFrontLandmarks(), "high");
+  const readable = core.deriveReadableProfile(measurements, { level: "high" });
+  const incomplete = { ...measurements, faceLengthWidth: {} };
+  assert.throws(() => core.buildIdentityPresentation(incomplete, readable, new Date("2026-08-31T12:00:00Z")), /requires finite measurement: faceLengthWidth\.value/);
+  const nonFinite = { ...measurements, visualWeight: { ...measurements.visualWeight, nose: Infinity } };
+  assert.throws(() => core.buildIdentityPresentation(nonFinite, readable, new Date("2026-08-31T12:00:00Z")), /requires finite measurement: visualWeight\.nose/);
+});
+
+test("identity presentation serial is safe for invalid dates and deterministic for equal timestamps", () => {
+  const core = loadCore();
+  const measurements = core.computeMeasurements(makeFrontLandmarks(), "high");
+  const readable = core.deriveReadableProfile(measurements, { level: "high" });
+  const invalid = core.buildIdentityPresentation(measurements, readable, new Date("invalid"));
+  assert.equal(invalid.serial, "NO.0000");
+  const first = core.buildIdentityPresentation(measurements, readable, new Date("2026-08-31T12:00:00Z"));
+  const second = core.buildIdentityPresentation(measurements, readable, new Date("2026-08-31T12:00:00Z"));
+  assert.equal(first.serial, second.serial);
 });
