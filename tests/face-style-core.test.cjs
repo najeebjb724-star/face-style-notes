@@ -15,6 +15,10 @@ function loadCore() {
   return context.window.FaceStyleCore;
 }
 
+function unfoldIcs(value) {
+  return value.replace(/\r\n[ \t]/g, "");
+}
+
 test("safeDivide rejects invalid denominators", () => {
   const core = loadCore();
   assert.equal(core.safeDivide(4, 2), 2);
@@ -228,6 +232,8 @@ test("every template uses the in-page reminder setup before starting", () => {
   assert.doesNotMatch(html, /else startChallenge\(\{ templateId: id \}\)/);
   assert.match(html, /const reminderTime = \$\("templateReminderTime"\)\.value;/);
   assert.match(html, /startChallenge\(\{ templateId: state\.pendingTemplateId, reminderTime, tutorials \}\)/);
+  assert.match(html, /确认任务提醒时间后即可开始/);
+  assert.doesNotMatch(html, /确认每天的提醒时间后即可开始/);
 });
 
 test("calendar return startup opens the challenge center without opening a creation sheet", () => {
@@ -589,21 +595,23 @@ test("challenge ICS includes task, tutorial and return URL", () => {
     tutorials: [{ label: "眼妆教程", url: "https://example.com/tutorial" }]
   }, new Date("2026-08-28T08:00:00"));
   const ics = core.buildChallengeCalendarText(challenge, "https://example.app/?view=challenge");
-  assert.match(ics, /BEGIN:VCALENDAR/);
-  assert.match(ics, /RRULE:FREQ=DAILY;COUNT=7/);
-  assert.match(ics, /URL:https:\/\/example\.app\/\?view=challenge/);
-  assert.match(ics, /https:\/\/example\.com\/tutorial/);
-  assert.match(ics, /回到挑战中心完成打卡/);
-  assert.match(ics, /https:\/\/example\.app\/\?view=challenge/);
+  const unfolded = unfoldIcs(ics);
+  assert.match(unfolded, /BEGIN:VCALENDAR/);
+  assert.match(unfolded, /RRULE:FREQ=DAILY;COUNT=7/);
+  assert.match(unfolded, /URL:https:\/\/example\.app\/\?view=challenge/);
+  assert.match(unfolded, /https:\/\/example\.com\/tutorial/);
+  assert.match(unfolded, /回到挑战中心完成打卡/);
+  assert.match(unfolded, /https:\/\/example\.app\/\?view=challenge/);
 });
 
 test("challenge ICS only emits an HTTPS return URL", () => {
   const core = loadCore();
   const challenge = core.createChallenge({ templateId: "eye-makeup-7" }, new Date("2026-08-28T08:00:00"));
   const ics = core.buildChallengeCalendarText(challenge, "http://example.app/?view=challenge");
-  assert.doesNotMatch(ics, /URL:http:\/\/example\.app/);
-  assert.doesNotMatch(ics, /DESCRIPTION:[^\r\n]*http:\/\/example\.app/);
-  assert.match(ics, /DESCRIPTION:[^\r\n]*回到挑战中心完成打卡/);
+  const unfolded = unfoldIcs(ics);
+  assert.doesNotMatch(unfolded, /URL:http:\/\/example\.app/);
+  assert.doesNotMatch(unfolded, /DESCRIPTION:[^\r\n]*http:\/\/example\.app/);
+  assert.match(unfolded, /DESCRIPTION:[^\r\n]*回到挑战中心完成打卡/);
 });
 
 test("challenge ICS derives weekly count and emits irregular events per occurrence", () => {
@@ -622,6 +630,51 @@ test("challenge ICS derives weekly count and emits irregular events per occurren
   assert.match(scheduledIcs, /DTSTART:20260903T203000/);
 });
 
+test("scheduled ICS maps one tutorial to each occurrence event", () => {
+  const core = loadCore();
+  const challenge = core.createChallenge({
+    templateId: "makeup-3-in-7",
+    reminderTime: "20:30",
+    tutorials: [
+      { label: "妆容一", url: "https://example.com/look-1" },
+      { label: "妆容二", url: "https://example.com/look-2" },
+      { label: "妆容三", url: "https://example.com/look-3" }
+    ]
+  }, new Date("2026-08-28T08:00:00Z"));
+  const events = unfoldIcs(core.buildChallengeCalendarText(challenge, "https://example.app/?view=challenge"))
+    .match(/BEGIN:VEVENT[\s\S]*?END:VEVENT/g);
+  assert.equal(events.length, 3);
+  events.forEach((event, index) => {
+    assert.match(event, new RegExp(`https://example\\.com/look-${index + 1}`));
+    [1, 2, 3].filter((number) => number !== index + 1).forEach((number) => {
+      assert.doesNotMatch(event, new RegExp(`https://example\\.com/look-${number}`));
+    });
+  });
+});
+
+test("challenge ICS folds long UTF-8 content lines at 75 octets and unfolds losslessly", () => {
+  const core = loadCore();
+  const title = "这是一个需要在手机日历中完整显示的超长中文挑战标题";
+  const taskLabel = "完成一项包含许多中文字符并且不能在多字节字符中间断开的挑战任务";
+  const tutorialUrl = `https://example.com/${"long-segment-".repeat(8)}`;
+  const challenge = core.createChallenge({
+    templateId: "custom",
+    title,
+    taskLabel,
+    durationDays: 3,
+    tutorials: [{ label: "超长中文教程名称用于验证折行", url: tutorialUrl }]
+  }, new Date("2026-08-28T08:00:00Z"));
+  const ics = core.buildChallengeCalendarText(challenge, "https://example.app/?view=challenge");
+  const physicalLines = ics.split("\r\n").filter(Boolean);
+  physicalLines.forEach((line) => assert.ok(Buffer.byteLength(line, "utf8") <= 75, `${Buffer.byteLength(line, "utf8")} octets: ${line}`));
+  assert.ok(physicalLines.some((line) => line.startsWith(" ")));
+  const unfolded = unfoldIcs(ics);
+  assert.match(unfolded, new RegExp(`SUMMARY:${title}`));
+  assert.ok(unfolded.includes(taskLabel));
+  assert.ok(unfolded.includes(tutorialUrl));
+  assert.doesNotMatch(unfolded, /�/);
+});
+
 test("challenge ICS normalizes CRLF and CR in descriptions", () => {
   const core = loadCore();
   const challenge = core.createChallenge({
@@ -631,7 +684,8 @@ test("challenge ICS normalizes CRLF and CR in descriptions", () => {
     tutorials: [{ label: "教程\r\n标题\r续", url: "https://example.com/tutorial" }]
   }, new Date("2026-08-28T08:00:00"));
   const ics = core.buildChallengeCalendarText(challenge, "https://example.app/?view=challenge");
-  const description = ics.slice(ics.indexOf("DESCRIPTION:"), ics.indexOf("\r\nRRULE:"));
+  const unfolded = unfoldIcs(ics);
+  const description = unfolded.slice(unfolded.indexOf("DESCRIPTION:"), unfolded.indexOf("\r\nRRULE:"));
   assert.equal(description.includes("\r"), false);
   assert.match(description, /第一行\\n第二行\\n第三行\\n教程\\n标题\\n续/);
 });

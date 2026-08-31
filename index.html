@@ -648,6 +648,39 @@
 
       const escapeCalendarText = (value) => String(value).replace(/\\/g, "\\\\").replace(/\r\n|\r|\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
 
+      function utf8OctetLength(character) {
+        const codePoint = character.codePointAt(0);
+        if (codePoint <= 0x7f) return 1;
+        if (codePoint <= 0x7ff) return 2;
+        if (codePoint <= 0xffff) return 3;
+        return 4;
+      }
+
+      function foldCalendarLine(line) {
+        const chunks = [];
+        let chunk = "";
+        let chunkOctets = 0;
+        let limit = 75;
+        for (const character of String(line)) {
+          const characterOctets = utf8OctetLength(character);
+          if (chunk && chunkOctets + characterOctets > limit) {
+            chunks.push(chunk);
+            chunk = character;
+            chunkOctets = characterOctets;
+            limit = 74;
+          } else {
+            chunk += character;
+            chunkOctets += characterOctets;
+          }
+        }
+        chunks.push(chunk);
+        return chunks.join("\r\n ");
+      }
+
+      function foldCalendarText(value) {
+        return String(value).split(/\r\n|\r|\n/).map(foldCalendarLine).join("\r\n");
+      }
+
       const CHALLENGE_TEMPLATES = Object.freeze([
         { id: "body-lotion-30", kind: "habit", title: "30 天身体乳习惯", durationDays: 30, frequency: "daily", taskLabel: "今天涂身体乳", photoDays: [1, 30], taskDays: [], tutorialSlots: 0 },
         { id: "sunscreen-21", kind: "habit", title: "21 天每日防晒", durationDays: 21, frequency: "daily", taskLabel: "今天完成防晒", photoDays: [1, 21], taskDays: [], tutorialSlots: 0 },
@@ -881,25 +914,29 @@
         const returnUrl = validateTutorialUrl(pageUrl);
         const challengeUrl = returnUrl.startsWith("https:") ? returnUrl : "";
         const tutorialLines = (Array.isArray(challenge.tutorials) ? challenge.tutorials : []).map((item) => `${item.label}: ${item.url}`);
-        const description = [challenge.taskLabel, ...tutorialLines, "回到挑战中心完成打卡", challengeUrl ? `返回地址：${challengeUrl}` : ""].filter(Boolean).join("\n");
         const occurrenceDays = getChallengeOccurrenceDays(challenge);
         const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(challenge.reminderTime || "") ? challenge.reminderTime.replace(":", "") : "2130";
         const recurrence = challenge.frequency === "daily"
           ? `RRULE:FREQ=DAILY;COUNT=${occurrenceDays.length}`
           : challenge.frequency === "weekly" ? `RRULE:FREQ=WEEKLY;COUNT=${occurrenceDays.length}` : "";
         const eventDays = challenge.frequency === "scheduled" ? occurrenceDays : occurrenceDays.slice(0, 1);
-        const events = eventDays.map((day) => [
-          "BEGIN:VEVENT",
-          `UID:${escapeCalendarText(`${challenge.id}${challenge.frequency === "scheduled" ? `-${day}` : ""}@face-style-notes`)}`,
-          `DTSTAMP:${formatCalendarDate(challenge.startedAt)}T000000Z`,
-          `DTSTART:${formatCalendarDate(challenge.startedAt, day - 1)}T${time}00`,
-          `SUMMARY:${escapeCalendarText(challenge.title)}`,
-          `DESCRIPTION:${escapeCalendarText(description)}`,
-          recurrence,
-          challengeUrl ? `URL:${challengeUrl}` : "",
-          "END:VEVENT"
-        ].filter(Boolean).join("\r\n"));
-        return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Face Style Notes//Challenge//ZH-CN", "CALSCALE:GREGORIAN", ...events, "END:VCALENDAR", ""].join("\r\n");
+        const events = eventDays.map((day) => {
+          const tutorial = challenge.frequency === "scheduled" ? getChallengeTutorialForDay(challenge, day) : null;
+          const eventTutorialLines = challenge.frequency === "scheduled" ? (tutorial ? [`${tutorial.label}: ${tutorial.url}`] : []) : tutorialLines;
+          const description = [challenge.taskLabel, ...eventTutorialLines, "回到挑战中心完成打卡", challengeUrl ? `返回地址：${challengeUrl}` : ""].filter(Boolean).join("\n");
+          return [
+            "BEGIN:VEVENT",
+            `UID:${escapeCalendarText(`${challenge.id}${challenge.frequency === "scheduled" ? `-${day}` : ""}@face-style-notes`)}`,
+            `DTSTAMP:${formatCalendarDate(challenge.startedAt)}T000000Z`,
+            `DTSTART:${formatCalendarDate(challenge.startedAt, day - 1)}T${time}00`,
+            `SUMMARY:${escapeCalendarText(challenge.title)}`,
+            `DESCRIPTION:${escapeCalendarText(description)}`,
+            recurrence,
+            challengeUrl ? `URL:${challengeUrl}` : "",
+            "END:VEVENT"
+          ].filter(Boolean).join("\r\n");
+        });
+        return foldCalendarText(["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Face Style Notes//Challenge//ZH-CN", "CALSCALE:GREGORIAN", ...events, "END:VCALENDAR", ""].join("\r\n"));
       }
 
       function maySaveChallengePhoto(challengeId, activeChallenge) {
@@ -936,7 +973,7 @@
               event({ suffix: "day-7", label: "第 7 天复盘", offset: 6 }),
               event({ suffix: "day-30", label: "第 30 天对比", offset: 29 })
             ];
-        return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Face Style Notes//Action Card//ZH-CN", "CALSCALE:GREGORIAN", ...events, "END:VCALENDAR", ""].join("\r\n");
+        return foldCalendarText(["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Face Style Notes//Action Card//ZH-CN", "CALSCALE:GREGORIAN", ...events, "END:VCALENDAR", ""].join("\r\n"));
       }
 
       const averagePoint = (points, indexes) => ({
@@ -2324,7 +2361,7 @@
       $("templateSheetTitle").textContent = `${template.title}的提醒设置`;
       $("templateTutorialHint").textContent = template.tutorialSlots > 0
         ? `选择提醒时间，可选填写最多 ${template.tutorialSlots} 个教程；教程会按任务次数依次显示。`
-        : "确认每天的提醒时间后即可开始；这个习惯挑战不需要填写教程。";
+        : "确认任务提醒时间后即可开始；这个习惯挑战不需要填写教程。";
       $("templateReminderTime").value = "21:30";
       $("templateTutorialInputs").innerHTML = Array.from({ length: template.tutorialSlots }).map((_, index) => `<div class="tutorial-row"><label>教程 ${index + 1} 名称<input name="templateTutorialLabel" type="text" maxlength="30" placeholder="可选"></label><label>教程 ${index + 1} 链接<input name="templateTutorialUrl" type="url" placeholder="https://"></label></div>`).join("");
       $("templateTutorialMessage").textContent = "";
