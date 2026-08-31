@@ -97,13 +97,15 @@
     .quality-details summary { cursor: pointer; color: var(--ink); }
     .questionnaire { padding: 1.2rem; border: 1px solid var(--line); border-radius: .5rem; background: var(--card); box-shadow: var(--shadow-paper); }
     .question-progress { color: var(--rose-dark); font-size: .74rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+    .question-progress-track { height: 1px; margin-top: .55rem; background: var(--line-soft); }
+    .question-progress-track > i { display: block; width: 0; height: 1px; background: var(--gold); transition: width .35s ease; }
     .questionnaire h2 { margin: .45rem 0 .35rem; font-family: "Noto Serif SC", serif; font-size: 1.45rem; }
     .question-intro { margin: 0 0 1.2rem; color: var(--muted); font-size: .82rem; line-height: 1.65; }
     .question-step { margin: 0; padding: 0; border: 0; }
     .question-step legend { width: 100%; margin-bottom: 1rem; font-family: "Noto Serif SC", serif; font-size: 1.08rem; font-weight: 800; }
     .question-options { display: grid; gap: .65rem; }
-    .question-option { display: flex; align-items: flex-start; gap: .65rem; padding: .82rem .9rem; border: 1px solid var(--line); border-radius: .85rem; background: var(--card); cursor: pointer; font-size: .84rem; line-height: 1.45; }
-    .question-option:has(input:checked) { border-color: var(--gold); background: rgba(201,168,124,.1); box-shadow: inset 0 0 0 1px var(--gold); }
+    .question-option { display: flex; align-items: flex-start; gap: .65rem; padding: .82rem .1rem; border: 0; border-bottom: 1px solid var(--line-soft); border-radius: 0; background: transparent; cursor: pointer; font-size: .84rem; line-height: 1.45; }
+    .question-option:has(input:checked) { color: var(--ink); border-color: var(--gold); box-shadow: none; }
     .question-option input { margin-top: .16rem; accent-color: var(--rose-dark); }
     .question-actions { display: grid; grid-template-columns: .8fr 1.3fr; gap: .65rem; margin-top: 1.1rem; }
     .report-summary-grid, .science-advice-grid { display: grid; gap: .75rem; }
@@ -161,20 +163,15 @@
     .hidden { display: none !important; }
 
     .analysis-panel { padding: 2rem 0; }
-    .preview-stage { position: relative; width: min(78vw, 19rem); aspect-ratio: 4/5; margin: 0 auto 2rem; }
-    .preview-stage img { width: 100%; height: 100%; object-fit: cover; border-radius: 48% 48% 42% 42% / 34% 34% 26% 26%; filter: saturate(.84) contrast(.97); }
-    .preview-stage::after { content: ""; position: absolute; inset: -.55rem; border: 1px solid var(--sand); border-radius: 49% 49% 43% 43% / 35% 35% 27% 27%; }
-    .measure-line { position: absolute; z-index: 2; background: var(--gold); box-shadow: 0 0 0 1px rgba(255,253,249,.65); animation: measure 1.8s ease-in-out infinite; }
-    .measure-line.horizontal { left: -1rem; right: -1rem; top: 46%; height: 1px; }
-    .measure-line.vertical { top: -1rem; bottom: -1rem; left: 50%; width: 1px; animation-delay: -.6s; }
-    .analysis-heading { margin: 0 0 1.2rem; text-align: center; font-size: 1.35rem; font-weight: 850; letter-spacing: -.03em; }
-    .analysis-steps { display: grid; gap: .7rem; }
-    .analysis-step { display: flex; align-items: center; gap: .75rem; padding: .85rem 1rem; border-radius: .85rem; color: var(--muted); font-size: .82rem; transition: all .25s ease; }
-    .analysis-step .step-icon { display: grid; place-items: center; width: 1.45rem; height: 1.45rem; border: 1px solid var(--line); border-radius: 50%; font-size: .65rem; }
-    .analysis-step.active { color: var(--ink); background: var(--card); box-shadow: var(--shadow-paper); font-weight: 800; }
-    .analysis-step.active .step-icon { color: #fff; border-color: var(--rose); background: var(--rose); animation: pulse .9s ease-in-out infinite; }
-    .analysis-step.done { color: var(--muted); }
-    .analysis-step.done .step-icon { color: var(--card); border-color: var(--muted); background: var(--muted); }
+    .analysis-portrait-stage { position: relative; width: min(78vw, 19rem); aspect-ratio: 4/5; margin: 0 auto 2rem; }
+    .analysis-portrait-stage img { width: 100%; height: 100%; object-fit: cover; border-radius: 48% 48% 42% 42% / 34% 34% 26% 26%; filter: saturate(.84) contrast(.97); }
+    .analysis-portrait-stage::after { content: ""; position: absolute; inset: -.55rem; border: 1px solid var(--sand); border-radius: 49% 49% 43% 43% / 35% 35% 27% 27%; }
+    .analysis-contour-orbit { position: absolute; z-index: 3; inset: -1rem; width: calc(100% + 2rem); height: calc(100% + 2rem); fill: none; stroke: var(--gold); stroke-width: 1; opacity: .9; pointer-events: none; animation: contour-drift 7s ease-in-out infinite; }
+    .analysis-contour-orbit circle { fill: var(--gold); stroke: none; }
+    .analysis-copy { display: grid; gap: .7rem; }
+    .analysis-copy p { margin: 0; padding: .85rem 1rem; border-radius: .85rem; color: var(--muted); font-size: .82rem; transition: color .25s ease, background .25s ease, box-shadow .25s ease; }
+    .analysis-copy p.active { color: var(--ink); background: var(--card); box-shadow: var(--shadow-paper); font-weight: 800; }
+    .analysis-copy p.done { color: var(--muted); }
 
     .report-wrap { padding-top: .6rem; }
     .identity-share-button { min-height: 2.75rem; }
@@ -309,11 +306,15 @@
 
     @keyframes pulse { 50% { transform: scale(.72); opacity: .48; } }
     @keyframes scan { 0%,100% { transform: translateX(-50%) translateY(.35rem); opacity: .55; } 50% { transform: translateX(-50%) translateY(5.7rem); opacity: 1; } }
-    @keyframes measure { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+    @keyframes contour-drift { 0%,100% { transform: rotate(-1deg) scale(.99); } 50% { transform: rotate(1deg) scale(1.01); } }
     @keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
     @keyframes sheet-rise { from { transform: translateY(1.5rem); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     @media (min-width: 28rem) { .report-inner { padding: 1.7rem; } .action-stack { grid-template-columns: 1.35fr 1fr; } .terminology-grid, .takeaway-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+      .analysis-contour-orbit circle { display: none; }
+      .analysis-contour-orbit, .identity-sheet { animation: none !important; transform: none !important; }
+    }
   </style>
 </head>
 <body>
@@ -357,21 +358,23 @@
     </section>
 
     <section id="analysisView" class="analysis-panel hidden" aria-live="polite">
-      <div class="preview-stage">
-        <img id="analysisPhoto" alt="待分析的用户照片">
-        <span class="measure-line horizontal"></span>
-        <span class="measure-line vertical"></span>
+      <div class="analysis-portrait-stage">
+        <img id="analysisPhoto" alt="正在解读的照片">
+        <svg class="analysis-contour-orbit" viewBox="0 0 240 300" aria-hidden="true">
+          <path d="M120 24C62 24 40 84 46 151c6 72 37 123 74 134 37-11 68-62 74-134 6-67-16-127-74-127Z"></path>
+          <circle r="3"><animateMotion dur="3.6s" repeatCount="indefinite" path="M120 24C62 24 40 84 46 151c6 72 37 123 74 134 37-11 68-62 74-134 6-67-16-127-74-127Z"></animateMotion></circle>
+        </svg>
       </div>
-      <h2 class="analysis-heading">正在读你的面部线条</h2>
-      <div class="analysis-steps">
-        <div id="analyzeStep1" class="analysis-step"><span class="step-icon">1</span><span>正在定位面部轮廓</span></div>
-        <div id="analyzeStep2" class="analysis-step"><span class="step-icon">2</span><span>正在计算三庭五眼</span></div>
-        <div id="analyzeStep3" class="analysis-step"><span class="step-icon">3</span><span>正在生成风格报告</span></div>
+      <div class="analysis-copy" aria-live="polite">
+        <p id="analyzeStep1">正在读取你的面部轮廓</p>
+        <p id="analyzeStep2">正在整理你的比例特征</p>
+        <p id="analyzeStep3">正在制作专属美学身份卡</p>
       </div>
     </section>
 
     <section id="questionnaireView" class="questionnaire hidden" aria-labelledby="questionnaireTitle">
       <div id="questionProgress" class="question-progress" aria-live="polite">第 1 / 6 题</div>
+      <div class="question-progress-track" aria-hidden="true"><i id="questionProgressTrack"></i></div>
       <h2 id="questionnaireTitle">补充你的日常情况</h2>
       <p class="question-intro">照片只提供几何信息。这 6 题把建议限制在你的肤感、时间和预算内；答案仅保存在当前页面内存。</p>
       <form id="questionnaireForm">
@@ -1778,6 +1781,7 @@
       const steps = Array.from(document.querySelectorAll(".question-step"));
       steps.forEach((step, index) => step.classList.toggle("hidden", index !== state.questionIndex));
       $("questionProgress").textContent = `第 ${state.questionIndex + 1} / ${steps.length} 题`;
+      $("questionProgressTrack").style.width = `${((state.questionIndex + 1) / steps.length) * 100}%`;
       $("questionBack").disabled = state.questionIndex === 0;
       $("questionNext").textContent = state.questionIndex === steps.length - 1 ? "生成我的基础报告" : "下一题";
       const current = steps[state.questionIndex];
@@ -2997,10 +3001,8 @@
     function setAnalysisStep(activeStep) {
       for (let step = 1; step <= 3; step += 1) {
         const element = $(`analyzeStep${step}`);
-        const icon = element.querySelector(".step-icon");
         element.classList.toggle("active", step === activeStep);
         element.classList.toggle("done", activeStep > step);
-        icon.textContent = activeStep > step ? "✓" : String(step);
       }
     }
 

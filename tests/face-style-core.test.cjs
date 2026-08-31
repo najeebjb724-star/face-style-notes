@@ -151,6 +151,15 @@ test("page contains required accessible views and no prohibited claims", () => {
   assert.match(html, /openReportChallengeSetup/);
 });
 
+test("analysis uses warm identity-card generation copy", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  ["正在读取你的面部轮廓", "正在整理你的比例特征", "正在制作专属美学身份卡"]
+    .forEach((copy) => assert.match(html, new RegExp(copy)));
+  ["正在计算三庭五眼", "正在生成风格报告", "AI分析中", "扫描中"]
+    .forEach((copy) => assert.equal(html.includes(copy), false));
+  assert.match(html, /analysis-contour-orbit/);
+});
+
 test("identity redesign uses the approved warm token system", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
   const approved = ["#F7F3EE", "#FFFDF9", "#C9A87C", "#2C2420", "#7A6B5A", "#D4C4B0", "#EDE5D8"];
