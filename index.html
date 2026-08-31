@@ -174,8 +174,48 @@
     .analysis-copy p.done { color: var(--muted); }
 
     .report-wrap { padding-top: .6rem; }
-    .identity-share-button { min-height: 2.75rem; }
-    .report-sheet { overflow: hidden; border: 1px solid var(--line); border-radius: .5rem; background: var(--card); box-shadow: var(--shadow-paper); }
+    .identity-sheet { overflow: hidden; background: var(--ink); padding: .75rem; box-shadow: var(--shadow-paper); }
+    .identity-scroll { position: relative; background: var(--paper); border: 1px solid var(--gold); padding: 1.1rem; }
+    .identity-scroll::before, .identity-scroll::after { content: "✦"; position: absolute; left: 50%; transform: translateX(-50%); color: var(--gold); background: var(--paper); padding: 0 .55rem; }
+    .identity-scroll::before { top: -.72rem; }
+    .identity-scroll::after { bottom: -.72rem; }
+    .identity-cover { padding: 1.5rem .75rem 1.1rem; text-align: center; }
+    .identity-seal, .identity-type { display: block; color: var(--gold); font-size: .65rem; font-weight: 800; letter-spacing: .14em; }
+    .identity-type { margin-top: .55rem; color: var(--muted); }
+    .identity-cover h2 { margin: .65rem 0 .4rem; font-size: clamp(1.8rem, 8vw, 2.5rem); line-height: 1.08; }
+    .identity-cover p { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.7; }
+    .identity-portrait { position: relative; min-height: 28rem; margin: 0; overflow: hidden; border-radius: 50% 50% .5rem .5rem; background: var(--line-soft); }
+    .identity-portrait img { width: 100%; height: 100%; object-fit: cover; }
+    .tarot-corner { position: absolute; width: 1.5rem; height: 1.5rem; border-color: var(--gold); pointer-events: none; }
+    .corner-tl { top: .7rem; left: .7rem; border-top: 1px solid; border-left: 1px solid; }
+    .corner-tr { top: .7rem; right: .7rem; border-top: 1px solid; border-right: 1px solid; }
+    .corner-bl { bottom: .7rem; left: .7rem; border-bottom: 1px solid; border-left: 1px solid; }
+    .corner-br { right: .7rem; bottom: .7rem; border-right: 1px solid; border-bottom: 1px solid; }
+    .identity-portrait figcaption { position: absolute; right: .8rem; bottom: .8rem; left: .8rem; display: flex; flex-wrap: wrap; justify-content: center; gap: .38rem; }
+    .identity-portrait figcaption span { padding: .28rem .5rem; border: 1px solid var(--gold); background: var(--paper); color: var(--ink); font-size: .64rem; font-weight: 800; }
+    .identity-scroll > section { padding: 1.2rem 0; border-bottom: 1px solid var(--line); }
+    .identity-scroll > section h3 { margin: 0 0 .6rem; font-size: 1rem; }
+    #identityRadar { display: grid; place-items: center; }
+    .identity-radar-svg { width: min(100%, 15rem); color: var(--muted); font-family: var(--font-body); font-size: 10px; }
+    .identity-radar-svg .radar-grid { fill: none; stroke: var(--line); stroke-width: 1; }
+    .identity-radar-svg .radar-value { fill: rgba(201,168,124,.2); stroke: var(--gold); stroke-width: 2; transform-origin: center; animation: radarReveal .75s ease both; }
+    #identityRadar + p { margin: -.1rem 0 .8rem; color: var(--muted); font-size: .7rem; text-align: center; }
+    .identity-terms { display: grid; gap: .35rem; margin-top: .75rem; }
+    .identity-terms span { color: var(--muted); font-size: .68rem; }
+    .identity-terms b { color: var(--ink); font-size: .72rem; }
+    .trait-bar-card { padding: .8rem; background: var(--line-soft); }
+    .trait-heading { display: flex; justify-content: space-between; gap: .75rem; font-size: .72rem; }
+    .court-bar { display: flex; gap: .2rem; height: .6rem; margin: .55rem 0; }
+    .court-bar i { flex: var(--segment); min-width: 0; background: var(--gold); }
+    .trait-bar-card p { margin: 0; color: var(--muted); font-size: .7rem; line-height: 1.6; }
+    .trait-row { display: grid; grid-template-columns: 4.8rem 1fr 2rem; align-items: center; gap: .55rem; padding: .75rem 0; border-bottom: 1px solid var(--line-soft); font-size: .7rem; }
+    .trait-row > div { height: .35rem; overflow: hidden; background: var(--line-soft); }
+    .trait-row i { display: block; width: calc(var(--value) * 1%); height: 100%; background: var(--gold); animation: grow .8s ease both; }
+    .trait-row b { color: var(--muted); font-size: .65rem; text-align: right; }
+    .identity-note-list { margin: 0; padding-left: 1.1rem; color: var(--muted); font-size: .78rem; line-height: 1.7; }
+    .identity-collection { display: flex; justify-content: space-between; gap: .75rem; padding: 1.25rem 0; color: var(--muted); font-size: .62rem; letter-spacing: .08em; }
+    .identity-share-button { min-height: 2.75rem; width: 100%; border: 1px solid var(--gold); background: transparent; color: var(--ink); font-weight: 800; }
+    .detail-layer { margin-top: 1.1rem; }
     .report-inner { padding: 1.35rem; }
     .report-head { display: grid; grid-template-columns: 7.5rem 1fr; gap: 1rem; align-items: center; padding-bottom: 1.35rem; border-bottom: 1px solid var(--line); }
     .photo-frame { position: relative; width: 7.5rem; height: 8.65rem; }
@@ -308,6 +348,7 @@
     @keyframes scan { 0%,100% { transform: translateX(-50%) translateY(.35rem); opacity: .55; } 50% { transform: translateX(-50%) translateY(5.7rem); opacity: 1; } }
     @keyframes contour-drift { 0%,100% { transform: rotate(-1deg) scale(.99); } 50% { transform: rotate(1deg) scale(1.01); } }
     @keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    @keyframes radarReveal { from { opacity: 0; transform: scale(.82); } to { opacity: 1; transform: scale(1); } }
     @keyframes sheet-rise { from { transform: translateY(1.5rem); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     @media (min-width: 28rem) { .report-inner { padding: 1.7rem; } .action-stack { grid-template-columns: 1.35fr 1fr; } .terminology-grid, .takeaway-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (prefers-reduced-motion: reduce) {
@@ -437,17 +478,16 @@
     </section>
 
     <section id="reportView" class="report-wrap hidden" aria-labelledby="reportTitle">
-      <div id="reportCapture" class="report-sheet">
-        <div class="report-inner">
-          <div hidden aria-hidden="true">
+      <div id="reportCapture" class="identity-sheet">
+        <div class="identity-scroll">
           <header class="identity-cover">
             <span id="identitySerial" class="identity-seal"></span>
             <span id="identityType" class="identity-type"></span>
-            <h2 id="identityTitle"></h2>
+            <h2 id="reportTitle"><span id="identityTitle"></span></h2>
             <p id="identityPoem"></p>
           </header>
           <figure id="identityPortrait" class="identity-portrait">
-            <div class="identity-photo-placeholder" role="img" aria-label="本次分析使用的照片"></div>
+            <img id="reportPhoto" alt="本次分析使用的照片">
             <div class="tarot-corner corner-tl" aria-hidden="true"></div>
             <div class="tarot-corner corner-tr" aria-hidden="true"></div>
             <div class="tarot-corner corner-bl" aria-hidden="true"></div>
@@ -459,37 +499,14 @@
             <div id="identityRadar"></div>
             <p>越高代表特征越明显，不代表越好。</p>
             <div id="identityTraitBars"></div>
+            <div id="terminologyGrid" class="identity-terms"></div>
           </section>
           <section id="identityMemories"></section>
           <section id="identityDirections"></section>
           <footer id="identityCollection"></footer>
           <button id="shareIdentityButton" class="identity-share-button" type="button">分享身份卡</button>
-          </div>
 
           <section id="qualityBanner" class="report-quality hidden" aria-live="polite"></section>
-
-          <!-- Legacy rendering containers remain until the visual report migration is complete. -->
-          <div>
-            <header class="report-head">
-              <div class="photo-frame"><img id="reportPhoto" alt="用户照片"></div>
-              <div>
-                <div class="report-kicker">YOUR FACE NOTES</div>
-                <h2 id="reportTitle" class="report-title">个人形象<br>基础数据卡</h2>
-                <div id="reportDate" class="report-date"></div>
-              </div>
-            </header>
-            <section class="readable-summary" aria-labelledby="readableTitle">
-              <div class="section-label">60 秒看懂 / READABLE PROFILE</div>
-              <h3 id="readableTitle">我的脸部语言</h3>
-              <p id="memorySentence" class="memory-sentence"></p>
-              <div id="terminologyGrid" class="terminology-grid"></div>
-              <div class="takeaway-grid">
-                <article><h4>我的优势</h4><div id="strengthList"></div></article>
-                <article><h4>注意方向</h4><div id="attentionDirection"></div></article>
-              </div>
-              <article class="monthly-focus"><span>本月先做这一件事</span><strong id="monthlyFocus"></strong></article>
-            </section>
-          </div>
 
           <div class="detail-layer">
           <h3 class="detail-layer-title">完整数据与依据</h3>
@@ -522,7 +539,7 @@
 
           <section class="report-section">
             <details id="evidenceDrawer" class="evidence-details">
-              <summary>查看判断依据、来源和局限</summary>
+              <summary>查看解读依据、来源和局限</summary>
               <div id="sourceList" class="source-list"></div>
               <ul id="limitations" class="limitations"></ul>
             </details>
@@ -2888,22 +2905,54 @@
       renderKeywordGuide(report.actionCards[0] || null);
     }
 
+    function renderIdentityRadar(axes) {
+      const center = 120;
+      const radius = 82;
+      const point = (index, value = 100) => {
+        const angle = -Math.PI / 2 + index * Math.PI * 2 / axes.length;
+        const distance = radius * value / 100;
+        return [FaceStyleCore.round(center + Math.cos(angle) * distance, 1), FaceStyleCore.round(center + Math.sin(angle) * distance, 1)];
+      };
+      const grid = [33, 66, 100].map((level) => axes.map((_, index) => point(index, level).join(",")).join(" "));
+      const values = axes.map((axis, index) => point(index, axis.value).join(",")).join(" ");
+      const labels = axes.map((axis, index) => {
+        const [x, y] = point(index, 122);
+        return `<text x="${x}" y="${y}" text-anchor="middle">${escapeHtml(axis.label)}</text>`;
+      }).join("");
+      $("identityRadar").innerHTML = `<svg class="identity-radar-svg" viewBox="0 0 240 240" role="img" aria-label="六维特征图谱">${grid.map((points) => `<polygon class="radar-grid" points="${points}"></polygon>`).join("")}<polygon class="radar-value" points="${values}"></polygon>${labels}</svg>`;
+    }
+
+    function renderIdentityTraitBars(report, identity) {
+      const court = report.readableProfile.threeCourts;
+      $("identityTraitBars").innerHTML = `
+        <article class="trait-bar-card">
+          <div class="trait-heading"><span>三庭视觉参照</span><b>${court.values.join(" · ")}%</b></div>
+          <div class="court-bar">${court.values.map((value, index) => `<i style="--segment:${value}" aria-label="${["上庭", "中庭", "下庭"][index]} ${value}%"></i>`).join("")}</div>
+          <p>${escapeHtml(court.summary)}</p>
+        </article>
+        ${identity.axes.slice(0, 3).map((axis) => `<article class="trait-row"><span>${escapeHtml(axis.label)}</span><div><i style="--value:${axis.value}"></i></div><b>${axis.value >= 68 ? "明显" : axis.value >= 34 ? "中间" : "轻微"}</b></article>`).join("")}`;
+    }
+
     function renderReport(report, photo) {
+      const identity = FaceStyleCore.buildIdentityPresentation(state.measurements, report.readableProfile, new Date());
       const readable = report.readableProfile;
       const terminology = [
-        ["脸型倾向", `${readable.faceShape.secondary ? `${readable.faceShape.primary} · 次倾向 ${readable.faceShape.secondary}` : `${readable.faceShape.primary}倾向`}。${readable.faceShape.explanation}`],
-        ["三庭", readable.threeCourts.summary],
-        ["五眼", readable.fiveEyes.summary],
+        ["脸型倾向", readable.faceShape.primary],
         ["五官量感", readable.featureWeight.term],
         ["线条倾向", readable.lineTendency.term]
       ];
+      $("identitySerial").textContent = `美学身份卡 · ${identity.serial}`;
+      $("identityType").textContent = identity.type;
+      $("identityTitle").textContent = identity.title;
+      $("identityPoem").textContent = identity.poem;
       $("reportPhoto").src = photo;
-      $("reportDate").textContent = new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-      $("memorySentence").textContent = readable.memorySentence;
-      $("terminologyGrid").innerHTML = terminology.map(([label, value]) => `<article class="term-card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
-      $("strengthList").innerHTML = readable.strengths.map((item) => `<p>${escapeHtml(item)}</p>`).join("");
-      $("attentionDirection").innerHTML = readable.attention.map((item) => `<p>${escapeHtml(item)}</p>`).join("");
-      $("monthlyFocus").textContent = report.actionCards[0]?.action || "在相同条件下记录一次造型对照。";
+      $("identityPortraitTags").innerHTML = identity.portraitTags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("");
+      renderIdentityRadar(identity.axes);
+      renderIdentityTraitBars(report, identity);
+      $("terminologyGrid").innerHTML = terminology.map(([label, value]) => `<span>${escapeHtml(label)} · <b>${escapeHtml(value)}</b></span>`).join("");
+      $("identityMemories").innerHTML = `<h3>最有记忆点的地方</h3><div id="strengthList"><ul class="identity-note-list">${readable.strengths.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
+      $("identityDirections").innerHTML = `<h3>可以尝试的方向</h3><div id="attentionDirection"><ul class="identity-note-list">${readable.attention.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div><p id="monthlyFocus" class="identity-note-list">本月先做：${escapeHtml(report.actionCards[0]?.action || "在相同条件下记录一次造型对照。")}</p>`;
+      $("identityCollection").innerHTML = `<span>COLLECTIBLE IDENTITY ARCHIVE</span><span id="memorySentence">${escapeHtml(readable.memorySentence)}</span>`;
       if (report.quality.overridden || report.quality.level === "low") {
         $("qualityBanner").textContent = `参考级照片：${report.quality.issues.map((item) => item.message).join("、")}。部分数据已降低置信度。`;
         $("qualityBanner").classList.remove("hidden");
@@ -3032,7 +3081,7 @@
     }
 
     function clearRenderedReport() {
-      ["memorySentence", "terminologyGrid", "strengthList", "attentionDirection", "monthlyFocus", "coreTraits", "dataGroups", "styleAdviceGrid", "carePlanContent", "reportChallengeCards", "reportActiveChallenge", "sourceList", "limitations", "keywordList"].forEach((id) => {
+      ["identitySerial", "identityType", "identityTitle", "identityPoem", "identityPortraitTags", "identityRadar", "identityTraitBars", "terminologyGrid", "identityMemories", "identityDirections", "identityCollection", "coreTraits", "dataGroups", "styleAdviceGrid", "carePlanContent", "reportChallengeCards", "reportActiveChallenge", "sourceList", "limitations", "keywordList"].forEach((id) => {
         $(id).replaceChildren();
       });
       $("reportActiveChallenge").classList.add("hidden");

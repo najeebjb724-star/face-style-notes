@@ -841,3 +841,12 @@ test("identity presentation serial is safe for invalid dates and deterministic f
   const second = core.buildIdentityPresentation(measurements, readable, new Date("2026-08-31T12:00:00Z"));
   assert.equal(first.serial, second.serial);
 });
+
+test("report renders the identity model as svg and readable trait bars", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /function renderIdentityRadar\(axes\)/);
+  assert.match(html, /<svg[^>]+identity-radar-svg/);
+  assert.match(html, /function renderIdentityTraitBars\(report, identity\)/);
+  assert.match(html, /FaceStyleCore\.buildIdentityPresentation/);
+  assert.match(html, /查看解读依据/);
+});
