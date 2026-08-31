@@ -151,6 +151,22 @@ test("page contains required accessible views and no prohibited claims", () => {
   assert.match(html, /openReportChallengeSetup/);
 });
 
+test("identity redesign uses the approved warm token system", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  ["#F7F3EE", "#FFFDF9", "#C9A87C", "#2C2420", "#7A6B5A", "#D4C4B0", "#EDE5D8"]
+    .forEach((color) => assert.match(html.toUpperCase(), new RegExp(color.toUpperCase())));
+  assert.match(html, /--font-display:/);
+  assert.match(html, /min-height:\s*2\.75rem/);
+  assert.match(html, /prefers-reduced-motion/);
+});
+
+test("homepage challenge entry reflects the active journal state", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /function renderHomeChallengeEntry\(\)/);
+  assert.match(html, /class=["']journal-day["']/);
+  assert.match(html, /renderHomeChallengeEntry\(\);/);
+});
+
 test("page exposes the aesthetic identity card hierarchy", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
   [
