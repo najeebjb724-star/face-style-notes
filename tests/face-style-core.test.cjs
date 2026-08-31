@@ -803,3 +803,19 @@ test("readable report remains traceable after quality override", () => {
   assert.ok(report.readableProfile.faceShape.metricIds.length >= 3);
   assert.ok(report.readableProfile.memorySentence);
 });
+
+test("identity presentation is deterministic, non-ranked, and bounded", () => {
+  const core = loadCore();
+  const measurements = core.computeMeasurements(makeFrontLandmarks(), "high");
+  const readable = core.deriveReadableProfile(measurements, { level: "high" });
+  const identity = core.buildIdentityPresentation(measurements, readable, new Date("2026-08-31T12:00:00Z"));
+  assert.match(identity.serial, /^NO\.\d{4}$/);
+  assert.ok(["SIGNATURE", "UNIQUE", "CLASSIC"].includes(identity.type));
+  assert.equal(identity.axes.length, 6);
+  identity.axes.forEach((axis) => {
+    assert.ok(axis.id && axis.label);
+    assert.ok(Number.isFinite(axis.value));
+    assert.ok(axis.value >= 0 && axis.value <= 100);
+  });
+  assert.equal(identity.title.includes("评分"), false);
+});

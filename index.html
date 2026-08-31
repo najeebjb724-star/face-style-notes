@@ -1244,6 +1244,40 @@
         };
       }
 
+      const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+      const finiteValue = (value, fallback = 0) => Number.isFinite(value) ? value : fallback;
+      const scaleIdentityValue = (value, min, max) => round(clamp((finiteValue(value) - min) / (max - min), 0, 1) * 100, 0);
+
+      function buildIdentityPresentation(measurements, readableProfile, generatedAt = new Date()) {
+        const courts = Array.isArray(measurements?.courts) ? measurements.courts.map((item) => finiteValue(item?.value)) : [];
+        const courtDrift = courts.length ? Math.max(...courts.map((value) => Math.abs(value - 33.33))) : 0;
+        const visualWeight = Object.values(measurements?.visualWeight || {}).reduce((sum, value) => sum + finiteValue(value), 0) / 4;
+        const metricValue = (id) => finiteValue(measurements?.[id]?.value);
+        const axes = [
+          { id: "lengthWidth", label: "轮廓纵横差异", value: scaleIdentityValue(Math.abs(metricValue("faceLengthWidth") - 1.04), 0, .24) },
+          { id: "cheekJaw", label: "颧颌宽度差异", value: scaleIdentityValue(Math.abs(metricValue("cheekFaceWidth") - metricValue("jawFaceWidth")), 0, .22) },
+          { id: "features", label: "五官量感特征", value: scaleIdentityValue(Math.abs(visualWeight - .24), 0, .10) },
+          { id: "courts", label: "三庭分布差异", value: scaleIdentityValue(courtDrift, 0, 10) },
+          { id: "mirror", label: "左右对照差异", value: scaleIdentityValue(metricValue("symmetry"), 0, 8) },
+          { id: "eyeSpace", label: "眼距参照差异", value: scaleIdentityValue(Math.abs(metricValue("eyeSpacing") - 1), 0, .45) }
+        ];
+        const pronounced = axes.filter((axis) => axis.value >= 68).length;
+        const type = pronounced >= 3 ? "UNIQUE" : pronounced >= 1 ? "SIGNATURE" : "CLASSIC";
+        const parsedDate = generatedAt instanceof Date ? generatedAt.getTime() : new Date(generatedAt).getTime();
+        const minuteIndex = Math.abs(Math.trunc(finiteValue(parsedDate))) / 60000 % 10000;
+        const serial = `NO.${String(Math.trunc(minuteIndex)).padStart(4, "0")}`;
+        const line = readableProfile?.lineTendency?.term || "直曲混合";
+        const style = line.includes("直线") ? "冷感叙事型" : line.includes("曲线") ? "柔和氛围型" : "清晰平衡型";
+        return {
+          serial,
+          type,
+          title: `${readableProfile?.faceShape?.primary || "轮廓"} · ${style}`,
+          poem: line.includes("直线") ? "你的轮廓方向清晰，像一帧被认真收藏的旧电影。" : "你的线条留有柔和余韵，适合让细节慢慢被看见。",
+          portraitTags: [readableProfile?.threeCourts?.labels?.[1], readableProfile?.fiveEyes?.term, readableProfile?.featureWeight?.term].filter(Boolean).slice(0, 3),
+          axes
+        };
+      }
+
       function conclusion({ title, value, explanation, action, evidenceType, metricIds = [], confidence = "high" }) {
         if (!evidenceType || (evidenceType !== "care" && metricIds.length === 0)) throw new Error("Untraceable conclusion");
         return { title, value, explanation, action, evidenceType, metricIds, confidence };
@@ -1360,7 +1394,7 @@
         };
       }
 
-      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, overridePhotoQuality, capMeasurementConfidence, inferQuestionnaire, computeMeasurements, deriveReadableProfile, composeReport, CHALLENGE_TEMPLATES, getChallengeTemplates, validateTutorialUrl, dateToUtcDayOrdinal, createChallenge, getChallengeDay, getChallengeOccurrenceDays, isChallengeOccurrenceDay, getChallengeDateForDay, getNextChallengeOccurrenceDay, getChallengeTutorialForDay, getChallengeProgress, getChallengeFinishDate, getChallengePosterFinishDate, isChallengeCompletionEligible, createChallengeHistoryEntry, normalizeChallengeState, addPendingPhotoDeletion, removePendingPhotoDeletion, normalizeChallengePosterPhotos, sanitizeChallengePosterFilename, toggleChallengeCheckIn, buildChallengeCalendarText, maySaveChallengePhoto, getChallengePhotoFailureScope, KNOWLEDGE_BASE };
+      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, overridePhotoQuality, capMeasurementConfidence, inferQuestionnaire, computeMeasurements, deriveReadableProfile, buildIdentityPresentation, composeReport, CHALLENGE_TEMPLATES, getChallengeTemplates, validateTutorialUrl, dateToUtcDayOrdinal, createChallenge, getChallengeDay, getChallengeOccurrenceDays, isChallengeOccurrenceDay, getChallengeDateForDay, getNextChallengeOccurrenceDay, getChallengeTutorialForDay, getChallengeProgress, getChallengeFinishDate, getChallengePosterFinishDate, isChallengeCompletionEligible, createChallengeHistoryEntry, normalizeChallengeState, addPendingPhotoDeletion, removePendingPhotoDeletion, normalizeChallengePosterPhotos, sanitizeChallengePosterFilename, toggleChallengeCheckIn, buildChallengeCalendarText, maySaveChallengePhoto, getChallengePhotoFailureScope, KNOWLEDGE_BASE };
     })();
   </script>
 
