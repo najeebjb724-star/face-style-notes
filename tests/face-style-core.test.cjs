@@ -151,6 +151,23 @@ test("page contains required accessible views and no prohibited claims", () => {
   assert.match(html, /openReportChallengeSetup/);
 });
 
+test("page exposes the aesthetic identity card hierarchy", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  [
+    "identitySerial", "identityType", "identityTitle", "identityPoem",
+    "identityPortrait", "identityPortraitTags", "identityRadar",
+    "identityTraitBars", "identityMemories", "identityDirections",
+    "identityCollection", "shareIdentityButton"
+  ].forEach((id) => assert.match(html, new RegExp(`id=["']${id}["']`)));
+});
+
+test("identity card copy avoids ranked beauty language", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  ["黄金比例评分", "颜值评分", "完美比例", ">RARE<", ">COMMON<"]
+    .forEach((phrase) => assert.equal(html.includes(phrase), false));
+  assert.match(html, /越高代表特征越明显，不代表越好/);
+});
+
 test("challenge MVP keeps privacy copy and avoids prohibited promises", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
   assert.match(html, /照片仅保存在当前浏览器|不会上传/);

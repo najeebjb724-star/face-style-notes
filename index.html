@@ -421,27 +421,48 @@
     <section id="reportView" class="report-wrap hidden" aria-labelledby="reportTitle">
       <div id="reportCapture" class="report-sheet">
         <div class="report-inner">
-          <header class="report-head">
-            <div class="photo-frame"><img id="reportPhoto" alt="用户照片"></div>
-            <div>
-              <div class="report-kicker">YOUR FACE NOTES</div>
-              <h2 id="reportTitle" class="report-title">个人形象<br>基础数据卡</h2>
-              <div id="reportDate" class="report-date"></div>
-            </div>
+          <header class="identity-cover">
+            <span id="identitySerial" class="identity-seal"></span>
+            <span id="identityType" class="identity-type"></span>
+            <h2 id="identityTitle"></h2>
+            <p id="identityPoem"></p>
           </header>
-
-          <section id="qualityBanner" class="report-quality hidden" aria-live="polite"></section>
-          <section class="readable-summary" aria-labelledby="readableTitle">
-            <div class="section-label">60 秒看懂 / READABLE PROFILE</div>
-            <h3 id="readableTitle">我的脸部语言</h3>
-            <p id="memorySentence" class="memory-sentence"></p>
-            <div id="terminologyGrid" class="terminology-grid"></div>
-            <div class="takeaway-grid">
-              <article><h4>我的优势</h4><div id="strengthList"></div></article>
-              <article><h4>注意方向</h4><div id="attentionDirection"></div></article>
-            </div>
-            <article class="monthly-focus"><span>本月先做这一件事</span><strong id="monthlyFocus"></strong></article>
+          <figure id="identityPortrait" class="identity-portrait">
+            <img id="reportPhoto" alt="本次分析使用的照片">
+            <div class="tarot-corner corner-tl" aria-hidden="true"></div>
+            <div class="tarot-corner corner-tr" aria-hidden="true"></div>
+            <div class="tarot-corner corner-bl" aria-hidden="true"></div>
+            <div class="tarot-corner corner-br" aria-hidden="true"></div>
+            <figcaption id="identityPortraitTags"></figcaption>
+          </figure>
+          <section aria-labelledby="identityRadarTitle">
+            <h3 id="identityRadarTitle">六维特征图谱</h3>
+            <div id="identityRadar"></div>
+            <p>越高代表特征越明显，不代表越好。</p>
+            <div id="identityTraitBars"></div>
           </section>
+          <section id="identityMemories"></section>
+          <section id="identityDirections"></section>
+          <footer id="identityCollection"></footer>
+          <button id="shareIdentityButton" type="button">分享身份卡</button>
+
+          <!-- Legacy rendering containers remain until the visual report migration is complete. -->
+          <div class="hidden" aria-hidden="true">
+            <h2 id="reportTitle">个人形象基础数据卡</h2>
+            <div id="reportDate"></div>
+            <section id="qualityBanner" class="report-quality" aria-live="polite"></section>
+            <section class="readable-summary" aria-labelledby="readableTitle">
+              <div class="section-label">60 秒看懂 / READABLE PROFILE</div>
+              <h3 id="readableTitle">我的脸部语言</h3>
+              <p id="memorySentence" class="memory-sentence"></p>
+              <div id="terminologyGrid" class="terminology-grid"></div>
+              <div class="takeaway-grid">
+                <article><h4>我的优势</h4><div id="strengthList"></div></article>
+                <article><h4>注意方向</h4><div id="attentionDirection"></div></article>
+              </div>
+              <article class="monthly-focus"><span>本月先做这一件事</span><strong id="monthlyFocus"></strong></article>
+            </section>
+          </div>
 
           <div class="detail-layer">
           <h3 class="detail-layer-title">完整数据与依据</h3>
