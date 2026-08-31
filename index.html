@@ -169,6 +169,7 @@
     .analysis-step.done .step-icon { color: #fff; border-color: #6f9b7a; background: #6f9b7a; }
 
     .report-wrap { padding-top: .6rem; }
+    .identity-share-button { min-height: 2.75rem; }
     .report-sheet { overflow: hidden; border: 1px solid var(--line); border-radius: 1.35rem; background: var(--paper); box-shadow: 0 24px 60px rgba(62,39,35,.1); }
     .report-inner { padding: 1.35rem; }
     .report-head { display: grid; grid-template-columns: 7.5rem 1fr; gap: 1rem; align-items: center; padding-bottom: 1.35rem; border-bottom: 1px solid var(--line); }
@@ -418,7 +419,7 @@
       <div id="questionMessage" class="notice hidden" role="alert"></div>
     </section>
 
-    <section id="reportView" class="report-wrap hidden" aria-labelledby="reportTitle">
+    <section id="reportView" class="report-wrap hidden" aria-labelledby="identityTitle">
       <div id="reportCapture" class="report-sheet">
         <div class="report-inner">
           <header class="identity-cover">
@@ -441,16 +442,16 @@
             <p>越高代表特征越明显，不代表越好。</p>
             <div id="identityTraitBars"></div>
           </section>
+          <section id="qualityBanner" class="report-quality hidden" aria-live="polite"></section>
           <section id="identityMemories"></section>
           <section id="identityDirections"></section>
           <footer id="identityCollection"></footer>
-          <button id="shareIdentityButton" type="button">分享身份卡</button>
+          <button id="shareIdentityButton" class="identity-share-button" type="button">分享身份卡</button>
 
           <!-- Legacy rendering containers remain until the visual report migration is complete. -->
           <div class="hidden" aria-hidden="true">
             <h2 id="reportTitle">个人形象基础数据卡</h2>
             <div id="reportDate"></div>
-            <section id="qualityBanner" class="report-quality" aria-live="polite"></section>
             <section class="readable-summary" aria-labelledby="readableTitle">
               <div class="section-label">60 秒看懂 / READABLE PROFILE</div>
               <h3 id="readableTitle">我的脸部语言</h3>

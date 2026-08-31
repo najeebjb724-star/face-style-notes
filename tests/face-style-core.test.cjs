@@ -159,11 +159,13 @@ test("page exposes the aesthetic identity card hierarchy", () => {
     "identityTraitBars", "identityMemories", "identityDirections",
     "identityCollection", "shareIdentityButton"
   ].forEach((id) => assert.match(html, new RegExp(`id=["']${id}["']`)));
+  assert.match(html, /id=["']reportView["'][^>]*aria-labelledby=["']identityTitle["']/);
+  assert.match(html, /\.identity-share-button\s*\{\s*min-height:\s*2\.75rem;/s);
 });
 
 test("identity card copy avoids ranked beauty language", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  ["黄金比例评分", "颜值评分", "完美比例", ">RARE<", ">COMMON<"]
+  ["黄金比例评分", "颜值评分", "完美比例", "稀有度", ">RARE<", ">COMMON<"]
     .forEach((phrase) => assert.equal(html.includes(phrase), false));
   assert.match(html, /越高代表特征越明显，不代表越好/);
 });
