@@ -3112,6 +3112,7 @@
     async function shareIdentityCard() {
       const button = $("shareIdentityButton");
       const message = $("reportMessage");
+      const shareFallback = "请先保存身份卡，再从相册分享。";
       message.classList.add("hidden");
       button.disabled = true;
       button.textContent = "正在准备分享…";
@@ -3123,9 +3124,12 @@
         await navigator.share({ files: [file], title: "我的美学身份卡" });
       } catch (error) {
         if (error?.name === "AbortError") return;
-        message.textContent = error?.message === "share-unavailable"
-          ? "当前浏览器暂不支持直接分享，请先保存身份卡，再从相册分享。"
-          : error?.message || "身份卡分享准备失败，请先保存身份卡，再从相册分享。";
+        const detail = error?.message && error.message !== "share-unavailable"
+          ? `${error.message}。`
+          : error?.message === "share-unavailable"
+            ? "当前浏览器暂不支持直接分享，请先保存身份卡，再从相册分享。"
+            : "身份卡分享准备失败，";
+        message.textContent = error?.message === "share-unavailable" ? detail : `${detail}${shareFallback}`;
         message.classList.remove("hidden");
       } finally {
         button.disabled = false;

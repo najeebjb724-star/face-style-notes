@@ -205,6 +205,12 @@ test("identity collection reuses one capture path for save and share", () => {
   assert.match(html, /当前浏览器暂不支持直接分享，请先保存身份卡/);
 });
 
+test("identity sharing keeps a save-first fallback for every non-cancel error", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /const shareFallback = "请先保存身份卡，再从相册分享。";/);
+  assert.match(html, /if \(error\?\.name === "AbortError"\) return;/);
+});
+
 test("identity card copy avoids ranked beauty language", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
   ["黄金比例评分", "颜值评分", "完美比例", "稀有度", ">RARE<", ">COMMON<"]
