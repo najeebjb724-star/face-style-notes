@@ -2719,19 +2719,12 @@
     }
 
     async function buildChallengePoster(challenge, progress, photos) {
-      const posterColors = { paper: "#F7F3EE", card: "#FFFDF9", gold: "#C9A87C", ink: "#2C2420", muted: "#7A6B5A" };
+      const posterColors = { paper: "#F7F3EE", card: "#FFFDF9", gold: "#C9A87C", ink: "#2C2420", muted: "#7A6B5A", line: "#EDE5D8" };
       const canvas = $("posterCanvas");
       canvas.width = 1080;
       canvas.height = 1440;
       const context = canvas.getContext("2d");
       if (!context) throw new Error("当前浏览器无法生成海报");
-      // Keep the approved export tokens explicit for canvas implementations that inspect fill styles.
-      context.fillStyle = "#F7F3EE";
-      context.fillStyle = "#EDE5D8";
-      context.fillStyle = "#C9A87C";
-      context.fillStyle = "#2C2420";
-      context.fillStyle = "#7A6B5A";
-      context.fillStyle = "#FFFDF9";
       const storedPhotos = FaceStyleCore.normalizeChallengePosterPhotos(photos);
       const start = storedPhotos.find((item) => item.slot === "start")?.blob;
       const end = storedPhotos.find((item) => item.slot === "end")?.blob;
@@ -2745,7 +2738,7 @@
       try {
         context.fillStyle = posterColors.paper;
         context.fillRect(0, 0, canvas.width, canvas.height);
-        context.fillStyle = "#EDE5D8";
+        context.fillStyle = posterColors.line;
         context.beginPath();
         context.arc(930, 120, 240, 0, Math.PI * 2);
         context.fill();
@@ -2794,7 +2787,7 @@
         } else {
           context.fillStyle = posterColors.card;
           context.fillRect(90, 650, 900, 540);
-          context.fillStyle = "#C9A87C";
+          context.fillStyle = posterColors.gold;
           context.beginPath();
           context.arc(540, 870, 120, 0, Math.PI * 2);
           context.fill();

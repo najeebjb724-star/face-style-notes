@@ -171,8 +171,12 @@ test("identity redesign uses the approved warm token system", () => {
   assert.match(html, /--font-display:/);
   assert.match(html, /min-height:\s*2\.75rem/);
   assert.match(html, /prefers-reduced-motion/);
-  ["#F7F3EE", "#EDE5D8", "#C9A87C", "#2C2420", "#7A6B5A", "#FFFDF9"].forEach((color) => {
-    assert.match(html, new RegExp(`(?:context\\.fillStyle\\s*=|backgroundColor\\s*:)\\s*[\"']${color}[\"']`));
+  assert.match(html, /const posterColors = \{ paper: "#F7F3EE", card: "#FFFDF9", gold: "#C9A87C", ink: "#2C2420", muted: "#7A6B5A", line: "#EDE5D8" \}/);
+  const posterBody = html.match(/async function buildChallengePoster\(challenge, progress, photos\) \{([\s\S]*?)\n    async function downloadChallengePoster/)[1];
+  assert.doesNotMatch(posterBody, /context\.(?:fillStyle|strokeStyle)\s*=\s*["']#/);
+  assert.doesNotMatch(posterBody, /context\.fillStyle = "#[A-F0-9]+";\s*context\.fillStyle = posterColors/);
+  ["paper", "card", "gold", "ink", "muted", "line"].forEach((token) => {
+    assert.match(posterBody, new RegExp(`context\\.(?:fillStyle|strokeStyle)\\s*=\\s*posterColors\\.${token}`));
   });
 });
 
