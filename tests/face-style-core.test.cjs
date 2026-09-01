@@ -191,8 +191,18 @@ test("page exposes the aesthetic identity card hierarchy", () => {
     "identityTraitBars", "identityMemories", "identityDirections",
     "identityCollection", "shareIdentityButton"
   ].forEach((id) => assert.match(html, new RegExp(`id=["']${id}["']`)));
+  assert.match(html, /class=["'][^"']*collection-share/);
   assert.match(html, /id=["']reportView["'][^>]*aria-labelledby=["']reportTitle["']/);
   assert.match(html, /\.identity-share-button\s*\{\s*min-height:\s*2\.75rem;/s);
+});
+
+test("identity collection reuses one capture path for save and share", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /async function captureIdentityCanvas\(\)/);
+  assert.match(html, /async function saveIdentityCard\(\)/);
+  assert.match(html, /async function shareIdentityCard\(\)/);
+  assert.match(html, /navigator\.canShare\(\{ files: \[file\] \}\)/);
+  assert.match(html, /当前浏览器暂不支持直接分享，请先保存身份卡/);
 });
 
 test("identity card copy avoids ranked beauty language", () => {

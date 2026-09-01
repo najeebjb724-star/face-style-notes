@@ -139,6 +139,26 @@
     .action-meta span { padding: .25rem .45rem; border-radius: 999px; background: rgba(201,168,124,.13); color: var(--muted); font-size: .62rem; font-weight: 750; }
     .action-card details { margin-top: .65rem; color: var(--muted); font-size: .68rem; line-height: 1.55; }
     .action-card details summary { color: var(--rose-dark); cursor: pointer; font-weight: 800; }
+    .editorial-advice { display: grid; grid-template-columns: 4.8rem 1fr; min-height: 8.5rem; border-top: 1px solid var(--line); }
+    .editorial-advice:last-child { border-bottom: 1px solid var(--line); }
+    .advice-art { display: grid; place-items: center; background: var(--line-soft); color: var(--gold); font-family: var(--font-display); font-size: 2rem; }
+    .editorial-advice:nth-child(even) .advice-art { background: var(--ink); color: var(--gold); }
+    .advice-copy { padding: .9rem 0 .9rem 1rem; }
+    .advice-copy small { color: var(--gold); font-size: .62rem; font-weight: 800; letter-spacing: .06em; }
+    .advice-copy h4 { margin: .35rem 0; font-family: var(--font-display); font-size: 1rem; }
+    .advice-copy p { margin: .35rem 0 0; color: var(--muted); font-size: .74rem; line-height: 1.6; }
+    .advice-copy .advice-action { color: var(--ink); }
+    .editorial-challenge { display: grid; grid-template-columns: 4.2rem 1fr; width: 100%; padding: 0; overflow: hidden; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+    .editorial-challenge:last-child { border-bottom: 1px solid var(--line); }
+    .challenge-art { display: grid; place-items: center; min-height: 10rem; background: var(--ink); color: var(--gold); font-family: var(--font-display); font-size: 1.35rem; }
+    .editorial-challenge:nth-child(even) .challenge-art, .editorial-challenge-active .challenge-art { background: var(--line-soft); color: var(--ink); }
+    .challenge-copy { padding: .95rem 0 .95rem 1rem; }
+    .challenge-copy small { color: var(--gold); font-size: .62rem; font-weight: 800; letter-spacing: .06em; }
+    .challenge-copy h4 { margin: .35rem 0; font-family: var(--font-display); font-size: 1rem; }
+    .challenge-copy p { margin: .35rem 0 0; color: var(--muted); font-size: .74rem; line-height: 1.6; }
+    .challenge-copy .challenge-task { color: var(--ink); }
+    .challenge-copy .challenge-meta { color: var(--gold); font-size: .67rem; font-weight: 800; }
+    .challenge-open { width: 100%; margin-top: .7rem; border-color: var(--gold); }
     .evidence-details summary { cursor: pointer; font-size: .8rem; font-weight: 800; }
     .source-list { display: grid; gap: .45rem; margin: .8rem 0; }
     .source-list a { color: var(--rose-dark); font-size: .72rem; text-decoration: underline; text-underline-offset: 2px; }
@@ -213,8 +233,20 @@
     .trait-row i { display: block; width: calc(var(--value) * 1%); height: 100%; background: var(--gold); animation: grow .8s ease both; }
     .trait-row b { color: var(--muted); font-size: .65rem; text-align: right; }
     .identity-note-list { margin: 0; padding-left: 1.1rem; color: var(--muted); font-size: .78rem; line-height: 1.7; }
-    .identity-collection { display: flex; justify-content: space-between; gap: .75rem; padding: 1.25rem 0; color: var(--muted); font-size: .62rem; letter-spacing: .08em; }
-    .identity-share-button { min-height: 2.75rem; width: 100%; border: 1px solid var(--gold); background: transparent; color: var(--ink); font-weight: 800; }
+    .identity-collection { position: relative; overflow: hidden; margin-top: 1.2rem; padding: 1.35rem 1.1rem; background: #2C2420; color: #FFFDF9; }
+    .collection-orbit { position: absolute; top: -3.8rem; right: -2.8rem; width: 9rem; height: 9rem; border: 1px solid #C9A87C; border-radius: 50%; opacity: .62; }
+    .collection-orbit::after { content: ""; position: absolute; inset: 1rem; border: 1px solid #C9A87C; border-radius: 50%; }
+    .identity-collection > *:not(.collection-orbit) { position: relative; }
+    .identity-collection .identity-label { color: #C9A87C; }
+    .identity-collection strong, .identity-collection time { display: block; }
+    .identity-collection strong { margin-top: .42rem; font-family: var(--font-display); font-size: 1.15rem; letter-spacing: .04em; }
+    .identity-collection time { margin-top: .18rem; color: #C9A87C; font-size: .67rem; letter-spacing: .08em; }
+    .identity-collection > p { margin: .85rem 0 0; color: #EDE5D8; font-size: .71rem; line-height: 1.65; }
+    .identity-collection #memorySentence { color: #C9A87C; }
+    .collection-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; margin-top: 1rem; }
+    .collection-save, .collection-share, .identity-share-button { min-height: 2.75rem; border: 1px solid #C9A87C; font-weight: 800; cursor: pointer; }
+    .collection-save { background: #C9A87C; color: #2C2420; }
+    .collection-share, .identity-share-button { background: transparent; color: #FFFDF9; }
     .detail-layer { margin-top: 1.1rem; }
     .report-inner { padding: 1.35rem; }
     .report-head { display: grid; grid-template-columns: 7.5rem 1fr; gap: 1rem; align-items: center; padding-bottom: 1.35rem; border-bottom: 1px solid var(--line); }
@@ -503,8 +535,18 @@
           </section>
           <section id="identityMemories"></section>
           <section id="identityDirections"></section>
-          <footer id="identityCollection"></footer>
-          <button id="shareIdentityButton" class="identity-share-button" type="button">分享身份卡</button>
+          <footer id="identityCollection" class="identity-collection">
+            <div class="collection-orbit" aria-hidden="true"></div>
+            <p class="identity-label">COLLECTED AESTHETIC PROFILE</p>
+            <strong id="collectionSerial"></strong>
+            <time id="reportDate"></time>
+            <p id="memorySentence"></p>
+            <p>照片仅在当前浏览器处理；身份卡是个人风格参考，不是美貌或健康评价。</p>
+            <div class="collection-actions">
+              <button id="saveButton" class="collection-save" type="button">保存身份卡</button>
+              <button id="shareIdentityButton" class="collection-share identity-share-button" type="button">分享身份卡</button>
+            </div>
+          </footer>
 
           <section id="qualityBanner" class="report-quality hidden" aria-live="polite"></section>
 
@@ -559,7 +601,6 @@
       </div>
 
       <div class="action-stack">
-        <button id="saveButton" class="primary-btn" type="button">保存报告图</button>
         <button id="retryButton" class="secondary-btn" type="button">重新测试</button>
       </div>
       <div id="reportMessage" class="notice hidden" role="alert"></div>
@@ -1524,7 +1565,8 @@
       $("startPhotoInput").addEventListener("change", (event) => handleChallengePhotoCapture("start", event.target.files[0]));
       $("endPhotoInput").addEventListener("change", (event) => handleChallengePhotoCapture("end", event.target.files[0]));
       $("retryButton").addEventListener("click", resetApp);
-      $("saveButton").addEventListener("click", saveReport);
+      $("saveButton").addEventListener("click", saveIdentityCard);
+      $("shareIdentityButton").addEventListener("click", shareIdentityCard);
       $("homeChallengeButton").addEventListener("click", () => openChallengeCenter("home"));
       $("closeChallengeButton").addEventListener("click", closeChallengeCenter);
       $("newChallengeButton").addEventListener("click", openTemplateSheet);
@@ -2892,15 +2934,12 @@
       const active = state.challengeState?.active;
       $("reportActiveChallenge").classList.toggle("hidden", !active);
       $("reportActiveChallenge").innerHTML = active
-        ? `<article class="action-card selected"><span class="action-card-top"><strong class="action-title">进行中：${escapeHtml(active.title)}</strong><span class="action-check" aria-hidden="true">✓</span></span><span class="action-reason">报告页和“我的变美挑战”共用这一份进度。</span><button class="secondary-btn" type="button" data-open-active-challenge>去今日任务</button></article>`
+        ? `<article class="editorial-challenge editorial-challenge-active"><div class="challenge-art" aria-hidden="true">今</div><div class="challenge-copy"><small>正在进行</small><h4>${escapeHtml(active.title)}</h4><p>报告页和“我的变美挑战”共用这一份进度。</p><button class="secondary-btn challenge-open" type="button" data-open-active-challenge>去今日任务</button></div></article>`
         : "";
       $("reportChallengeCards").classList.toggle("hidden", Boolean(active));
-      $("reportChallengeCards").innerHTML = report.actionCards.map((item) => `<button class="action-card" type="button" data-report-challenge-id="${escapeHtml(item.id)}">
-        <span class="action-card-top"><strong class="action-title">${escapeHtml(item.title)}</strong><span class="action-check" aria-hidden="true">→</span></span>
-        <span class="action-reason">推荐原因：${escapeHtml(item.reason)}</span>
-        <span class="action-do"><b>挑战任务：</b>${escapeHtml(item.action)}</span>
-        <span class="action-meta"><span>${escapeHtml(item.duration)}</span><span>${escapeHtml(item.cost)}</span></span>
-        <span class="action-reason"><b>观察：</b>${escapeHtml(item.successSignal)}<br><b>停止边界：</b>${escapeHtml(item.stopRule)}</span>
+      $("reportChallengeCards").innerHTML = report.actionCards.map((item, index) => `<button class="editorial-challenge" type="button" data-report-challenge-id="${escapeHtml(item.id)}">
+        <span class="challenge-art" aria-hidden="true">0${index + 1}</span>
+        <span class="challenge-copy"><small>从建议到练习</small><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.reason)}</p><p class="challenge-task"><b>挑战任务：</b>${escapeHtml(item.action)}</p><p class="challenge-meta">${escapeHtml(item.duration)} · ${escapeHtml(item.cost)}</p><p><b>观察：</b>${escapeHtml(item.successSignal)}<br><b>停止边界：</b>${escapeHtml(item.stopRule)}</p></span>
       </button>`).join("");
       renderKeywordGuide(report.actionCards[0] || null);
     }
@@ -2960,7 +2999,10 @@
       $("terminologyGrid").innerHTML = terminology.map(([label, value]) => `<span>${escapeHtml(label)} · <b>${escapeHtml(value)}</b></span>`).join("");
       $("identityMemories").innerHTML = `<h3>最有记忆点的地方</h3><div id="strengthList"><ul class="identity-note-list">${readable.strengths.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
       $("identityDirections").innerHTML = `<h3>可以尝试的方向</h3><div id="attentionDirection"><ul class="identity-note-list">${readable.attention.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div><p id="monthlyFocus" class="identity-note-list">本月先做：${escapeHtml(report.actionCards[0]?.action || "在相同条件下记录一次造型对照。")}</p>`;
-      $("identityCollection").innerHTML = `<span>COLLECTIBLE IDENTITY ARCHIVE</span><span id="memorySentence">${escapeHtml(readable.memorySentence)}</span>`;
+      $("collectionSerial").textContent = identity.serial;
+      $("reportDate").dateTime = localDateString();
+      $("reportDate").textContent = `生成于 ${localDateString()}`;
+      $("memorySentence").textContent = readable.memorySentence;
       if (report.quality.overridden || report.quality.level === "low") {
         $("qualityBanner").textContent = `参考级照片：${report.quality.issues.map((item) => item.message).join("、")}。部分数据已降低置信度。`;
         $("qualityBanner").classList.remove("hidden");
@@ -2981,10 +3023,9 @@
         </details>`).join("");
 
       $("styleAdviceGrid").innerHTML = report.styleAdvice.map((item) => `
-        <article class="science-card">
-          <span class="badge">造型经验 · 关联 ${item.metricIds.length} 项数据</span>
-          <h4>${escapeHtml(item.title)}</h4><strong>${escapeHtml(item.value)}</strong>
-          <p>${escapeHtml(item.explanation)}</p><p><b>边界：</b>${escapeHtml(item.action)}</p>
+        <article class="editorial-advice">
+          <div class="advice-art" aria-hidden="true"><span>${escapeHtml(item.title.slice(0, 1))}</span></div>
+          <div class="advice-copy"><small>造型经验 · ${item.metricIds.length} 项关联数据</small><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.explanation)}</p><p><b>${escapeHtml(item.value)}</b></p><p class="advice-action"><b>可尝试：</b>${escapeHtml(item.action)}</p></div>
         </article>`).join("");
 
       if (report.carePlan) {
@@ -3033,33 +3074,62 @@
       setTimeout(() => { button.textContent = "复制"; }, 1500);
     }
 
-    async function saveReport() {
+    async function captureIdentityCanvas() {
+      if (!window.html2canvas) throw new Error("身份卡生成组件未加载，请检查网络后重试。");
+      return html2canvas($("reportCapture"), {
+        scale: Math.min(3, Math.max(2, window.devicePixelRatio || 2)),
+        backgroundColor: "#F7F3EE",
+        useCORS: true,
+        logging: false
+      });
+    }
+
+    const canvasToBlob = (canvas) => new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("身份卡图片生成失败。")), "image/png"));
+
+    async function saveIdentityCard() {
       const button = $("saveButton");
       const message = $("reportMessage");
       message.classList.add("hidden");
       button.disabled = true;
-      button.textContent = "正在生成报告图…";
+      button.textContent = "正在保存身份卡…";
       try {
-        if (!window.html2canvas) throw new Error("图片导出组件未加载，请检查网络后重试。");
-        const canvas = await html2canvas($("reportCapture"), {
-          scale: Math.min(3, Math.max(2, window.devicePixelRatio || 2)),
-          backgroundColor: "#F7F3EE",
-          useCORS: true,
-          logging: false
-        });
+        const canvas = await captureIdentityCanvas();
         const link = document.createElement("a");
-        const date = new Date().toISOString().slice(0, 10);
-        link.download = `看脸找风格-${date}.png`;
+        link.download = `美学身份卡-${localDateString()}.png`;
         link.href = canvas.toDataURL("image/png");
         link.click();
-        showToast("报告图已保存");
+        showToast("身份卡已保存");
       } catch (error) {
         console.error(error);
-        message.textContent = error.message || "报告图生成失败，请截屏保存或稍后重试。";
+        message.textContent = error.message || "身份卡生成失败，请截屏保存或稍后重试。";
         message.classList.remove("hidden");
       } finally {
         button.disabled = false;
-        button.textContent = "保存报告图";
+        button.textContent = "保存身份卡";
+      }
+    }
+
+    async function shareIdentityCard() {
+      const button = $("shareIdentityButton");
+      const message = $("reportMessage");
+      message.classList.add("hidden");
+      button.disabled = true;
+      button.textContent = "正在准备分享…";
+      try {
+        const canvas = await captureIdentityCanvas();
+        const blob = await canvasToBlob(canvas);
+        const file = new File([blob], `美学身份卡-${localDateString()}.png`, { type: "image/png" });
+        if (!navigator.share || !navigator.canShare || !navigator.canShare({ files: [file] })) throw new Error("share-unavailable");
+        await navigator.share({ files: [file], title: "我的美学身份卡" });
+      } catch (error) {
+        if (error?.name === "AbortError") return;
+        message.textContent = error?.message === "share-unavailable"
+          ? "当前浏览器暂不支持直接分享，请先保存身份卡，再从相册分享。"
+          : error?.message || "身份卡分享准备失败，请先保存身份卡，再从相册分享。";
+        message.classList.remove("hidden");
+      } finally {
+        button.disabled = false;
+        button.textContent = "分享身份卡";
       }
     }
 
@@ -3089,9 +3159,10 @@
     }
 
     function clearRenderedReport() {
-      ["identitySerial", "identityType", "identityTitle", "identityPoem", "identityPortraitTags", "identityRadar", "identityTraitBars", "terminologyGrid", "identityMemories", "identityDirections", "identityCollection", "coreTraits", "dataGroups", "styleAdviceGrid", "carePlanContent", "reportChallengeCards", "reportActiveChallenge", "sourceList", "limitations", "keywordList"].forEach((id) => {
+      ["identitySerial", "identityType", "identityTitle", "identityPoem", "identityPortraitTags", "identityRadar", "identityTraitBars", "terminologyGrid", "identityMemories", "identityDirections", "coreTraits", "dataGroups", "styleAdviceGrid", "carePlanContent", "reportChallengeCards", "reportActiveChallenge", "sourceList", "limitations", "keywordList"].forEach((id) => {
         $(id).replaceChildren();
       });
+      ["collectionSerial", "reportDate", "memorySentence"].forEach((id) => { $(id).textContent = ""; });
       $("reportActiveChallenge").classList.add("hidden");
       $("reportChallengeCards").classList.remove("hidden");
       $("qualityBanner").textContent = "";
