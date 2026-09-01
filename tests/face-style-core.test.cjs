@@ -222,7 +222,10 @@ test("identity card remains mobile-first and export-safe", () => {
   ].forEach((rule) => assert.match(mobileBlock[1], rule));
   assert.match(html, /\.identity-sheet,\s*\.identity-scroll,\s*\.editorial-advice\s*\{[^}]*min-width:\s*0/);
   assert.match(html, /\.identity-sheet p,\s*\.identity-sheet a,\s*\.identity-sheet strong\s*\{[^}]*overflow-wrap:\s*anywhere/);
+  assert.match(html, /\.identity-portrait\s*\{[^}]*position:\s*relative;[^}]*min-height:\s*28rem;[^}]*overflow:\s*hidden/);
   assert.match(html, /\.identity-portrait img\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*0;[^}]*width:\s*100%;[^}]*height:\s*100%;[^}]*object-fit:\s*cover/);
+  assert.match(html, /\.tarot-corner\s*\{[^}]*position:\s*absolute/);
+  assert.match(html, /\.identity-portrait figcaption\s*\{[^}]*position:\s*absolute/);
   assert.match(html, /env\(safe-area-inset-bottom\)/);
   const captureBody = html.match(/async function captureIdentityCanvas\(\)\s*\{([\s\S]*?)\n    \}/);
   assert.ok(captureBody, "captureIdentityCanvas must exist");
