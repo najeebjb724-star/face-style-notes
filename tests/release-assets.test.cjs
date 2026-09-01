@@ -44,12 +44,17 @@ test("repository uses the approved MIT license", () => {
 
 test("Pages workflow deploys only the approved branch with official actions", () => {
   const workflow = read(".github/workflows/deploy-pages.yml");
+  assert.match(
+    workflow,
+    /on:\r?\n  push:\r?\n    branches:\r?\n      - codex\/aesthetic-identity-card-ui\r?\n  workflow_dispatch:/,
+    "workflow push trigger must contain only the approved branch"
+  );
   [
-    "codex/aesthetic-identity-card-ui",
     "workflow_dispatch:",
     "contents: read",
     "pages: write",
     "id-token: write",
+    "actions/checkout@v4",
     "actions/configure-pages@v5",
     "actions/upload-pages-artifact@v3",
     "actions/deploy-pages@v4",
