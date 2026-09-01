@@ -41,3 +41,20 @@ test("repository uses the approved MIT license", () => {
   assert.ok(license.includes("Copyright (c) 2026 najeebjb724-star"));
   assert.ok(license.includes("THE SOFTWARE IS PROVIDED \"AS IS\""));
 });
+
+test("Pages workflow deploys only the approved branch with official actions", () => {
+  const workflow = read(".github/workflows/deploy-pages.yml");
+  [
+    "codex/aesthetic-identity-card-ui",
+    "workflow_dispatch:",
+    "contents: read",
+    "pages: write",
+    "id-token: write",
+    "actions/configure-pages@v5",
+    "actions/upload-pages-artifact@v3",
+    "actions/deploy-pages@v4",
+    "environment:",
+    "name: github-pages"
+  ].forEach((text) => assert.ok(workflow.includes(text), `workflow missing: ${text}`));
+  assert.ok(!/uses:\s+(?!actions\/)/.test(workflow), "workflow must use only official actions");
+});
