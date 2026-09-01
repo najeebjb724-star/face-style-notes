@@ -211,10 +211,21 @@ test("identity collection reuses one capture path for save and share", () => {
 
 test("identity card remains mobile-first and export-safe", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  assert.match(html, /@media\s*\(max-width:\s*22rem\)/);
+  const mobileBlock = html.match(/@media\s*\(max-width:\s*22rem\)\s*\{([\s\S]*?)\n    \}/);
+  assert.ok(mobileBlock, "22rem mobile media block must exist");
+  [
+    /\.shell\s*\{[^}]*padding-inline:\s*\.75rem/,
+    /\.identity-scroll\s*\{[^}]*padding:\s*\.75rem/,
+    /\.identity-cover h2\s*\{[^}]*font-size:\s*1\.7rem/,
+    /\.identity-portrait\s*\{[^}]*min-height:\s*23rem/,
+    /\.collection-actions\s*\{[^}]*grid-template-columns:\s*1fr/
+  ].forEach((rule) => assert.match(mobileBlock[1], rule));
+  assert.match(html, /\.identity-sheet,\s*\.identity-scroll,\s*\.editorial-advice\s*\{[^}]*min-width:\s*0/);
+  assert.match(html, /\.identity-sheet p,\s*\.identity-sheet a,\s*\.identity-sheet strong\s*\{[^}]*overflow-wrap:\s*anywhere/);
   assert.match(html, /env\(safe-area-inset-bottom\)/);
-  assert.match(html, /overflow-wrap:\s*anywhere/);
-  assert.match(html, /backgroundColor:\s*["']#F7F3EE["']/i);
+  const captureBody = html.match(/async function captureIdentityCanvas\(\)\s*\{([\s\S]*?)\n    \}/);
+  assert.ok(captureBody, "captureIdentityCanvas must exist");
+  assert.match(captureBody[1], /backgroundColor:\s*["']#F7F3EE["']/i);
   assert.match(html, /prefers-reduced-motion/);
 });
 
