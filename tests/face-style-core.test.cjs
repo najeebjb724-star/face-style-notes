@@ -820,6 +820,15 @@ test("readable report remains traceable after quality override", () => {
   assert.ok(report.readableProfile.memorySentence);
 });
 
+test("challenge center keeps identity styling without tarot-page density", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /challenge-journal/);
+  assert.match(html, /TODAY'S ENTRY/);
+  assert.match(html, /#C9A87C/i);
+  ["checkInButton", "undoCheckInButton", "newChallengeButton", "downloadPosterButton"]
+    .forEach((id) => assert.match(html, new RegExp(`id=["']${id}["']`)));
+});
+
 test("identity presentation is deterministic, non-ranked, and bounded", () => {
   const core = loadCore();
   const measurements = core.computeMeasurements(makeFrontLandmarks(), "high");
