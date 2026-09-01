@@ -63,3 +63,11 @@ test("Pages workflow deploys only the approved branch with official actions", ()
   ].forEach((text) => assert.ok(workflow.includes(text), `workflow missing: ${text}`));
   assert.ok(!/uses:\s+(?!actions\/)/.test(workflow), "workflow must use only official actions");
 });
+
+test("homepage preview is a 390 by 844 PNG", () => {
+  const previewPath = path.join(root, "assets", "preview.png");
+  const png = fs.readFileSync(previewPath);
+  assert.deepEqual(Array.from(png.subarray(0, 8)), [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.equal(png.readUInt32BE(16), 390);
+  assert.equal(png.readUInt32BE(20), 844);
+});
