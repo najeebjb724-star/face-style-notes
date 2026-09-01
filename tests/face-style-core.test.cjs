@@ -209,6 +209,15 @@ test("identity collection reuses one capture path for save and share", () => {
   assert.match(html, /当前浏览器暂不支持直接分享，请先保存身份卡/);
 });
 
+test("identity card remains mobile-first and export-safe", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /@media\s*\(max-width:\s*22rem\)/);
+  assert.match(html, /env\(safe-area-inset-bottom\)/);
+  assert.match(html, /overflow-wrap:\s*anywhere/);
+  assert.match(html, /backgroundColor:\s*["']#F7F3EE["']/i);
+  assert.match(html, /prefers-reduced-motion/);
+});
+
 test("identity sharing keeps a save-first fallback for every non-cancel error", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
   assert.match(html, /const shareFallback = "请先保存身份卡，再从相册分享。";/);
