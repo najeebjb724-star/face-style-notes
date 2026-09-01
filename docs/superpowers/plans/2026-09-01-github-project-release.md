@@ -449,13 +449,13 @@ Expected: output `2 inline scripts parsed` and exit code 0.
 
 - [ ] **Step 3: Confirm application source is untouched**
 
-Run: `git diff 731265a -- index.html tests/face-style-core.test.cjs`
+Run: `git diff b8beec5 -- index.html tests/face-style-core.test.cjs`
 
 Expected: no output.
 
 - [ ] **Step 4: Confirm only intended release files were added**
 
-Run: `git diff --name-status 731265a..HEAD`
+Run: `git diff --name-status b8beec5..HEAD`
 
 Expected tracked paths:
 
