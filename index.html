@@ -2719,7 +2719,7 @@
     }
 
     async function buildChallengePoster(challenge, progress, photos) {
-      const posterColors = { paper: "#F7F3EE", card: "#FFFDF9", gold: "#C9A87C", ink: "#2C2420", muted: "#7A6B5A", line: "#EDE5D8" };
+      const posterColors = { paper: "#F7F3EE", card: "#FFFDF9", gold: "#C9A87C", ink: "#2C2420", muted: "#7A6B5A", line: "#EDE5D8", photoLabelOverlay: "rgba(44,36,32,.76)" };
       const canvas = $("posterCanvas");
       canvas.width = 1080;
       canvas.height = 1440;
@@ -2778,7 +2778,7 @@
             context.clip();
             drawPosterCover(context, item.image, x, 650, 435, 540);
             context.restore();
-            context.fillStyle = "rgba(44,36,32,.76)";
+            context.fillStyle = posterColors.photoLabelOverlay;
             context.fillRect(x + 24, 1134, 92, 38);
             context.fillStyle = posterColors.card;
             context.font = "700 22px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";

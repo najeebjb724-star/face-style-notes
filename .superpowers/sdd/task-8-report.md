@@ -29,7 +29,18 @@
 
 ## 审查修复追加
 
+- 修复提交号：`f9388db` — `fix: use poster palette for all canvas fills`。
 - 删除海报绘制前无效的连续 `context.fillStyle` 赋值。
 - 将实际绘制中的浅分割线与金色圆形统一改为 `posterColors.line` 与 `posterColors.gold`。
 - 更新暖色契约测试，验证 `posterColors` 对象和真实 canvas 引用，并拒绝散落色值。
-- 修复后聚焦测试通过；全量测试 `node --test tests/*.test.cjs` 75/75 通过；`git diff --check` 通过。
+- 聚焦测试：`node --test --test-name-pattern="approved warm token system" tests/face-style-core.test.cjs` — PASS（1 pass，0 failures）。
+- 完整测试：`node --test tests/*.test.cjs` — PASS（75 pass，0 failures）。
+- 差异检查：`git diff --check` — PASS（无输出/无差异错误）。
+
+## 复审修复追加
+
+- 将照片标签遮罩纳入 `posterColors.photoLabelOverlay`，海报绘制不再直接使用 `rgba(...)` 字面量。
+- 强化暖色契约测试：在 `buildChallengePoster` 范围内拒绝任何直接字符串颜色赋值，并验证全部 palette 成员引用。
+- 聚焦测试：`node --test --test-name-pattern="approved warm token system" tests/face-style-core.test.cjs` — PASS（1 pass，0 failures）。
+- 完整测试：`node --test tests/*.test.cjs` — PASS（75 pass，0 failures）。
+- 差异检查：`git diff --check` — PASS（无输出/无差异错误）。
