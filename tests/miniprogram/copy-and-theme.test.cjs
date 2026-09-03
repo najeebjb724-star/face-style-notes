@@ -43,6 +43,10 @@ test("home provides visitor-safe state and the three stable entry actions", () =
       switchTab(options) {
         navigations.push(options.url);
       }
+    },
+    require(moduleName) {
+      assert.equal(moduleName, "../../config/env");
+      return { getCloudEnv: () => "" };
     }
   });
 
@@ -81,6 +85,10 @@ test("home loads available cloud bootstrap state without breaking visitor mode",
           });
         }
       }
+    },
+    require(moduleName) {
+      assert.equal(moduleName, "../../config/env");
+      return { getCloudEnv: () => "configured-cloud-env" };
     }
   });
   assert.equal(typeof definition.onShow, "function", "home cloud loader is missing");
@@ -96,6 +104,97 @@ test("home loads available cloud bootstrap state without breaking visitor mode",
     latestReport: { id: "report-2" },
     activeChallenge: { title: "七日风格练习" }
   }]);
+});
+
+test("home skips bootstrap when no CloudBase environment is configured", async () => {
+  let definition;
+  let bootstrapCalls = 0;
+  vm.runInNewContext(read("pages/home/home.js"), {
+    Page(page) {
+      definition = page;
+    },
+    require(moduleName) {
+      assert.equal(moduleName, "../../config/env");
+      return { getCloudEnv: () => "" };
+    },
+    wx: {
+      cloud: {
+        callFunction() {
+          bootstrapCalls += 1;
+          return Promise.resolve({ result: {} });
+        }
+      }
+    }
+  });
+  const updates = [];
+  const page = {
+    data: { latestReport: null, activeChallenge: null },
+    setData(value) {
+      updates.push(value);
+    }
+  };
+
+  await definition.onShow.call(page);
+
+  assert.equal(bootstrapCalls, 0);
+  assert.deepEqual(updates, []);
+  assert.deepEqual(page.data, { latestReport: null, activeChallenge: null });
+});
+
+test("home swallows synchronous cloud bootstrap failures", async () => {
+  let definition;
+  vm.runInNewContext(read("pages/home/home.js"), {
+    Page(page) {
+      definition = page;
+    },
+    require() {
+      return { getCloudEnv: () => "configured-cloud-env" };
+    },
+    wx: {
+      cloud: {
+        callFunction() {
+          throw new Error("offline");
+        }
+      }
+    }
+  });
+  const page = {
+    data: { latestReport: null, activeChallenge: null },
+    setData() {
+      throw new Error("failed bootstrap must not write state");
+    }
+  };
+
+  await assert.doesNotReject(() => Promise.resolve(definition.onShow.call(page)));
+  assert.deepEqual(page.data, { latestReport: null, activeChallenge: null });
+});
+
+test("home swallows rejected cloud bootstrap failures", async () => {
+  let definition;
+  vm.runInNewContext(read("pages/home/home.js"), {
+    Page(page) {
+      definition = page;
+    },
+    require() {
+      return { getCloudEnv: () => "configured-cloud-env" };
+    },
+    wx: {
+      cloud: {
+        callFunction() {
+          return Promise.reject(new Error("offline"));
+        }
+      }
+    }
+  });
+  const page = {
+    data: { latestReport: null, activeChallenge: null },
+    setData() {
+      throw new Error("failed bootstrap must not write state");
+    }
+  };
+
+  await assert.doesNotReject(() => definition.onShow.call(page));
+  assert.deepEqual(page.data, { latestReport: null, activeChallenge: null });
 });
 
 test("home presents both new-user entries and stateful entry cards", () => {
@@ -118,7 +217,11 @@ test("task two tabs are safe mobile landing pages", () => {
     assert.match(styles, /box-sizing:\s*border-box/);
   }
   const homeStyles = read("pages/home/home.wxss");
-  assert.match(homeStyles, /min-height:\s*100vh/);
-  assert.match(homeStyles, /min-height:\s*88rpx/);
-  assert.match(homeStyles, /box-sizing:\s*border-box/);
+  const homeMarkup = read("pages/home/home.wxml");
+  assert.match(homeStyles, /\.page\s*{[^}]*width:\s*100%/s);
+  assert.match(homeStyles, /\.page\s*{[^}]*box-sizing:\s*border-box/s);
+  assert.match(homeStyles, /\.primary-button,\s*\.secondary-button\s*{[^}]*min-height:\s*44px/s);
+  assert.doesNotMatch(homeStyles, /(?:min-)?width:\s*(?:[3-9]\d{2,}|[1-9]\d{3,})px/);
+  assert.doesNotMatch(homeStyles, /(?:min-)?width:\s*(?:6[4-9]\d|[7-9]\d{2}|[1-9]\d{3,})rpx/);
+  assert.doesNotMatch(homeMarkup, /(?:min-)?width:\s*\d+(?:\.\d+)?(?:px|rpx)/);
 });

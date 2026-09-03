@@ -1,3 +1,7 @@
+const { getCloudEnv } = require("../../config/env");
+
+const cloudEnv = getCloudEnv("develop");
+
 Page({
   data: {
     latestReport: null,
@@ -5,19 +9,23 @@ Page({
   },
 
   onShow() {
-    if (typeof wx === "undefined" || !wx.cloud || typeof wx.cloud.callFunction !== "function") {
+    if (!cloudEnv || typeof wx === "undefined" || !wx.cloud || typeof wx.cloud.callFunction !== "function") {
       return Promise.resolve();
     }
 
-    return wx.cloud.callFunction({ name: "bootstrapUser" })
-      .then(({ result }) => {
-        if (!result) return;
-        this.setData({
-          latestReport: result.latestReport || null,
-          activeChallenge: result.activeChallenge || null
-        });
-      })
-      .catch(() => {});
+    try {
+      return wx.cloud.callFunction({ name: "bootstrapUser" })
+        .then(({ result }) => {
+          if (!result) return;
+          this.setData({
+            latestReport: result.latestReport || null,
+            activeChallenge: result.activeChallenge || null
+          });
+        })
+        .catch(() => {});
+    } catch {
+      return Promise.resolve();
+    }
   },
 
   startAnalysis() {
