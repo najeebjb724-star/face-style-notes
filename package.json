@@ -1,0 +1,7 @@
+{
+  "name": "face-style-notes-mini-program",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}
