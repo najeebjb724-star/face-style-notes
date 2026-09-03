@@ -1,1 +1,5 @@
-<view class="page">挑战功能准备中</view>
+<view class="page">
+  <text class="eyebrow">美学身份卡</text>
+  <text class="title">变美挑战</text>
+  <text class="copy">从轻量练习开始，慢慢探索适合自己的表达。</text>
+</view>

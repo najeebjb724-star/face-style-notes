@@ -1,1 +1,5 @@
-<view class="page">个人主页准备中</view>
+<view class="page">
+  <text class="eyebrow">美学身份卡</text>
+  <text class="title">我的风格记录</text>
+  <text class="copy">你的美学身份卡和风格记录会在这里逐渐完善。</text>
+</view>

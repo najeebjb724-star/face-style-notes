@@ -1,3 +1,25 @@
 .page {
+  box-sizing: border-box;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
   padding: 48rpx 32rpx;
+}
+
+.eyebrow {
+  color: #7A6B5A;
+  font-size: 24rpx;
+  letter-spacing: 2rpx;
+}
+
+.title {
+  font-size: 48rpx;
+  font-weight: 600;
+}
+
+.copy {
+  color: #7A6B5A;
+  font-size: 28rpx;
+  line-height: 1.6;
 }
