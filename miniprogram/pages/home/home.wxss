@@ -11,6 +11,6 @@
 }
 
 .subtitle {
-  color: #666666;
+  color: #7a6b5a;
   font-size: 28rpx;
 }

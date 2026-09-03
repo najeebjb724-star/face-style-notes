@@ -6,14 +6,14 @@
   ],
   "window": {
     "navigationBarTitleText": "美学身份卡",
-    "navigationBarBackgroundColor": "#FFFFFF",
+    "navigationBarBackgroundColor": "#FFFDF9",
     "navigationBarTextStyle": "black",
-    "backgroundColor": "#F7F7F7"
+    "backgroundColor": "#F7F3EE"
   },
   "tabBar": {
-    "color": "#8C8C8C",
-    "selectedColor": "#202020",
-    "backgroundColor": "#FFFFFF",
+    "color": "#7A6B5A",
+    "selectedColor": "#2C2420",
+    "backgroundColor": "#FFFDF9",
     "list": [
       {
         "pagePath": "pages/home/home",

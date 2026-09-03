@@ -47,3 +47,35 @@ test("app launch skips cloud initialization in local visitor mode", () => {
 
   assert.equal(initializationCount, 0);
 });
+
+test("mini program interface uses only the approved color palette", () => {
+  const approvedColors = new Set([
+    "#F7F3EE",
+    "#FFFDF9",
+    "#C9A87C",
+    "#2C2420",
+    "#7A6B5A",
+    "#D4C4B0",
+    "#EDE5D8"
+  ]);
+  const interfaceFiles = [];
+  const collectFiles = directory => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        collectFiles(entryPath);
+      } else if ([".json", ".wxml", ".wxss"].includes(path.extname(entry.name))) {
+        interfaceFiles.push(entryPath);
+      }
+    }
+  };
+
+  collectFiles(path.join(__dirname, "../../miniprogram"));
+
+  for (const file of interfaceFiles) {
+    const colors = fs.readFileSync(file, "utf8").match(/#[0-9a-fA-F]{6}/g) || [];
+    for (const color of colors) {
+      assert.ok(approvedColors.has(color.toUpperCase()), `${file} uses unapproved color ${color}`);
+    }
+  }
+});
