@@ -469,6 +469,12 @@ test("challenge center review gives the sheet cancellation control a 44px target
 
 test("challenge template data cannot be mutated through public APIs", () => {
   const core = loadCore();
+  assert.ok(Object.isFrozen(core.CHALLENGE_TEMPLATES));
+  core.CHALLENGE_TEMPLATES.forEach((item) => {
+    assert.ok(Object.isFrozen(item));
+    assert.ok(Object.isFrozen(item.photoDays));
+    assert.ok(Object.isFrozen(item.taskDays));
+  });
   core.CHALLENGE_TEMPLATES[0].title = "已篡改";
   core.CHALLENGE_TEMPLATES[0].photoDays[0] = 99;
   const returned = core.getChallengeTemplates();
