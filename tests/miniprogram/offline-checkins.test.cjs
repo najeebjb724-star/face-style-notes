@@ -14,13 +14,16 @@ function loadModuleWithoutWx() {
   }
 }
 
-function createStorage() {
+function createStorage(options = {}) {
   const values = new Map();
+  let writes = 0;
   return {
     getStorageSync(key) {
       return values.get(key);
     },
     setStorageSync(key, value) {
+      writes += 1;
+      if (options.failWrite && options.failWrite(writes, key, value)) throw new Error("storage failed");
       values.set(key, structuredClone(value));
     }
   };
@@ -35,6 +38,65 @@ test("module loading is safe without a wx global and exposes the public queue AP
   assert.equal(typeof offline.enqueueCheckIn, "function");
   assert.equal(typeof offline.flushCheckIns, "function");
   assert.equal(typeof offline.createOfflineCheckIns, "function");
+});
+
+test("flush rejects negative and absent acknowledgements without removing work", async () => {
+  const { createOfflineCheckIns } = loadModuleWithoutWx();
+  for (const acknowledgement of [{ ok: false }, null, undefined]) {
+    const storage = createStorage();
+    const queue = createOfflineCheckIns(storage);
+    queue.enqueueCheckIn(command("cmd-1", "2026-09-03"));
+
+    await assert.rejects(queue.flushCheckIns(() => acknowledgement), /CHECKIN_NOT_ACKNOWLEDGED/);
+    assert.deepEqual(storage.getStorageSync("offline-checkins").map(item => item.id), ["cmd-1"]);
+  }
+});
+
+test("flush retains commands when sending throws synchronously or rejects asynchronously", async () => {
+  const { createOfflineCheckIns } = loadModuleWithoutWx();
+  for (const send of [
+    () => { throw new Error("sync offline"); },
+    async () => { throw new Error("async offline"); }
+  ]) {
+    const storage = createStorage();
+    const queue = createOfflineCheckIns(storage);
+    queue.enqueueCheckIn(command("cmd-1", "2026-09-03"));
+
+    await assert.rejects(queue.flushCheckIns(send), /offline/);
+    assert.deepEqual(storage.getStorageSync("offline-checkins").map(item => item.id), ["cmd-1"]);
+  }
+});
+
+test("an acknowledged command remains replayable when removing it cannot persist", async () => {
+  const { createOfflineCheckIns } = loadModuleWithoutWx();
+  const storage = createStorage({ failWrite: writes => writes === 2 });
+  const queue = createOfflineCheckIns(storage);
+  queue.enqueueCheckIn(command("cmd-1", "2026-09-03"));
+
+  await assert.rejects(queue.flushCheckIns(async () => ({ ok: true })), /storage failed/);
+  assert.deepEqual(storage.getStorageSync("offline-checkins").map(item => item.id), ["cmd-1"]);
+});
+
+test("enqueueing while a flush is in flight preserves the new command for the same drain", async () => {
+  const { createOfflineCheckIns } = loadModuleWithoutWx();
+  const storage = createStorage();
+  const queue = createOfflineCheckIns(storage);
+  const sent = [];
+  queue.enqueueCheckIn(command("cmd-1", "2026-09-03"));
+
+  let release;
+  const flushing = queue.flushCheckIns(async item => {
+    sent.push(item.id);
+    if (item.id === "cmd-1") await new Promise(resolve => { release = resolve; });
+    return { ok: true };
+  });
+  await new Promise(resolve => setImmediate(resolve));
+  queue.enqueueCheckIn(command("cmd-2", "2026-09-04"));
+  release();
+  await flushing;
+
+  assert.deepEqual(sent, ["cmd-1", "cmd-2"]);
+  assert.deepEqual(storage.getStorageSync("offline-checkins"), []);
 });
 
 test("queue persists unique command ids and sends them in stable order", async () => {

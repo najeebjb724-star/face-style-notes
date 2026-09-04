@@ -3,7 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "main": "index.js",
+  "scripts": {
+    "build": "node build.js",
+    "check-build": "node build.js --check"
+  },
   "dependencies": {
     "wx-server-sdk": "4.0.2"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.0"
   }
 }

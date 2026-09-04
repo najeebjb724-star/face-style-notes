@@ -43,12 +43,16 @@ function createOfflineCheckIns(storage) {
         const current = readQueue()[0];
         if (!current) return;
 
-        await send({ ...current });
+        const acknowledgement = await send({ ...current });
+        if (!acknowledgement || acknowledgement.ok !== true) {
+          const error = new Error("CHECKIN_NOT_ACKNOWLEDGED");
+          error.code = "CHECKIN_NOT_ACKNOWLEDGED";
+          throw error;
+        }
         const latest = readQueue();
         const acknowledgedIndex = latest.findIndex(item => item.id === current.id);
         if (acknowledgedIndex !== -1) {
-          latest.splice(acknowledgedIndex, 1);
-          writeQueue(latest);
+          writeQueue(latest.filter((_, index) => index !== acknowledgedIndex));
         }
       }
     }
