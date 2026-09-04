@@ -45,8 +45,27 @@ function getChallengeOccurrenceDays(challenge) {
 
 function validateTutorialUrl(value) {
   try {
-    const url = new URL(String(value).trim());
-    return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+    const match = /^(https?):\/\/([^/?#]+)(.*)$/i.exec(String(value).trim());
+    if (!match || /[\s\\]/.test(match[2])) return "";
+
+    const protocol = match[1].toLowerCase();
+    const authority = match[2];
+    const userInfoEnd = authority.lastIndexOf("@");
+    const userInfo = userInfoEnd >= 0 ? authority.slice(0, userInfoEnd + 1) : "";
+    const hostAndPort = authority.slice(userInfoEnd + 1);
+    const hostMatch = hostAndPort.startsWith("[")
+      ? /^(\[[0-9a-f:.]+\])(?::(\d+))?$/i.exec(hostAndPort)
+      : /^([^:]+)(?::(\d+))?$/.exec(hostAndPort);
+    if (!hostMatch) return "";
+
+    const host = hostMatch[1].toLowerCase();
+    const port = hostMatch[2] || "";
+    if (!host || (port && Number(port) > 65535)) return "";
+    const normalizedPort = port && !((protocol === "http" && Number(port) === 80) || (protocol === "https" && Number(port) === 443))
+      ? `:${Number(port)}`
+      : "";
+    const suffix = match[3] && !/^[?#]/.test(match[3]) ? match[3] : `/${match[3] || ""}`;
+    return encodeURI(`${protocol}://${userInfo}${host}${normalizedPort}${suffix}`).replace(/%25(?=[0-9a-f]{2})/gi, "%");
   } catch (_) {
     return "";
   }

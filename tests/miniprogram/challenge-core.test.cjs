@@ -34,6 +34,28 @@ test("mini program challenge creation matches the web MVP", () => {
   assertParity("createChallenge", input, now);
 });
 
+test("tutorial URL validation matches the web MVP without a global URL constructor", () => {
+  const web = loadWebCore();
+  const mini = loadMiniCore();
+  const input = {
+    templateId: "eye-makeup-7",
+    tutorials: [
+      { label: "有效教程", url: "  HTTPS://Example.COM:443/tutorial?step=day%201#practice  " },
+      { label: "危险链接", url: "javascript:alert(1)" },
+      { label: "无效链接", url: "not a url" }
+    ]
+  };
+  const now = new Date("2026-09-03T12:00:00+08:00");
+  const expected = web.createChallenge(input, now).tutorials;
+  const originalURL = global.URL;
+  global.URL = undefined;
+  try {
+    assert.deepEqual(mini.createChallenge(input, now).tutorials, toPlain(expected));
+  } finally {
+    global.URL = originalURL;
+  }
+});
+
 test("mini program exports only the challenge interface and immutable habit and training templates", () => {
   const web = loadWebCore();
   const mini = loadMiniCore();
