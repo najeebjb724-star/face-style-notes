@@ -56,6 +56,32 @@ test("callCloud propagates a structured cloud error", async t => {
   });
 });
 
+for (const [name, response] of [
+  ["a missing result", {}],
+  ["a null result", { result: null }],
+  ["a primitive result", { result: "unexpected" }],
+  ["an array result", { result: [] }]
+]) {
+  test(`callCloud normalizes ${name} as unavailable`, async t => {
+    t.after(() => delete global.wx);
+    global.wx = {
+      cloud: {
+        callFunction() {
+          return Promise.resolve(response);
+        }
+      }
+    };
+
+    await assert.rejects(callCloud("bootstrapUser", {}), error => {
+      assert.deepEqual(error, {
+        code: "CLOUD_UNAVAILABLE",
+        message: "暂时无法连接，请稍后重试"
+      });
+      return true;
+    });
+  });
+}
+
 for (const [name, callFunction] of [
   ["synchronous runtime failures", () => { throw new Error("offline"); }],
   ["asynchronous transport failures", () => Promise.reject(new Error("offline"))]

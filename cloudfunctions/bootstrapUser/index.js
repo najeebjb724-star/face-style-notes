@@ -19,13 +19,13 @@ async function ensureUser(database, openid) {
     return existingUser._id;
   }
 
-  const result = await database.collection("users").add({
+  await database.collection("users").doc(openid).set({
     data: {
       _openid: openid,
       createdAt: database.serverDate()
     }
   });
-  return result._id;
+  return openid;
 }
 
 function createBootstrapUser({ database, getWXContext }) {

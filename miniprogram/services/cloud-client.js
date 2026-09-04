@@ -9,7 +9,10 @@ async function callCloud(name, data = {}) {
     throw createConnectionError();
   }
 
-  const result = response && response.result ? response.result : {};
+  const result = response && response.result;
+  if (!result || typeof result !== "object" || Array.isArray(result)) {
+    throw createConnectionError();
+  }
   if (result.error) {
     throw result.error;
   }

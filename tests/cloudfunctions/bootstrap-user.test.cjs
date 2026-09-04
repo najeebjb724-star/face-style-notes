@@ -1,5 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const {
   createBootstrapUser
@@ -50,6 +52,20 @@ function createDatabase(seed) {
           const record = { _id: `${name}-generated`, ...data };
           records.push(record);
           return { _id: record._id };
+        },
+        doc(id) {
+          return {
+            async set({ data }) {
+              const record = { _id: id, ...data };
+              const index = records.findIndex(item => item._id === id);
+              if (index === -1) {
+                records.push(record);
+              } else {
+                records[index] = record;
+              }
+              return { _id: id };
+            }
+          };
         }
       };
 
@@ -108,15 +124,32 @@ test("bootstrapUser creates a missing user from the trusted runtime identity", a
   const result = await bootstrapUser({ _openid: "forged-user" }, {});
 
   assert.deepEqual(result, {
-    userId: "users-generated",
+    userId: "trusted-user",
     latestReport: null,
     activeChallenge: null
   });
   assert.deepEqual(database.snapshot("users"), [{
-    _id: "users-generated",
+    _id: "trusted-user",
     _openid: "trusted-user",
     createdAt: "SERVER_DATE"
   }]);
+});
+
+test("concurrent first bootstraps converge on one stable user record", async () => {
+  const database = createDatabase({ users: [], reports: [], challenges: [] });
+  const bootstrapUser = createBootstrapUser({
+    database,
+    getWXContext: () => ({ OPENID: "concurrent-user" })
+  });
+
+  const [first, second] = await Promise.all([
+    bootstrapUser({}, {}),
+    bootstrapUser({}, {})
+  ]);
+
+  assert.equal(database.snapshot("users").length, 1);
+  assert.equal(first.userId, "concurrent-user");
+  assert.equal(second.userId, "concurrent-user");
 });
 
 test("bootstrapUser never falls back to a client identity", async () => {
@@ -134,4 +167,24 @@ test("bootstrapUser never falls back to a client identity", async () => {
     }
   );
   assert.deepEqual(database.snapshot("users"), []);
+});
+
+test("bootstrapUser pins the CloudBase SDK version", () => {
+  const packageRoot = path.join(__dirname, "../../cloudfunctions/bootstrapUser");
+  const packageJson = JSON.parse(
+    fs.readFileSync(path.join(packageRoot, "package.json"), "utf8")
+  );
+
+  assert.equal(packageJson.dependencies["wx-server-sdk"], "4.0.2");
+});
+
+test("bootstrapUser commits an npm-generated dependency lock", () => {
+  const packageRoot = path.join(__dirname, "../../cloudfunctions/bootstrapUser");
+  const lockPath = path.join(packageRoot, "package-lock.json");
+  assert.ok(fs.existsSync(lockPath), "bootstrapUser/package-lock.json is missing");
+  const packageLock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+
+  assert.equal(packageLock.lockfileVersion, 3);
+  assert.equal(packageLock.packages[""].dependencies["wx-server-sdk"], "4.0.2");
+  assert.equal(packageLock.packages["node_modules/wx-server-sdk"].version, "4.0.2");
 });
