@@ -45,27 +45,33 @@ function getChallengeOccurrenceDays(challenge) {
 
 function validateTutorialUrl(value) {
   try {
-    const match = /^(https?):\/\/([^/?#]+)(.*)$/i.exec(String(value).trim());
-    if (!match || /[\s\\]/.test(match[2])) return "";
+    const raw = String(value);
+    if (/[\u0000-\u001f\u007f-\u009f\\]/.test(raw)) return "";
 
-    const protocol = match[1].toLowerCase();
-    const authority = match[2];
-    const userInfoEnd = authority.lastIndexOf("@");
-    const userInfo = userInfoEnd >= 0 ? authority.slice(0, userInfoEnd + 1) : "";
-    const hostAndPort = authority.slice(userInfoEnd + 1);
-    const hostMatch = hostAndPort.startsWith("[")
-      ? /^(\[[0-9a-f:.]+\])(?::(\d+))?$/i.exec(hostAndPort)
-      : /^([^:]+)(?::(\d+))?$/.exec(hostAndPort);
-    if (!hostMatch) return "";
+    const match = /^https:\/\/([^/?#]+)(\/[^?#]*)?(\?[^#]*)?(#.*)?$/i.exec(raw.trim());
+    if (!match) return "";
 
-    const host = hostMatch[1].toLowerCase();
-    const port = hostMatch[2] || "";
-    if (!host || (port && Number(port) > 65535)) return "";
-    const normalizedPort = port && !((protocol === "http" && Number(port) === 80) || (protocol === "https" && Number(port) === 443))
-      ? `:${Number(port)}`
-      : "";
-    const suffix = match[3] && !/^[?#]/.test(match[3]) ? match[3] : `/${match[3] || ""}`;
-    return encodeURI(`${protocol}://${userInfo}${host}${normalizedPort}${suffix}`).replace(/%25(?=[0-9a-f]{2})/gi, "%");
+    const authority = /^([a-z0-9.-]+)(?::(\d+))?$/i.exec(match[1]);
+    if (!authority) return "";
+    const host = authority[1].toLowerCase();
+    const labels = host.split(".");
+    const validLabel = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
+    const lastLabel = labels[labels.length - 1];
+    const numericLastLabel = /^\d+$|^0x[0-9a-f]+$/i.test(lastLabel);
+    if (host.length > 253 || numericLastLabel || labels.some((label) => !validLabel.test(label) || /^xn--/i.test(label))) return "";
+
+    const portText = authority[2] || "";
+    const port = Number(portText);
+    if (portText && (portText.length > 5 || !Number.isInteger(port) || port < 1 || port > 65535)) return "";
+
+    const path = match[2] || "/";
+    const suffix = `${path}${match[3] || ""}${match[4] || ""}`;
+    if (/%(?![0-9a-f]{2})/i.test(suffix)) return "";
+    if (!/^[a-z0-9\-._~!$&()*+,;=:@/?#% ]*$/i.test(suffix)) return "";
+    if (path.split("/").some((segment) => [".", ".."].includes(segment.replace(/%2e/gi, ".")))) return "";
+
+    const normalizedPort = portText && port !== 443 ? `:${port}` : "";
+    return encodeURI(`https://${host}${normalizedPort}${suffix}`).replace(/%25(?=[0-9a-f]{2})/gi, "%");
   } catch (_) {
     return "";
   }

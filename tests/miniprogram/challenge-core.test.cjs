@@ -34,16 +34,19 @@ test("mini program challenge creation matches the web MVP", () => {
   assertParity("createChallenge", input, now);
 });
 
-test("tutorial URL validation matches the web MVP without a global URL constructor", () => {
+test("supported HTTPS tutorial URLs match the web MVP without a global URL constructor", () => {
   const web = loadWebCore();
   const mini = loadMiniCore();
+  const urls = [
+    "  HTTPS://Example.COM  ",
+    "https://Docs.Example.COM:8443/guides/eye makeup?q=day one#step 1",
+    "https://cdn.example.com/tutorial/%E7%9C%BC%E5%A6%86?next=%2Flesson%202#done",
+    "https://example.com:443/tutorial",
+    "https://example.com?lesson=1"
+  ];
   const input = {
     templateId: "eye-makeup-7",
-    tutorials: [
-      { label: "有效教程", url: "  HTTPS://Example.COM:443/tutorial?step=day%201#practice  " },
-      { label: "危险链接", url: "javascript:alert(1)" },
-      { label: "无效链接", url: "not a url" }
-    ]
+    tutorials: urls.map((url, index) => ({ label: `教程 ${index + 1}`, url }))
   };
   const now = new Date("2026-09-03T12:00:00+08:00");
   const expected = web.createChallenge(input, now).tutorials;
@@ -51,6 +54,57 @@ test("tutorial URL validation matches the web MVP without a global URL construct
   global.URL = undefined;
   try {
     assert.deepEqual(mini.createChallenge(input, now).tutorials, toPlain(expected));
+  } finally {
+    global.URL = originalURL;
+  }
+});
+
+test("ambiguous or unsupported tutorial URL forms are rejected without a global URL constructor", () => {
+  const mini = loadMiniCore();
+  const urls = [
+    "https://example.com/a/../b",
+    "https://example.com/a/%2e%2e/b",
+    "https://example.com/a/.%2e/b",
+    "https://example.com/a/%2e./b",
+    "https://例子.测试/tutorial",
+    "https://%65xample.com/tutorial",
+    "https://user:pass@example.com/tutorial",
+    "https://127.0.0.1/tutorial",
+    "https://0177.0.0.1/tutorial",
+    "https://0x7f.0.0.1/tutorial",
+    "https://0x7f000001/tutorial",
+    "https://example.1/tutorial",
+    "https://[2001:db8::1]/tutorial",
+    "https://[::ffff:127.0.0.1]/tutorial",
+    "https://example.com:/tutorial",
+    "https://example.com:65536/tutorial",
+    "https://example.com::443/tutorial",
+    "https://exa_mple.com/tutorial",
+    "https://xn--a.com/tutorial",
+    "https://.example.com/tutorial",
+    "https://example..com/tutorial",
+    "https:///tutorial",
+    "https://example.com/%ZZ",
+    "https://example.com/a\u0001b",
+    "https://example.com/a\u0085b",
+    "https://example.com/a\\b",
+    "https://example.com/a|b",
+    "https://example.com/?a'b",
+    "https://example.com/#a[b",
+    "http://example.com/tutorial",
+    "javascript:alert(1)"
+  ];
+  const now = new Date("2026-09-03T12:00:00+08:00");
+  const originalURL = global.URL;
+  global.URL = undefined;
+  try {
+    urls.forEach((url) => {
+      const challenge = mini.createChallenge({
+        templateId: "eye-makeup-7",
+        tutorials: [{ label: "不支持", url }]
+      }, now);
+      assert.deepEqual(challenge.tutorials, [], url);
+    });
   } finally {
     global.URL = originalURL;
   }
