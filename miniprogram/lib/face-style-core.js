@@ -57,7 +57,7 @@ function validateTutorialUrl(value) {
     const labels = host.split(".");
     const validLabel = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
     const lastLabel = labels[labels.length - 1];
-    const numericLastLabel = /^\d+$|^0x[0-9a-f]+$/i.test(lastLabel);
+    const numericLastLabel = /^\d+$|^0x[0-9a-f]*$/i.test(lastLabel);
     if (host.length > 253 || numericLastLabel || labels.some((label) => !validLabel.test(label) || /^xn--/i.test(label))) return "";
 
     const portText = authority[2] || "";
