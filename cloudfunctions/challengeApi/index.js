@@ -1,3 +1,4 @@
+// challengeApi-build-fingerprint:7468e6066279e767cac49d854f5e20044da7604f02f590e5b02a6fd9046d2383:7f0b93b7004d2eb9f011c1a51b395811fd309ac82a84d7cb6fdbbbf6ef52622b
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;

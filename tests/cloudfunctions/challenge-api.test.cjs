@@ -442,3 +442,45 @@ test("deployment package is self-contained and generated entry is current", () =
     fs.rmSync(temporaryRoot, { recursive: true, force: true });
   }
 });
+
+test("build check detects source changes without esbuild installed", () => {
+  const packageRoot = path.join(__dirname, "../../cloudfunctions/challengeApi");
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "challenge-api-stale-"));
+  try {
+    const isolatedRoot = path.join(temporaryRoot, "repo");
+    const isolatedPackage = path.join(isolatedRoot, "cloudfunctions", "challengeApi");
+    fs.cpSync(packageRoot, isolatedPackage, { recursive: true, filter: source => !source.includes("node_modules") });
+    fs.mkdirSync(path.join(isolatedRoot, "shared"), { recursive: true });
+    fs.mkdirSync(path.join(isolatedRoot, "miniprogram", "lib"), { recursive: true });
+    fs.copyFileSync(path.join(packageRoot, "../../shared/cloud-guards.js"), path.join(isolatedRoot, "shared/cloud-guards.js"));
+    fs.copyFileSync(path.join(packageRoot, "../../miniprogram/lib/face-style-core.js"), path.join(isolatedRoot, "miniprogram/lib/face-style-core.js"));
+    fs.appendFileSync(path.join(isolatedPackage, "src/index.js"), "\n// stale test\n");
+    assert.throws(
+      () => execFileSync(process.execPath, ["build.js", "--check"], { cwd: isolatedPackage, stdio: "pipe" }),
+      error => /challengeApi build is stale/.test(error.stderr.toString())
+    );
+  } finally {
+    fs.rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test("build check detects generated entry corruption without esbuild installed", () => {
+  const packageRoot = path.join(__dirname, "../../cloudfunctions/challengeApi");
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "challenge-api-corrupt-"));
+  try {
+    const isolatedRoot = path.join(temporaryRoot, "repo");
+    const isolatedPackage = path.join(isolatedRoot, "cloudfunctions", "challengeApi");
+    fs.cpSync(packageRoot, isolatedPackage, { recursive: true, filter: source => !source.includes("node_modules") });
+    fs.mkdirSync(path.join(isolatedRoot, "shared"), { recursive: true });
+    fs.mkdirSync(path.join(isolatedRoot, "miniprogram", "lib"), { recursive: true });
+    fs.copyFileSync(path.join(packageRoot, "../../shared/cloud-guards.js"), path.join(isolatedRoot, "shared/cloud-guards.js"));
+    fs.copyFileSync(path.join(packageRoot, "../../miniprogram/lib/face-style-core.js"), path.join(isolatedRoot, "miniprogram/lib/face-style-core.js"));
+    fs.appendFileSync(path.join(isolatedPackage, "index.js"), "\n// corrupt generated entry\n");
+    assert.throws(
+      () => execFileSync(process.execPath, ["build.js", "--check"], { cwd: isolatedPackage, stdio: "pipe" }),
+      error => /challengeApi build is stale/.test(error.stderr.toString())
+    );
+  } finally {
+    fs.rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+});
