@@ -56,6 +56,43 @@ test("callCloud propagates a structured cloud error", async t => {
   });
 });
 
+test("callCloud rejects untrusted result error codes as unavailable", async t => {
+  t.after(() => delete global.wx);
+  global.wx = {
+    cloud: {
+      callFunction() {
+        return Promise.resolve({ result: { error: { code: "TRANSPORT_INTERNAL", message: "raw detail" } } });
+      }
+    }
+  };
+
+  await assert.rejects(callCloud("privateAction", {}), error => {
+    assert.deepEqual(error, {
+      code: "CLOUD_UNAVAILABLE",
+      message: "暂时无法连接，请稍后重试"
+    });
+    return true;
+  });
+});
+
+test("challenge creation receives the trusted active-conflict code through callCloud", async t => {
+  t.after(() => delete global.wx);
+  global.wx = {
+    cloud: {
+      callFunction() {
+        return Promise.resolve({
+          result: { error: { code: "ACTIVE_CHALLENGE_EXISTS", message: "ACTIVE_CHALLENGE_EXISTS" } }
+        });
+      }
+    }
+  };
+
+  await assert.rejects(callCloud("challengeApi", { action: "create" }), error => {
+    assert.equal(error.code, "ACTIVE_CHALLENGE_EXISTS");
+    return true;
+  });
+});
+
 for (const [name, response] of [
   ["a missing result", {}],
   ["a null result", { result: null }],

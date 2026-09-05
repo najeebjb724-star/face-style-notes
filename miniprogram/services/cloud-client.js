@@ -1,5 +1,13 @@
 const { createConnectionError } = require("../lib/contracts");
 
+const TRUSTED_BUSINESS_ERRORS = new Set([
+  "ACTIVE_CHALLENGE_EXISTS",
+  "CHALLENGE_NOT_ACTIVE",
+  "FORBIDDEN",
+  "INVALID_ARGUMENT",
+  "UNAUTHENTICATED"
+]);
+
 async function callCloud(name, data = {}) {
   let response;
 
@@ -14,7 +22,13 @@ async function callCloud(name, data = {}) {
     throw createConnectionError();
   }
   if (result.error) {
-    throw result.error;
+    if (result.error
+      && typeof result.error === "object"
+      && TRUSTED_BUSINESS_ERRORS.has(result.error.code)
+      && result.error.message === result.error.code) {
+      throw { code: result.error.code, message: result.error.message };
+    }
+    throw createConnectionError();
   }
 
   return result;

@@ -1,10 +1,17 @@
 <view class="page">
   <text class="eyebrow">这一段认真，被你好好收下了</text>
   <text class="title">挑战结营</text>
-  <view class="summary-card">
+  <view wx:if="{{history}}" class="summary-card">
     <text class="summary-mark">✓</text>
-    <text class="section-title">你的每一次完成都有意义</text>
-    <text class="muted">这里会保留挑战的文字复盘。没有照片也可以完整结营，不影响这份记录。</text>
+    <text class="section-title">{{history.title}}</text>
+    <text>完成 {{history.completed}} / {{history.total}} 次</text>
+    <text>完成率 {{history.completionRate}}%</text>
+    <text>最长连续 {{history.streak}} 次</text>
+    <text class="muted">没有照片也可以完整结营，不影响这份文字复盘。</text>
+  </view>
+  <view wx:else class="summary-card">
+    <text class="section-title">这次复盘暂时无法恢复</text>
+    <text class="muted">挑战已完成，但本机没有找到详细数据。你仍可以回到挑战中心。</text>
   </view>
   <view class="quiet-card">
     <text class="section-title">接下来</text>

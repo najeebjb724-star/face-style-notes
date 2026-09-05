@@ -1,8 +1,19 @@
 Page({
-  data: { challengeId: "" },
+  data: { challengeId: "", history: null },
 
   onLoad(options = {}) {
-    this.setData({ challengeId: options.id || "" });
+    const challengeId = options.id || "";
+    const eventChannel = typeof this.getOpenerEventChannel === "function"
+      ? this.getOpenerEventChannel()
+      : null;
+    eventChannel?.on("challengeCompleted", history => {
+      if (history) this.setData({ history });
+    });
+    let history = null;
+    try {
+      history = challengeId ? wx.getStorageSync(`challenge-completion:${challengeId}`) : null;
+    } catch (_) {}
+    this.setData({ challengeId, history: history || null });
   },
 
   backToChallenges() {

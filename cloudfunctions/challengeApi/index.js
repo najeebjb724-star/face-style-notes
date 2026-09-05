@@ -1,4 +1,4 @@
-// challengeApi-build-fingerprint:7468e6066279e767cac49d854f5e20044da7604f02f590e5b02a6fd9046d2383:7f0b93b7004d2eb9f011c1a51b395811fd309ac82a84d7cb6fdbbbf6ef52622b
+// challengeApi-build-fingerprint:22330ec80807e1750d66f558327f896b0f886bf66aca2388ba979163efbe1213:6f09a25c27d4697584c8fa98e5570ebea900a8f01a0d09f8e6a917d247542b09
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
@@ -184,6 +184,25 @@ function codedError(code) {
   error.code = code;
   return error;
 }
+var CLIENT_SAFE_ERROR_CODES = /* @__PURE__ */ new Set([
+  "ACTIVE_CHALLENGE_EXISTS",
+  "CHALLENGE_NOT_ACTIVE",
+  "FORBIDDEN",
+  "INVALID_ARGUMENT",
+  "UNAUTHENTICATED"
+]);
+function createClientSafeMain(handle) {
+  return async function clientSafeMain(event, context) {
+    try {
+      return await handle(event, context);
+    } catch (error) {
+      if (CLIENT_SAFE_ERROR_CODES.has(error?.code) && error.message === error.code) {
+        return { error: { code: error.code, message: error.message } };
+      }
+      throw error;
+    }
+  };
+}
 function requireObject(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw codedError("INVALID_ARGUMENT");
@@ -356,7 +375,8 @@ async function challengeApi(event, context) {
   })(event, context);
 }
 module.exports = {
-  main: challengeApi,
+  main: createClientSafeMain(challengeApi),
   challengeApi,
-  createChallengeApi
+  createChallengeApi,
+  createClientSafeMain
 };

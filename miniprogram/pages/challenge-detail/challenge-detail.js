@@ -1,6 +1,6 @@
 const { callCloud } = require("../../services/cloud-client");
 const { enqueueCheckIn, flushCheckIns } = require("../../services/offline-checkins");
-const { toggleChallengeCheckIn, getChallengeProgress, createChallengeHistoryEntry } = require("../../lib/face-style-core");
+const { toggleChallengeCheckIn, getChallengeProgress } = require("../../lib/face-style-core");
 
 function localDate(offsetDays = 0) {
   const date = new Date();
@@ -19,6 +19,7 @@ Page({
   data: {
     challenge: null,
     today: localDate(),
+    yesterday: localDate(-1),
     checkedIn: false,
     canCheckIn: false,
     canCheckInYesterday: true,
@@ -40,16 +41,22 @@ Page({
 
   updateChallenge(challenge) {
     const today = this.data.today || localDate();
+    const yesterday = this.data.yesterday || localDate(-1);
     this.setData({
       challenge,
       progress: getChallengeProgress(challenge, today),
       checkedIn: Boolean(challenge.checkIns?.[today]),
-      canCheckIn: true
+      canCheckIn: toggleChallengeCheckIn(challenge, today) !== challenge,
+      canCheckInYesterday: !challenge.checkIns?.[yesterday]
+        && toggleChallengeCheckIn(challenge, yesterday) !== challenge
     });
   },
 
   async applyCheckIn(date, completed) {
+    const wasCompleted = Boolean(this.data.challenge.checkIns?.[date]);
+    if (wasCompleted === completed) return;
     const challenge = toggleChallengeCheckIn(this.data.challenge, date);
+    if (challenge === this.data.challenge) return;
     const command = {
       id: `${this.data.challenge.id || this.data.challenge._id}-${date}-${completed ? "done" : "undo"}`,
       challengeId: this.data.challenge._id || this.data.challenge.id,
@@ -78,7 +85,7 @@ Page({
   },
 
   recordYesterday() {
-    return this.applyCheckIn(localDate(-1), true);
+    return this.applyCheckIn(this.data.yesterday || localDate(-1), true);
   },
 
   recordPhoto(event) {
@@ -94,11 +101,31 @@ Page({
 
   async finishChallenge() {
     const challengeId = this.data.challenge._id || this.data.challenge.id;
-    // Build the text-only summary locally as a safe fallback; photos are optional.
-    createChallengeHistoryEntry(this.data.challenge, this.data.progress, this.data.today);
     try {
-      await callCloud("challengeApi", { action: "finish", payload: { challengeId, date: this.data.today } });
-      wx.navigateTo({ url: `/pages/challenge-complete/challenge-complete?id=${challengeId}` });
+      await syncQueuedCheckIns();
+    } catch (_) {
+      wx.showToast({ title: "打卡尚未同步，联网后再结营", icon: "none" });
+      return;
+    }
+
+    try {
+      const completed = await callCloud("challengeApi", {
+        action: "finish",
+        payload: { challengeId, date: this.data.today }
+      });
+      if (!completed?.history) throw new Error("MISSING_HISTORY");
+      try {
+        wx.setStorageSync(`challenge-completion:${challengeId}`, completed.history);
+      } catch (_) {}
+      wx.navigateTo({
+        url: `/pages/challenge-complete/challenge-complete?id=${challengeId}`,
+        success({ eventChannel }) {
+          eventChannel?.emit("challengeCompleted", completed.history);
+        },
+        fail() {
+          wx.showToast({ title: "结营成功，请从挑战中心查看", icon: "none" });
+        }
+      });
     } catch (_) {
       wx.showToast({ title: "暂时无法结营，请稍后重试", icon: "none" });
     }

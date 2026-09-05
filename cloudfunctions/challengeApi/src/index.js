@@ -12,6 +12,27 @@ function codedError(code) {
   return error;
 }
 
+const CLIENT_SAFE_ERROR_CODES = new Set([
+  "ACTIVE_CHALLENGE_EXISTS",
+  "CHALLENGE_NOT_ACTIVE",
+  "FORBIDDEN",
+  "INVALID_ARGUMENT",
+  "UNAUTHENTICATED"
+]);
+
+function createClientSafeMain(handle) {
+  return async function clientSafeMain(event, context) {
+    try {
+      return await handle(event, context);
+    } catch (error) {
+      if (CLIENT_SAFE_ERROR_CODES.has(error?.code) && error.message === error.code) {
+        return { error: { code: error.code, message: error.message } };
+      }
+      throw error;
+    }
+  };
+}
+
 function requireObject(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw codedError("INVALID_ARGUMENT");
@@ -216,7 +237,8 @@ async function challengeApi(event, context) {
 }
 
 module.exports = {
-  main: challengeApi,
+  main: createClientSafeMain(challengeApi),
   challengeApi,
-  createChallengeApi
+  createChallengeApi,
+  createClientSafeMain
 };

@@ -7,8 +7,27 @@ const { execFileSync } = require("node:child_process");
 const { createHash } = require("node:crypto");
 
 const {
-  createChallengeApi
+  createChallengeApi,
+  createClientSafeMain
 } = require("../../cloudfunctions/challengeApi");
+
+test("cloud entry returns only trusted business errors in a client-safe envelope", async () => {
+  const conflict = createClientSafeMain(async () => {
+    const error = new Error("ACTIVE_CHALLENGE_EXISTS");
+    error.code = "ACTIVE_CHALLENGE_EXISTS";
+    throw error;
+  });
+  assert.deepEqual(await conflict({}), {
+    error: { code: "ACTIVE_CHALLENGE_EXISTS", message: "ACTIVE_CHALLENGE_EXISTS" }
+  });
+
+  const unexpected = createClientSafeMain(async () => {
+    const error = new Error("database host leaked");
+    error.code = "DATABASE_FAILURE";
+    throw error;
+  });
+  await assert.rejects(unexpected({}), /database host leaked/);
+});
 
 function createDatabase(seed = {}) {
   const collections = Object.fromEntries(
