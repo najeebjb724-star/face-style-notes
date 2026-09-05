@@ -1,0 +1,32 @@
+<view class="page">
+  <view wx:if="{{challenge}}">
+    <text class="eyebrow">第 {{progress.day}} 天 · 只做今天这一件事</text>
+    <text class="title">{{challenge.taskLabel}}</text>
+    <view class="progress-card">
+      <text>已完成 {{progress.completed}} / {{progress.total}}</text>
+      <text class="muted">连续 {{progress.streak}} 次 · {{progress.completionRate}}%</text>
+    </view>
+
+    <button class="tap-target primary-action" bindtap="completeToday" disabled="{{checkedIn || !canCheckIn}}">{{checkedIn ? '今天已完成' : '完成今日打卡'}}</button>
+    <button wx:if="{{checkedIn}}" class="tap-target text-action" bindtap="undoToday">撤销今天的打卡</button>
+    <button wx:if="{{canCheckInYesterday}}" class="tap-target text-action" bindtap="recordYesterday">补记昨天</button>
+
+    <view wx:if="{{challenge.tutorials.length}}" class="quiet-card">
+      <text class="section-title">需要时再看教程</text>
+      <text wx:for="{{challenge.tutorials}}" wx:key="url" class="muted">{{item.label}}</text>
+    </view>
+
+    <photo-pair photos="{{photos}}" bindrecord="recordPhoto" />
+
+    <view wx:if="{{progress.isComplete}}" class="quiet-card">
+      <text class="section-title">准备好时结束这段练习</text>
+      <text class="muted">照片、提醒和日历都不是结营的必要条件。</text>
+      <button class="tap-target finish-action" bindtap="finishChallenge">查看我的结营复盘</button>
+    </view>
+  </view>
+
+  <view wx:else class="empty-state">
+    <text class="title">今日任务暂时未能载入</text>
+    <text class="muted">你仍可以返回挑战中心浏览模板，连接恢复后再继续。</text>
+  </view>
+</view>

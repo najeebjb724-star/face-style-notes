@@ -1,0 +1,15 @@
+<view class="photo-card">
+  <text class="title">给变化留一个可选的见证</text>
+  <text class="muted">照片只在当前页面预览，本任务尚未启用云端保存。</text>
+  <view class="pair">
+    <button class="tap-target slot" data-slot="start" bindtap="recordPhoto">
+      <image wx:if="{{photos.start}}" src="{{photos.start}}" mode="aspectFill" />
+      <text wx:else>添加开始照</text>
+    </button>
+    <button class="tap-target slot" data-slot="end" bindtap="recordPhoto">
+      <image wx:if="{{photos.end}}" src="{{photos.end}}" mode="aspectFill" />
+      <text wx:else>添加结束照</text>
+    </button>
+  </view>
+  <button class="tap-target stage" data-slot="stage" bindtap="recordPhoto">添加阶段照（可选）</button>
+</view>

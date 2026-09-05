@@ -1,0 +1,32 @@
+<view class="page">
+  <text class="eyebrow">为此刻的你准备</text>
+  <text class="title">选择一件想慢慢做好的事</text>
+
+  <view wx:if="{{activeChallenge}}" class="notice">你已有进行中的挑战，完成后就能开启下一段练习。</view>
+
+  <view class="template-list">
+    <challenge-card wx:for="{{templates}}" wx:key="id" template="{{item}}" selected="{{selectedTemplateId === item.id}}" bindselect="selectTemplate" />
+    <button class="tap-target custom-card {{selectedTemplateId === 'custom' ? 'selected' : ''}}" data-id="custom" bindtap="selectTemplate">自定义我的挑战</button>
+  </view>
+
+  <view wx:if="{{selectedTemplateId === 'custom'}}" class="form-card">
+    <label>挑战名称</label>
+    <input class="tap-target input" maxlength="30" placeholder="例如：每天认真卸妆" bindinput="updateTitle" />
+    <label>持续天数</label>
+    <input class="tap-target input" type="number" value="{{form.durationDays}}" bindinput="updateDuration" />
+    <label>频率</label>
+    <view class="choice-row">
+      <button class="tap-target choice" data-value="daily" bindtap="chooseFrequency">每天</button>
+      <button class="tap-target choice" data-value="weekly" bindtap="chooseFrequency">每周</button>
+    </view>
+  </view>
+
+  <view wx:if="{{selectedTemplateId}}" class="form-card">
+    <label>提醒时间（可选，不影响挑战使用）</label>
+    <picker mode="time" value="{{form.reminderTime}}" bindchange="updateReminder">
+      <view class="tap-target input">{{form.reminderTime}}</view>
+    </picker>
+  </view>
+
+  <button class="tap-target primary-button" disabled="{{submitting || activeChallenge}}" bindtap="submitChallenge">{{submitting ? '正在开启…' : '开启这段练习'}}</button>
+</view>

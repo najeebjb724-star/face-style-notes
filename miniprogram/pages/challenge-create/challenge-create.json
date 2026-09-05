@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "选择挑战",
+  "usingComponents": {
+    "challenge-card": "/components/challenge-card/challenge-card"
+  }
+}

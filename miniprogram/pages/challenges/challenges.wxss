@@ -1,5 +1,6 @@
 .page {
   box-sizing: border-box;
+  width: 100%;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -22,4 +23,65 @@
   color: #7A6B5A;
   font-size: 28rpx;
   line-height: 1.6;
+}
+
+.active-card,
+.welcome-card,
+.template-preview,
+.template-row {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.active-card,
+.welcome-card,
+.template-preview {
+  padding: 32rpx;
+  border: 1rpx solid #EDE5D8;
+  border-radius: 28rpx;
+  background: #FFFDF9;
+}
+
+.section-label,
+.muted,
+.template-kind {
+  color: #7A6B5A;
+  font-size: 24rpx;
+}
+
+.card-title {
+  display: block;
+  margin: 12rpx 0 24rpx;
+  font-size: 34rpx;
+  font-weight: 600;
+}
+
+.template-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid #EDE5D8;
+  font-size: 28rpx;
+}
+
+.template-kind {
+  flex-shrink: 0;
+}
+
+.tap-target {
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+.primary-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 24rpx 0 0;
+  border: 0;
+  border-radius: 999rpx;
+  background: #C9A87C;
+  color: #2C2420;
+  font-size: 28rpx;
 }

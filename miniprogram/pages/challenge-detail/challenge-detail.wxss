@@ -1,0 +1,11 @@
+.page, .progress-card, .quiet-card, .empty-state { box-sizing: border-box; width: 100%; }
+.page { min-height: 100vh; padding: 48rpx 32rpx 96rpx; background: #F7F3EE; }
+.eyebrow, .muted { color: #7A6B5A; font-size: 25rpx; line-height: 1.6; }
+.title { display: block; margin: 18rpx 0 32rpx; font-size: 46rpx; font-weight: 600; line-height: 1.3; }
+.progress-card, .quiet-card, .empty-state { display: flex; flex-direction: column; gap: 12rpx; margin: 24rpx 0; padding: 28rpx; border-radius: 24rpx; background: #FFFDF9; }
+.tap-target { box-sizing: border-box; min-height: 44px; }
+.primary-action { display: flex; align-items: center; justify-content: center; margin: 32rpx 0 12rpx; border: 0; border-radius: 999rpx; background: #C9A87C; color: #2C2420; font-size: 30rpx; font-weight: 600; }
+.primary-action[disabled] { background: #D4C4B0; color: #7A6B5A; }
+.text-action, .finish-action { margin: 8rpx 0; border: 0; background: transparent; color: #7A6B5A; font-size: 27rpx; }
+.finish-action { margin-top: 12rpx; border: 1rpx solid #D4C4B0; border-radius: 999rpx; color: #2C2420; }
+.section-title { font-size: 30rpx; font-weight: 600; }

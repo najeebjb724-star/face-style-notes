@@ -1,0 +1,14 @@
+<view class="page">
+  <text class="eyebrow">这一段认真，被你好好收下了</text>
+  <text class="title">挑战结营</text>
+  <view class="summary-card">
+    <text class="summary-mark">✓</text>
+    <text class="section-title">你的每一次完成都有意义</text>
+    <text class="muted">这里会保留挑战的文字复盘。没有照片也可以完整结营，不影响这份记录。</text>
+  </view>
+  <view class="quiet-card">
+    <text class="section-title">接下来</text>
+    <text class="muted">稍后可以从挑战中心开启新的练习。分享海报将在后续功能中提供。</text>
+  </view>
+  <button class="tap-target primary-button" bindtap="backToChallenges">回到挑战中心</button>
+</view>

@@ -2,6 +2,9 @@
   "pages": [
     "pages/home/home",
     "pages/challenges/challenges",
+    "pages/challenge-create/challenge-create",
+    "pages/challenge-detail/challenge-detail",
+    "pages/challenge-complete/challenge-complete",
     "pages/profile/profile"
   ],
   "window": {
