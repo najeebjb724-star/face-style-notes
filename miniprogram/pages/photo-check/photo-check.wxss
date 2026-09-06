@@ -1,0 +1,90 @@
+.page {
+  box-sizing: border-box;
+  min-height: 100vh;
+  width: 100%;
+  padding: 48rpx 28rpx 72rpx;
+  background: #F7F3EE;
+}
+
+.eyebrow,
+.title,
+.guide,
+.reference-note,
+.safe-note {
+  display: block;
+}
+
+.eyebrow {
+  color: #7A6B5A;
+  font-size: 24rpx;
+  letter-spacing: 4rpx;
+}
+
+.title {
+  margin-top: 16rpx;
+  color: #2C2420;
+  font-size: 42rpx;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.guide,
+.safe-note,
+.reference-note {
+  margin-top: 20rpx;
+  color: #7A6B5A;
+  font-size: 26rpx;
+  line-height: 1.65;
+}
+
+.preview {
+  box-sizing: border-box;
+  width: 100%;
+  height: 520rpx;
+  margin-top: 32rpx;
+  border-radius: 28rpx;
+  background: #EDE5D8;
+}
+
+.notice,
+.quality-card {
+  box-sizing: border-box;
+  margin-top: 28rpx;
+  padding: 28rpx;
+  border: 1px solid #D4C4B0;
+  border-radius: 24rpx;
+  background: #FFFDF9;
+  color: #2C2420;
+}
+
+.quality-title {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.issue {
+  margin-top: 16rpx;
+  color: #7A6B5A;
+  font-size: 26rpx;
+  line-height: 1.55;
+}
+
+.tap-target {
+  box-sizing: border-box;
+  min-height: 44px;
+  margin-top: 28rpx;
+  border-radius: 999rpx;
+  font-size: 28rpx;
+}
+
+.primary-action {
+  background: #2C2420;
+  color: #FFFDF9;
+}
+
+.secondary-action {
+  margin-top: 16rpx;
+  border: 1px solid #C9A87C;
+  background: #FFFDF9;
+  color: #2C2420;
+}

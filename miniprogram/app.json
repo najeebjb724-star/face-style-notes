@@ -1,6 +1,8 @@
 {
   "pages": [
     "pages/home/home",
+    "pages/consent/consent",
+    "pages/photo-check/photo-check",
     "pages/challenges/challenges",
     "pages/challenge-create/challenge-create",
     "pages/challenge-detail/challenge-detail",

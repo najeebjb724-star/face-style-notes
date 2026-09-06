@@ -7,6 +7,69 @@ const CHALLENGE_TEMPLATES = Object.freeze([
   { id: "brow-makeup-7", kind: "training", title: "7 天眉妆练习", durationDays: 7, frequency: "daily", taskLabel: "完成今天的眉妆练习", photoDays: [1, 7], taskDays: [], tutorialSlots: 3 }
 ].map((item) => Object.freeze({ ...item, photoDays: Object.freeze([...item.photoDays]), taskDays: Object.freeze([...item.taskDays]) })));
 
+function distance(a, b) {
+  return Math.hypot(b.x - a.x, b.y - a.y);
+}
+
+function safeDivide(numerator, denominator, fallback = 0) {
+  return Number.isFinite(numerator) && Number.isFinite(denominator) && denominator !== 0 ? numerator / denominator : fallback;
+}
+
+function averagePoint(points, indexes) {
+  return {
+    x: indexes.reduce((sum, index) => sum + points[index].x, 0) / indexes.length,
+    y: indexes.reduce((sum, index) => sum + points[index].y, 0) / indexes.length
+  };
+}
+
+function angleDegrees(a, b) {
+  return Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+}
+
+function round(value, digits = 2) {
+  if (!Number.isFinite(value)) return null;
+  const factor = 10 ** digits;
+  return Math.round((value + Math.sign(value || 1) * Number.EPSILON) * factor) / factor;
+}
+
+function evaluatePhotoQuality(signals) {
+  const { detectionScore, faceBox, imageSize, points, laplacianVariance, meanBrightness } = signals;
+  const leftEye = averagePoint(points, [36, 37, 38, 39, 40, 41]);
+  const rightEye = averagePoint(points, [42, 43, 44, 45, 46, 47]);
+  const roll = Math.abs(angleDegrees(leftEye, rightEye));
+  const faceRatio = safeDivide(faceBox.width, imageSize.width, 0);
+  const faceWidth = distance(points[0], points[16]);
+  const leftNose = distance(points[30], points[0]);
+  const rightNose = distance(points[30], points[16]);
+  const yawProxy = safeDivide(Math.abs(leftNose - rightNose), faceWidth, 1);
+  const issues = [];
+  const push = (condition, id, message, action, severity = "reject") => {
+    if (condition) issues.push({ id, message, action, severity });
+  };
+  push(detectionScore < 0.55, "low_detection", "面部细节不足", "换一张更清晰、无遮挡的照片");
+  push(faceRatio < 0.28 || faceBox.width < 180, "face_too_small", "脸部在画面中太小", "靠近一些，并保留完整头部轮廓");
+  push(faceRatio > 0.85, "face_too_large", "脸部离镜头太近", "手机后退到约一臂距离");
+  push(roll > 5, "head_roll", "头部倾斜会影响比例", "让双眼连线保持水平");
+  push(yawProxy > 0.12, "head_yaw", "脸部没有正对镜头", "鼻尖朝向镜头，左右脸颊露出接近");
+  push(laplacianVariance < 45, "blurry", "照片可能模糊", "擦净镜头并保持手机稳定");
+  push(meanBrightness < 55, "too_dark", "面部光线太暗", "面向窗户或增加均匀光线");
+  push(meanBrightness > 215, "too_bright", "面部出现过曝", "避开直射强光并降低曝光");
+  const medium = roll > 3 || yawProxy > 0.08;
+  return {
+    accepted: !issues.some(item => item.severity === "reject"),
+    level: issues.length ? "low" : medium ? "medium" : "high",
+    issues,
+    metrics: {
+      roll: round(roll, 1), yawProxy: round(yawProxy, 3), faceRatio: round(faceRatio, 3),
+      laplacianVariance: round(laplacianVariance, 1), meanBrightness: round(meanBrightness, 1)
+    }
+  };
+}
+
+function overridePhotoQuality(quality) {
+  return { ...quality, accepted: true, level: "low", overridden: true, referenceOnly: true };
+}
+
 function localCalendarDate(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
@@ -158,6 +221,8 @@ function createChallengeHistoryEntry(challenge, progress, completedAt = localCal
 
 module.exports = {
   CHALLENGE_TEMPLATES,
+  evaluatePhotoQuality,
+  overridePhotoQuality,
   createChallenge,
   toggleChallengeCheckIn,
   getChallengeProgress,

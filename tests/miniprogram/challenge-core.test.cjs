@@ -113,15 +113,17 @@ test("ambiguous or unsupported tutorial URL forms are rejected without a global 
   }
 });
 
-test("mini program exports only the challenge interface and immutable habit and training templates", () => {
+test("mini program exports the challenge and photo-quality interfaces with immutable templates", () => {
   const web = loadWebCore();
   const mini = loadMiniCore();
   assert.deepEqual(Object.keys(mini).sort(), [
     "CHALLENGE_TEMPLATES",
     "createChallenge",
     "createChallengeHistoryEntry",
+    "evaluatePhotoQuality",
     "getChallengeOccurrenceDays",
     "getChallengeProgress",
+    "overridePhotoQuality",
     "toggleChallengeCheckIn"
   ].sort());
   assert.deepEqual(toPlain(mini.CHALLENGE_TEMPLATES), toPlain(web.CHALLENGE_TEMPLATES));

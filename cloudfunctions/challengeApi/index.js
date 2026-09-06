@@ -1,4 +1,4 @@
-// challengeApi-build-fingerprint:56ea2a59fbac499866d151a06acd20aac8aa2a5ee80629eabeeb3223d43d939e:6705d2675b2cd34b3b85ae5182d18122c173e079a90483ca63aa8241f77016e2
+// challengeApi-build-fingerprint:fe95fc59c3bbbdf4dd5b84c01b179ae0fbcc32176b81faa1c680b883b78ce03e:1b8a32ae11108ec8da00fe68edb50a4354cf92f5829ffed77abb3545308f7ad9
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
@@ -29,6 +29,65 @@ var require_face_style_core = __commonJS({
       { id: "eye-makeup-7", kind: "training", title: "7 \u5929\u773C\u5986\u7EC3\u4E60", durationDays: 7, frequency: "daily", taskLabel: "\u5B8C\u6210\u4ECA\u5929\u7684\u773C\u5986\u7EC3\u4E60", photoDays: [1, 7], taskDays: [], tutorialSlots: 3 },
       { id: "brow-makeup-7", kind: "training", title: "7 \u5929\u7709\u5986\u7EC3\u4E60", durationDays: 7, frequency: "daily", taskLabel: "\u5B8C\u6210\u4ECA\u5929\u7684\u7709\u5986\u7EC3\u4E60", photoDays: [1, 7], taskDays: [], tutorialSlots: 3 }
     ].map((item) => Object.freeze({ ...item, photoDays: Object.freeze([...item.photoDays]), taskDays: Object.freeze([...item.taskDays]) })));
+    function distance(a, b) {
+      return Math.hypot(b.x - a.x, b.y - a.y);
+    }
+    function safeDivide(numerator, denominator, fallback = 0) {
+      return Number.isFinite(numerator) && Number.isFinite(denominator) && denominator !== 0 ? numerator / denominator : fallback;
+    }
+    function averagePoint(points, indexes) {
+      return {
+        x: indexes.reduce((sum, index) => sum + points[index].x, 0) / indexes.length,
+        y: indexes.reduce((sum, index) => sum + points[index].y, 0) / indexes.length
+      };
+    }
+    function angleDegrees(a, b) {
+      return Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+    }
+    function round(value, digits = 2) {
+      if (!Number.isFinite(value)) return null;
+      const factor = 10 ** digits;
+      return Math.round((value + Math.sign(value || 1) * Number.EPSILON) * factor) / factor;
+    }
+    function evaluatePhotoQuality(signals) {
+      const { detectionScore, faceBox, imageSize, points, laplacianVariance, meanBrightness } = signals;
+      const leftEye = averagePoint(points, [36, 37, 38, 39, 40, 41]);
+      const rightEye = averagePoint(points, [42, 43, 44, 45, 46, 47]);
+      const roll = Math.abs(angleDegrees(leftEye, rightEye));
+      const faceRatio = safeDivide(faceBox.width, imageSize.width, 0);
+      const faceWidth = distance(points[0], points[16]);
+      const leftNose = distance(points[30], points[0]);
+      const rightNose = distance(points[30], points[16]);
+      const yawProxy = safeDivide(Math.abs(leftNose - rightNose), faceWidth, 1);
+      const issues = [];
+      const push = (condition, id, message, action, severity = "reject") => {
+        if (condition) issues.push({ id, message, action, severity });
+      };
+      push(detectionScore < 0.55, "low_detection", "\u9762\u90E8\u7EC6\u8282\u4E0D\u8DB3", "\u6362\u4E00\u5F20\u66F4\u6E05\u6670\u3001\u65E0\u906E\u6321\u7684\u7167\u7247");
+      push(faceRatio < 0.28 || faceBox.width < 180, "face_too_small", "\u8138\u90E8\u5728\u753B\u9762\u4E2D\u592A\u5C0F", "\u9760\u8FD1\u4E00\u4E9B\uFF0C\u5E76\u4FDD\u7559\u5B8C\u6574\u5934\u90E8\u8F6E\u5ED3");
+      push(faceRatio > 0.85, "face_too_large", "\u8138\u90E8\u79BB\u955C\u5934\u592A\u8FD1", "\u624B\u673A\u540E\u9000\u5230\u7EA6\u4E00\u81C2\u8DDD\u79BB");
+      push(roll > 5, "head_roll", "\u5934\u90E8\u503E\u659C\u4F1A\u5F71\u54CD\u6BD4\u4F8B", "\u8BA9\u53CC\u773C\u8FDE\u7EBF\u4FDD\u6301\u6C34\u5E73");
+      push(yawProxy > 0.12, "head_yaw", "\u8138\u90E8\u6CA1\u6709\u6B63\u5BF9\u955C\u5934", "\u9F3B\u5C16\u671D\u5411\u955C\u5934\uFF0C\u5DE6\u53F3\u8138\u988A\u9732\u51FA\u63A5\u8FD1");
+      push(laplacianVariance < 45, "blurry", "\u7167\u7247\u53EF\u80FD\u6A21\u7CCA", "\u64E6\u51C0\u955C\u5934\u5E76\u4FDD\u6301\u624B\u673A\u7A33\u5B9A");
+      push(meanBrightness < 55, "too_dark", "\u9762\u90E8\u5149\u7EBF\u592A\u6697", "\u9762\u5411\u7A97\u6237\u6216\u589E\u52A0\u5747\u5300\u5149\u7EBF");
+      push(meanBrightness > 215, "too_bright", "\u9762\u90E8\u51FA\u73B0\u8FC7\u66DD", "\u907F\u5F00\u76F4\u5C04\u5F3A\u5149\u5E76\u964D\u4F4E\u66DD\u5149");
+      const medium = roll > 3 || yawProxy > 0.08;
+      return {
+        accepted: !issues.some((item) => item.severity === "reject"),
+        level: issues.length ? "low" : medium ? "medium" : "high",
+        issues,
+        metrics: {
+          roll: round(roll, 1),
+          yawProxy: round(yawProxy, 3),
+          faceRatio: round(faceRatio, 3),
+          laplacianVariance: round(laplacianVariance, 1),
+          meanBrightness: round(meanBrightness, 1)
+        }
+      };
+    }
+    function overridePhotoQuality(quality) {
+      return { ...quality, accepted: true, level: "low", overridden: true, referenceOnly: true };
+    }
     function localCalendarDate(date = /* @__PURE__ */ new Date()) {
       return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     }
@@ -162,6 +221,8 @@ var require_face_style_core = __commonJS({
     }
     module2.exports = {
       CHALLENGE_TEMPLATES,
+      evaluatePhotoQuality,
+      overridePhotoQuality,
       createChallenge: createChallenge2,
       toggleChallengeCheckIn: toggleChallengeCheckIn2,
       getChallengeProgress: getChallengeProgress2,
