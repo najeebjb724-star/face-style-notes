@@ -2,6 +2,7 @@ const { createHash, randomUUID } = require("node:crypto");
 const { assertOwnedRecord } = require("../../../shared/cloud-guards");
 const {
   createChallenge,
+  toggleChallengeCheckIn,
   getChallengeProgress,
   createChallengeHistoryEntry
 } = require("../../../miniprogram/lib/face-style-core");
@@ -157,6 +158,16 @@ function createChallengeApi({ database, getWXContext, now = () => new Date(), cr
         if (challenge.status !== "active") throw codedError("CHALLENGE_NOT_ACTIVE");
 
         const recordId = checkinId(openid, challengeId, date);
+        const occurrenceProbe = { ...challenge, checkIns: {} };
+        if (toggleChallengeCheckIn(occurrenceProbe, date) === occurrenceProbe) {
+          throw codedError("INVALID_ARGUMENT");
+        }
+        const existing = await readOptionalDocument(
+          transaction.collection("checkins").doc(recordId)
+        );
+        if (!completed && !existing) {
+          throw codedError("INVALID_ARGUMENT");
+        }
         await transaction.collection("checkins").doc(recordId).set({
           _openid: openid,
           challengeId,

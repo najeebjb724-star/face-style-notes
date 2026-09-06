@@ -256,6 +256,70 @@ test("replayed check-in command creates one owner-and-date record", async () => 
   }]);
 });
 
+test("old queued check-ins cannot write outside the challenge occurrence schedule", async () => {
+  const database = createDatabase({
+    challenges: [challenge({ durationDays: 8, frequency: "weekly" })],
+    checkins: []
+  });
+  const api = createApi(database);
+
+  for (const date of ["2026-09-02", "2026-09-04", "2026-09-11"]) {
+    await assert.rejects(api({
+      action: "checkIn",
+      payload: { id: `old-${date}`, challengeId: "c1", date }
+    }), error => error.code === "INVALID_ARGUMENT");
+  }
+  assert.deepEqual(database.snapshot("checkins"), []);
+});
+
+test("undo only corrects an existing completed occurrence", async () => {
+  const emptyDatabase = createDatabase({ challenges: [challenge()], checkins: [] });
+  await assert.rejects(createApi(emptyDatabase)({
+    action: "undoCheckIn",
+    payload: { id: "old-undo", challengeId: "c1", date: "2026-09-03" }
+  }), error => error.code === "INVALID_ARGUMENT");
+  assert.deepEqual(emptyDatabase.snapshot("checkins"), []);
+
+  const database = createDatabase({
+    challenges: [challenge()],
+    checkins: [{
+      _id: checkinId("openid-A", "c1", "2026-09-03"),
+      _openid: "openid-A",
+      challengeId: "c1",
+      date: "2026-09-03",
+      completed: true
+    }]
+  });
+  const result = await createApi(database)({
+    action: "undoCheckIn",
+    payload: { id: "correct-undo", challengeId: "c1", date: "2026-09-03" }
+  });
+  assert.equal(result.ok, true);
+  assert.equal(database.snapshot("checkins")[0].completed, false);
+});
+
+test("replayed undo remains acknowledged after the existing record is already corrected", async () => {
+  const database = createDatabase({
+    challenges: [challenge()],
+    checkins: [{
+      _id: checkinId("openid-A", "c1", "2026-09-03"),
+      _openid: "openid-A",
+      challengeId: "c1",
+      date: "2026-09-03",
+      completed: true
+    }]
+  });
+  const api = createApi(database);
+  const request = {
+    action: "undoCheckIn",
+    payload: { id: "retryable-undo", challengeId: "c1", date: "2026-09-03" }
+  };
+
+  assert.equal((await api(request)).ok, true);
+  assert.equal((await api(request)).ok, true);
+  assert.equal(database.snapshot("checkins")[0].completed, false);
+});
+
 test("check-in document ids are stable and unambiguous around underscores", async () => {
   const database = createDatabase({
     challenges: [

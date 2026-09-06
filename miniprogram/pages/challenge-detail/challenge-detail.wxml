@@ -7,21 +7,21 @@
       <text class="muted">连续 {{progress.streak}} 次 · {{progress.completionRate}}%</text>
     </view>
 
-    <button class="tap-target primary-action" bindtap="completeToday" disabled="{{checkedIn || !canCheckIn}}">{{checkedIn ? '今天已完成' : '完成今日打卡'}}</button>
-    <button wx:if="{{checkedIn}}" class="tap-target text-action" bindtap="undoToday">撤销今天的打卡</button>
-    <button wx:if="{{canCheckInYesterday}}" class="tap-target text-action" bindtap="recordYesterday">补记昨天</button>
+    <button class="tap-target primary-action" bindtap="completeToday" disabled="{{finishing || checkedIn || !canCheckIn}}">{{checkedIn ? '今天已完成' : '完成今日打卡'}}</button>
+    <button wx:if="{{checkedIn && !finishing}}" class="tap-target text-action" bindtap="undoToday">撤销今天的打卡</button>
+    <button wx:if="{{canCheckInYesterday && !finishing}}" class="tap-target text-action" bindtap="recordYesterday">补记昨天</button>
 
     <view wx:if="{{challenge.tutorials.length}}" class="quiet-card">
       <text class="section-title">需要时再看教程</text>
       <text wx:for="{{challenge.tutorials}}" wx:key="url" class="muted">{{item.label}}</text>
     </view>
 
-    <photo-pair photos="{{photos}}" bindrecord="recordPhoto" />
+    <photo-pair wx:if="{{!finishing}}" photos="{{photos}}" bindrecord="recordPhoto" />
 
     <view wx:if="{{progress.isComplete}}" class="quiet-card">
       <text class="section-title">准备好时结束这段练习</text>
       <text class="muted">照片、提醒和日历都不是结营的必要条件。</text>
-      <button class="tap-target finish-action" bindtap="finishChallenge">查看我的结营复盘</button>
+      <button class="tap-target finish-action" bindtap="finishChallenge" disabled="{{finishing}}">{{finishing ? '正在生成复盘…' : '查看我的结营复盘'}}</button>
     </view>
   </view>
 

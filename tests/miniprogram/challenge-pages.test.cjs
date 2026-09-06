@@ -195,7 +195,11 @@ test("detail availability comes from the shared challenge toggle rule", () => {
 
 test("an already completed yesterday stays hidden and cannot be queued again", async () => {
   let enqueued = 0;
-  const challenge = { id: "c1", checkIns: { "2026-09-02": { completedAt: "then" } } };
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  now.setDate(now.getDate() - 1);
+  const yesterday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const challenge = { id: "c1", checkIns: { [yesterday]: { completedAt: "then" } } };
   const { definition } = loadPage("pages/challenge-detail/challenge-detail.js", {
     "../../services/cloud-client": { callCloud: async () => ({}) },
     "../../services/offline-checkins": { enqueueCheckIn() { enqueued += 1; }, flushCheckIns: async () => {} },
@@ -209,13 +213,64 @@ test("an already completed yesterday stays hidden and cannot be queued again", a
   const updates = [];
   const page = {
     ...definition,
-    data: { challenge, today: "2026-09-03", yesterday: "2026-09-02" },
+    data: { challenge, today, yesterday },
     setData(value) { updates.push(value); }
   };
   definition.updateChallenge.call(page, challenge);
   await definition.recordYesterday.call(page);
   assert.equal(updates[0].canCheckInYesterday, false);
   assert.equal(enqueued, 0);
+});
+
+test("daily actions refresh stale calendar dates before enqueueing", async () => {
+  const commands = [];
+  const expectedToday = (() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  })();
+  const { definition } = loadPage("pages/challenge-detail/challenge-detail.js", {
+    "../../services/cloud-client": { callCloud: async () => ({ ok: true }) },
+    "../../services/offline-checkins": {
+      enqueueCheckIn(command) { commands.push(command); },
+      flushCheckIns: async () => {}
+    },
+    "../../lib/face-style-core": {
+      toggleChallengeCheckIn(challenge, date) {
+        return { ...challenge, checkIns: { ...challenge.checkIns, [date]: { completedAt: "now" } } };
+      },
+      getChallengeProgress: () => ({})
+    }
+  });
+  const page = {
+    ...definition,
+    data: { ...definition.data, challenge: { id: "c1", checkIns: {} }, today: "2000-01-01", yesterday: "1999-12-31" },
+    setData(value) { Object.assign(this.data, value); }
+  };
+  definition.onShow.call(page);
+  await definition.completeToday.call(page);
+  assert.equal(page.data.today, expectedToday);
+  assert.equal(commands[0].date, expectedToday);
+});
+
+test("a successful yesterday check-in immediately removes the backfill action", async () => {
+  const yesterday = "2026-09-02";
+  const { definition } = loadPage("pages/challenge-detail/challenge-detail.js", {
+    "../../services/cloud-client": { callCloud: async () => ({ ok: true }) },
+    "../../services/offline-checkins": { enqueueCheckIn() {}, flushCheckIns: async () => {} },
+    "../../lib/face-style-core": {
+      toggleChallengeCheckIn(challenge, date) {
+        return { ...challenge, checkIns: { ...challenge.checkIns, [date]: { completedAt: "now" } } };
+      },
+      getChallengeProgress: () => ({})
+    }
+  });
+  const page = {
+    ...definition,
+    data: { ...definition.data, challenge: { id: "c1", checkIns: {} }, today: "2026-09-03", yesterday },
+    setData(value) { Object.assign(this.data, value); }
+  };
+  await definition.applyCheckIn.call(page, yesterday, true);
+  assert.equal(page.data.canCheckInYesterday, false);
 });
 
 test("finishing waits for offline sync and does not call finish when sync fails", async () => {
@@ -239,6 +294,63 @@ test("finishing waits for offline sync and does not call finish when sync fails"
   });
   assert.equal(finishCalls, 0);
   assert.deepEqual(navigations, []);
+});
+
+test("finishing is an immediate mutex for check-ins and duplicate completion", async () => {
+  let releaseSync;
+  const syncGate = new Promise(resolve => { releaseSync = resolve; });
+  let enqueued = 0;
+  const cloudActions = [];
+  const { definition } = loadPage("pages/challenge-detail/challenge-detail.js", {
+    "../../services/cloud-client": {
+      async callCloud(_name, request) {
+        cloudActions.push(request.action);
+        return { history: { id: "c1", title: "完成" } };
+      }
+    },
+    "../../services/offline-checkins": {
+      enqueueCheckIn() { enqueued += 1; },
+      async flushCheckIns() { await syncGate; }
+    },
+    "../../lib/face-style-core": {
+      toggleChallengeCheckIn: challenge => ({ ...challenge, checkIns: { "2026-09-03": {} } }),
+      getChallengeProgress: () => ({})
+    }
+  }, { setStorageSync() {}, navigateTo() {} });
+  const page = {
+    ...definition,
+    data: { ...definition.data, challenge: { id: "c1", checkIns: {} }, today: "2000-01-01" },
+    setData(value) { Object.assign(this.data, value); }
+  };
+
+  const finishing = definition.finishChallenge.call(page);
+  assert.equal(page.data.finishing, true);
+  await definition.completeToday.call(page);
+  await definition.undoToday.call(page);
+  await definition.recordYesterday.call(page);
+  await definition.finishChallenge.call(page);
+  assert.equal(enqueued, 0);
+  assert.deepEqual(cloudActions, []);
+
+  releaseSync();
+  await finishing;
+  assert.deepEqual(cloudActions, ["finish"]);
+  assert.equal(page.data.finishing, true);
+});
+
+test("a failed finish releases the mutex for retry", async () => {
+  const { definition } = loadPage("pages/challenge-detail/challenge-detail.js", {
+    "../../services/cloud-client": { callCloud: async () => { throw new Error("offline"); } },
+    "../../services/offline-checkins": { enqueueCheckIn() {}, flushCheckIns: async () => {} },
+    "../../lib/face-style-core": { toggleChallengeCheckIn: value => value, getChallengeProgress: () => ({}) }
+  });
+  const page = {
+    ...definition,
+    data: { ...definition.data, challenge: { id: "c1", checkIns: {} } },
+    setData(value) { Object.assign(this.data, value); }
+  };
+  await definition.finishChallenge.call(page);
+  assert.equal(page.data.finishing, false);
 });
 
 test("a challenge can finish without any optional photos", async () => {

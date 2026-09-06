@@ -15,6 +15,28 @@ function syncQueuedCheckIns() {
   }));
 }
 
+function challengeViewData(challenge, today, yesterday) {
+  return {
+    challenge,
+    today,
+    yesterday,
+    progress: getChallengeProgress(challenge, today),
+    checkedIn: Boolean(challenge.checkIns?.[today]),
+    canCheckIn: toggleChallengeCheckIn(challenge, today) !== challenge,
+    canCheckInYesterday: !challenge.checkIns?.[yesterday]
+      && toggleChallengeCheckIn(challenge, yesterday) !== challenge
+  };
+}
+
+function refreshCalendar(page) {
+  const today = localDate();
+  const yesterday = localDate(-1);
+  page.setData(page.data.challenge
+    ? challengeViewData(page.data.challenge, today, yesterday)
+    : { today, yesterday });
+  return { today, yesterday };
+}
+
 Page({
   data: {
     challenge: null,
@@ -25,7 +47,8 @@ Page({
     canCheckInYesterday: true,
     progress: null,
     photos: {},
-    isVisitor: false
+    isVisitor: false,
+    finishing: false
   },
 
   async onLoad() {
@@ -39,20 +62,20 @@ Page({
     }
   },
 
-  updateChallenge(challenge) {
-    const today = this.data.today || localDate();
-    const yesterday = this.data.yesterday || localDate(-1);
-    this.setData({
-      challenge,
-      progress: getChallengeProgress(challenge, today),
-      checkedIn: Boolean(challenge.checkIns?.[today]),
-      canCheckIn: toggleChallengeCheckIn(challenge, today) !== challenge,
-      canCheckInYesterday: !challenge.checkIns?.[yesterday]
-        && toggleChallengeCheckIn(challenge, yesterday) !== challenge
-    });
+  onShow() {
+    this.refreshChallengeDates();
   },
 
-  async applyCheckIn(date, completed) {
+  refreshChallengeDates() {
+    return refreshCalendar(this);
+  },
+
+  updateChallenge(challenge, today = this.data.today || localDate(), yesterday = this.data.yesterday || localDate(-1)) {
+    this.setData(challengeViewData(challenge, today, yesterday));
+  },
+
+  async applyCheckIn(date, completed, calendar = this.data) {
+    if (this._finishing || this.data.finishing) return;
     const wasCompleted = Boolean(this.data.challenge.checkIns?.[date]);
     if (wasCompleted === completed) return;
     const challenge = toggleChallengeCheckIn(this.data.challenge, date);
@@ -64,11 +87,7 @@ Page({
       completed
     };
     enqueueCheckIn(command);
-    this.setData({
-      challenge,
-      progress: getChallengeProgress(challenge, this.data.today),
-      checkedIn: Boolean(challenge.checkIns?.[this.data.today])
-    });
+    this.setData(challengeViewData(challenge, calendar.today, calendar.yesterday));
     try {
       await syncQueuedCheckIns();
     } catch (_) {
@@ -77,18 +96,26 @@ Page({
   },
 
   completeToday() {
-    return this.applyCheckIn(this.data.today, true);
+    if (this._finishing || this.data.finishing) return;
+    const calendar = refreshCalendar(this);
+    return this.applyCheckIn(calendar.today, true, calendar);
   },
 
   undoToday() {
-    return this.applyCheckIn(this.data.today, false);
+    if (this._finishing || this.data.finishing) return;
+    const calendar = refreshCalendar(this);
+    return this.applyCheckIn(calendar.today, false, calendar);
   },
 
   recordYesterday() {
-    return this.applyCheckIn(this.data.yesterday || localDate(-1), true);
+    if (this._finishing || this.data.finishing) return;
+    const calendar = refreshCalendar(this);
+    return this.applyCheckIn(calendar.yesterday, true, calendar);
   },
 
   recordPhoto(event) {
+    if (this._finishing || this.data.finishing) return;
+    refreshCalendar(this);
     const slot = event.detail?.slot || event.currentTarget?.dataset?.slot || "stage";
     if (!wx.chooseMedia) return;
     wx.chooseMedia({ count: 1, mediaType: ["image"] })
@@ -100,23 +127,38 @@ Page({
   },
 
   async finishChallenge() {
+    if (this._finishing || this.data.finishing) return;
+    this._finishing = true;
+    this.setData({ finishing: true });
+    const { today } = refreshCalendar(this);
     const challengeId = this.data.challenge._id || this.data.challenge.id;
     try {
       await syncQueuedCheckIns();
     } catch (_) {
+      this._finishing = false;
+      this.setData({ finishing: false });
       wx.showToast({ title: "打卡尚未同步，联网后再结营", icon: "none" });
       return;
     }
 
+    let completed;
     try {
-      const completed = await callCloud("challengeApi", {
+      completed = await callCloud("challengeApi", {
         action: "finish",
-        payload: { challengeId, date: this.data.today }
+        payload: { challengeId, date: today }
       });
       if (!completed?.history) throw new Error("MISSING_HISTORY");
-      try {
-        wx.setStorageSync(`challenge-completion:${challengeId}`, completed.history);
-      } catch (_) {}
+    } catch (_) {
+      this._finishing = false;
+      this.setData({ finishing: false });
+      wx.showToast({ title: "暂时无法结营，请稍后重试", icon: "none" });
+      return;
+    }
+
+    try {
+      wx.setStorageSync(`challenge-completion:${challengeId}`, completed.history);
+    } catch (_) {}
+    try {
       wx.navigateTo({
         url: `/pages/challenge-complete/challenge-complete?id=${challengeId}`,
         success({ eventChannel }) {
@@ -127,7 +169,7 @@ Page({
         }
       });
     } catch (_) {
-      wx.showToast({ title: "暂时无法结营，请稍后重试", icon: "none" });
+      wx.showToast({ title: "结营成功，请从挑战中心查看", icon: "none" });
     }
   }
 });

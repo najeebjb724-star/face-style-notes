@@ -1,4 +1,4 @@
-// challengeApi-build-fingerprint:22330ec80807e1750d66f558327f896b0f886bf66aca2388ba979163efbe1213:6f09a25c27d4697584c8fa98e5570ebea900a8f01a0d09f8e6a917d247542b09
+// challengeApi-build-fingerprint:5208dab569803e95794a3a89c93b3568b9ae8d82a5493d0ebb9ef57fdbf3480d:b71feeab2f588abce4eb26120adef4ccdba39c8033410429f5803e41aeb4b8f0
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
@@ -124,7 +124,7 @@ var require_face_style_core = __commonJS({
     function getChallengeDateForDay(challenge, day) {
       return calendarDateFromOrdinal(dateToUtcDayOrdinal(challenge?.startedAt) + day - 1);
     }
-    function toggleChallengeCheckIn(challenge, date = localCalendarDate()) {
+    function toggleChallengeCheckIn2(challenge, date = localCalendarDate()) {
       const day = getChallengeDay(challenge, date);
       if (!isChallengeOccurrenceDay(challenge, day)) return challenge;
       const checkIns = { ...challenge.checkIns };
@@ -163,7 +163,7 @@ var require_face_style_core = __commonJS({
     module2.exports = {
       CHALLENGE_TEMPLATES,
       createChallenge: createChallenge2,
-      toggleChallengeCheckIn,
+      toggleChallengeCheckIn: toggleChallengeCheckIn2,
       getChallengeProgress: getChallengeProgress2,
       getChallengeOccurrenceDays,
       createChallengeHistoryEntry: createChallengeHistoryEntry2
@@ -176,6 +176,7 @@ var { createHash, randomUUID } = require("node:crypto");
 var { assertOwnedRecord } = require_cloud_guards();
 var {
   createChallenge,
+  toggleChallengeCheckIn,
   getChallengeProgress,
   createChallengeHistoryEntry
 } = require_face_style_core();
@@ -307,6 +308,16 @@ function createChallengeApi({ database, getWXContext, now = () => /* @__PURE__ *
         assertOwnedRecord(challenge, openid);
         if (challenge.status !== "active") throw codedError("CHALLENGE_NOT_ACTIVE");
         const recordId = checkinId(openid, challengeId, date);
+        const occurrenceProbe = { ...challenge, checkIns: {} };
+        if (toggleChallengeCheckIn(occurrenceProbe, date) === occurrenceProbe) {
+          throw codedError("INVALID_ARGUMENT");
+        }
+        const existing = await readOptionalDocument(
+          transaction.collection("checkins").doc(recordId)
+        );
+        if (!completed && !existing) {
+          throw codedError("INVALID_ARGUMENT");
+        }
         await transaction.collection("checkins").doc(recordId).set({
           _openid: openid,
           challengeId,
