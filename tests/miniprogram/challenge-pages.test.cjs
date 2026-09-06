@@ -353,6 +353,67 @@ test("a failed finish releases the mutex for retry", async () => {
   assert.equal(page.data.finishing, false);
 });
 
+test("an incomplete challenge shows an actionable message and remains retryable", async () => {
+  const toasts = [];
+  const { definition } = loadPage("pages/challenge-detail/challenge-detail.js", {
+    "../../services/cloud-client": { callCloud: async () => { throw { code: "CHALLENGE_NOT_COMPLETE" }; } },
+    "../../services/offline-checkins": { enqueueCheckIn() {}, flushCheckIns: async () => {} },
+    "../../lib/face-style-core": { toggleChallengeCheckIn: value => value, getChallengeProgress: () => ({}) }
+  }, { showToast(options) { toasts.push(options.title); } });
+  const page = {
+    ...definition,
+    data: { ...definition.data, challenge: { id: "c1" } },
+    setData(value) { Object.assign(this.data, value); }
+  };
+
+  await definition.finishChallenge.call(page);
+  assert.equal(page.data.finishing, false);
+  assert.ok(toasts.some(title => /挑战周期结束后|完成至少一次打卡/.test(title)));
+});
+
+test("navigation failure after completion gives an honest recovery action", async () => {
+  const toasts = [];
+  const { definition } = loadPage("pages/challenge-detail/challenge-detail.js", {
+    "../../services/cloud-client": { callCloud: async () => ({ history: { id: "c1" } }) },
+    "../../services/offline-checkins": { enqueueCheckIn() {}, flushCheckIns: async () => {} },
+    "../../lib/face-style-core": { toggleChallengeCheckIn: value => value, getChallengeProgress: () => ({}) }
+  }, {
+    setStorageSync() {},
+    navigateTo(options) { options.fail(); },
+    showToast(options) { toasts.push(options.title); }
+  });
+
+  await definition.finishChallenge.call({
+    ...definition,
+    data: { ...definition.data, challenge: { id: "c1" } },
+    setData() {}
+  });
+  assert.ok(toasts.some(title => /请返回后重试打开结营页/.test(title)));
+  assert.equal(toasts.some(title => /挑战中心查看/.test(title)), false);
+});
+
+test("completion sends no client-controlled date to the cloud function", async () => {
+  let finishPayload;
+  const { definition } = loadPage("pages/challenge-detail/challenge-detail.js", {
+    "../../services/cloud-client": {
+      callCloud: async (_name, request) => {
+        finishPayload = request.payload;
+        return { history: { id: "c1" } };
+      }
+    },
+    "../../services/offline-checkins": { enqueueCheckIn() {}, flushCheckIns: async () => {} },
+    "../../lib/face-style-core": { toggleChallengeCheckIn: value => value, getChallengeProgress: () => ({}) }
+  }, { setStorageSync() {}, navigateTo() {} });
+
+  await definition.finishChallenge.call({
+    ...definition,
+    data: { ...definition.data, challenge: { id: "c1" } },
+    setData() {}
+  });
+  assert.equal(finishPayload.challengeId, "c1");
+  assert.equal(Object.hasOwn(finishPayload, "date"), false);
+});
+
 test("a challenge can finish without any optional photos", async () => {
   const navigations = [];
   const stored = [];

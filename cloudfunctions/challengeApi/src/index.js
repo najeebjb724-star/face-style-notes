@@ -15,6 +15,7 @@ function codedError(code) {
 
 const CLIENT_SAFE_ERROR_CODES = new Set([
   "ACTIVE_CHALLENGE_EXISTS",
+  "CHALLENGE_NOT_COMPLETE",
   "CHALLENGE_NOT_ACTIVE",
   "FORBIDDEN",
   "INVALID_ARGUMENT",
@@ -57,6 +58,10 @@ function requireDate(value) {
     throw codedError("INVALID_ARGUMENT");
   }
   return value;
+}
+
+function chinaBusinessDate(value) {
+  return new Date(value.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 function checkinId(openid, challengeId, date) {
@@ -112,9 +117,11 @@ function createChallengeApi({ database, getWXContext, now = () => new Date(), cr
     if (!openid) throw codedError("UNAUTHENTICATED");
 
     const payload = event.payload === undefined ? {} : requireObject(event.payload);
+    const requestNow = now();
+    const trustedDate = chinaBusinessDate(requestNow);
 
     if (event.action === "create") {
-      const challenge = createChallenge(payload, now());
+      const challenge = createChallenge({ ...payload, startedAt: trustedDate }, requestNow);
       challenge.id = requireId(createChallengeId());
 
       return database.runTransaction(async transaction => {
@@ -148,6 +155,7 @@ function createChallengeApi({ database, getWXContext, now = () => new Date(), cr
       const challengeId = requireId(payload.challengeId);
       const commandId = requireId(payload.id);
       const date = requireDate(payload.date);
+      if (date > trustedDate) throw codedError("INVALID_ARGUMENT");
       const completed = event.action === "checkIn";
 
       return database.runTransaction(async transaction => {
@@ -182,7 +190,10 @@ function createChallengeApi({ database, getWXContext, now = () => new Date(), cr
 
     if (event.action === "finish") {
       const challengeId = requireId(payload.challengeId);
-      const completedAt = requireDate(payload.date);
+      const completedAt = trustedDate;
+      if (payload.date !== undefined && requireDate(payload.date) !== completedAt) {
+        throw codedError("INVALID_ARGUMENT");
+      }
 
       return database.runTransaction(async transaction => {
         const challengeReference = transaction.collection("challenges").doc(challengeId);
@@ -195,6 +206,7 @@ function createChallengeApi({ database, getWXContext, now = () => new Date(), cr
           await findCheckIns(transaction, openid, challengeId)
         );
         const progress = getChallengeProgress(hydrated, completedAt);
+        if (progress.isComplete !== true) throw codedError("CHALLENGE_NOT_COMPLETE");
         const history = createChallengeHistoryEntry(hydrated, progress, completedAt);
         await challengeReference.update({
           status: "completed",

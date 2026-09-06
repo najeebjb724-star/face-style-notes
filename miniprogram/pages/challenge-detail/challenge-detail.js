@@ -130,7 +130,7 @@ Page({
     if (this._finishing || this.data.finishing) return;
     this._finishing = true;
     this.setData({ finishing: true });
-    const { today } = refreshCalendar(this);
+    refreshCalendar(this);
     const challengeId = this.data.challenge._id || this.data.challenge.id;
     try {
       await syncQueuedCheckIns();
@@ -145,13 +145,16 @@ Page({
     try {
       completed = await callCloud("challengeApi", {
         action: "finish",
-        payload: { challengeId, date: today }
+        payload: { challengeId }
       });
       if (!completed?.history) throw new Error("MISSING_HISTORY");
-    } catch (_) {
+    } catch (error) {
       this._finishing = false;
       this.setData({ finishing: false });
-      wx.showToast({ title: "暂时无法结营，请稍后重试", icon: "none" });
+      const title = error?.code === "CHALLENGE_NOT_COMPLETE"
+        ? "挑战周期结束且完成至少一次打卡后才可结营"
+        : "暂时无法结营，请稍后重试";
+      wx.showToast({ title, icon: "none" });
       return;
     }
 
@@ -165,11 +168,11 @@ Page({
           eventChannel?.emit("challengeCompleted", completed.history);
         },
         fail() {
-          wx.showToast({ title: "结营成功，请从挑战中心查看", icon: "none" });
+          wx.showToast({ title: "结营已保存，请返回后重试打开结营页", icon: "none" });
         }
       });
     } catch (_) {
-      wx.showToast({ title: "结营成功，请从挑战中心查看", icon: "none" });
+      wx.showToast({ title: "结营已保存，请返回后重试打开结营页", icon: "none" });
     }
   }
 });

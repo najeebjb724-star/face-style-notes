@@ -2,6 +2,7 @@ const { createConnectionError } = require("../lib/contracts");
 
 const TRUSTED_BUSINESS_ERRORS = new Set([
   "ACTIVE_CHALLENGE_EXISTS",
+  "CHALLENGE_NOT_COMPLETE",
   "CHALLENGE_NOT_ACTIVE",
   "FORBIDDEN",
   "INVALID_ARGUMENT",

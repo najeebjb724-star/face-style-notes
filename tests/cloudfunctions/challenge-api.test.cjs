@@ -21,6 +21,15 @@ test("cloud entry returns only trusted business errors in a client-safe envelope
     error: { code: "ACTIVE_CHALLENGE_EXISTS", message: "ACTIVE_CHALLENGE_EXISTS" }
   });
 
+  const incomplete = createClientSafeMain(async () => {
+    const error = new Error("CHALLENGE_NOT_COMPLETE");
+    error.code = "CHALLENGE_NOT_COMPLETE";
+    throw error;
+  });
+  assert.deepEqual(await incomplete({}), {
+    error: { code: "CHALLENGE_NOT_COMPLETE", message: "CHALLENGE_NOT_COMPLETE" }
+  });
+
   const unexpected = createClientSafeMain(async () => {
     const error = new Error("database host leaked");
     error.code = "DATABASE_FAILURE";
@@ -256,6 +265,19 @@ test("replayed check-in command creates one owner-and-date record", async () => 
   }]);
 });
 
+test("future check-ins are rejected against the trusted China business date", async () => {
+  const database = createDatabase({ challenges: [challenge({ durationDays: 7 })], checkins: [] });
+  const api = createApi(database, "openid-A", {
+    now: () => new Date("2026-09-03T16:30:00.000Z")
+  });
+
+  await assert.rejects(api({
+    action: "checkIn",
+    payload: { id: "future-command", challengeId: "c1", date: "2026-09-05" }
+  }), error => error.code === "INVALID_ARGUMENT");
+  assert.deepEqual(database.snapshot("checkins"), []);
+});
+
 test("old queued check-ins cannot write outside the challenge occurrence schedule", async () => {
   const database = createDatabase({
     challenges: [challenge({ durationDays: 8, frequency: "weekly" })],
@@ -431,7 +453,71 @@ test("creation uses injected globally unique ids across owners in the same milli
   assert.deepEqual(database.snapshot("challenges").map(item => item._id).sort(), ["uuid-owner-a", "uuid-owner-b"]);
 });
 
-test("finish derives history from shared challenge functions and ends active state", async () => {
+test("creation always uses the trusted China business date instead of client startedAt", async () => {
+  const database = createDatabase({ challenges: [], checkins: [], challengeOwners: [] });
+  const created = await createApi(database, "openid-A", {
+    now: () => new Date("2026-09-03T16:30:00.000Z"),
+    createChallengeId: () => "trusted-date-id"
+  })({
+    action: "create",
+    payload: {
+      templateId: "custom",
+      title: "每天喝水",
+      durationDays: 7,
+      startedAt: "2099-12-31"
+    }
+  });
+
+  assert.equal(created.startedAt, "2026-09-04");
+});
+
+test("finish rejects an incomplete challenge without changing challenge or owner state", async () => {
+  const original = challenge({ durationDays: 2 });
+  const database = createDatabase({
+    challenges: [original],
+    checkins: [{
+      _id: checkinId("openid-A", "c1", "2026-09-03"),
+      _openid: "openid-A",
+      challengeId: "c1",
+      date: "2026-09-03",
+      completed: true
+    }],
+    challengeOwners: [{ _id: "openid-A", activeChallengeId: "c1" }]
+  });
+
+  await assert.rejects(createApi(database)({
+    action: "finish",
+    payload: { challengeId: "c1" }
+  }), error => error.code === "CHALLENGE_NOT_COMPLETE");
+  assert.deepEqual(database.snapshot("challenges"), [original]);
+  assert.equal(database.snapshot("challengeOwners")[0].activeChallengeId, "c1");
+});
+
+test("finish rejects a forged future date without changing completed-eligible state", async () => {
+  const original = challenge();
+  const database = createDatabase({
+    challenges: [original],
+    checkins: [{
+      _id: checkinId("openid-A", "c1", "2026-09-03"),
+      _openid: "openid-A",
+      challengeId: "c1",
+      date: "2026-09-03",
+      completed: true
+    }],
+    challengeOwners: [{ _id: "openid-A", activeChallengeId: "c1" }]
+  });
+
+  await assert.rejects(createApi(database, "openid-A", {
+    now: () => new Date("2026-09-03T16:30:00.000Z")
+  })({
+    action: "finish",
+    payload: { challengeId: "c1", date: "2099-12-31" }
+  }), error => error.code === "INVALID_ARGUMENT");
+  assert.deepEqual(database.snapshot("challenges"), [original]);
+  assert.equal(database.snapshot("challengeOwners")[0].activeChallengeId, "c1");
+});
+
+test("finish derives its date from trusted China time and ends active state", async () => {
   const database = createDatabase({
     challenges: [challenge()],
     checkins: [{
@@ -443,9 +529,11 @@ test("finish derives history from shared challenge functions and ends active sta
     }],
     challengeOwners: [{ _id: "openid-A", activeChallengeId: "c1" }]
   });
-  const result = await createApi(database)({
+  const result = await createApi(database, "openid-A", {
+    now: () => new Date("2026-09-03T16:30:00.000Z")
+  })({
     action: "finish",
-    payload: { challengeId: "c1", date: "2026-09-04" }
+    payload: { challengeId: "c1" }
   });
 
   assert.equal(result.status, "completed");

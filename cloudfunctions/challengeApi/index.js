@@ -1,4 +1,4 @@
-// challengeApi-build-fingerprint:5208dab569803e95794a3a89c93b3568b9ae8d82a5493d0ebb9ef57fdbf3480d:b71feeab2f588abce4eb26120adef4ccdba39c8033410429f5803e41aeb4b8f0
+// challengeApi-build-fingerprint:56ea2a59fbac499866d151a06acd20aac8aa2a5ee80629eabeeb3223d43d939e:6705d2675b2cd34b3b85ae5182d18122c173e079a90483ca63aa8241f77016e2
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
@@ -187,6 +187,7 @@ function codedError(code) {
 }
 var CLIENT_SAFE_ERROR_CODES = /* @__PURE__ */ new Set([
   "ACTIVE_CHALLENGE_EXISTS",
+  "CHALLENGE_NOT_COMPLETE",
   "CHALLENGE_NOT_ACTIVE",
   "FORBIDDEN",
   "INVALID_ARGUMENT",
@@ -225,6 +226,9 @@ function requireDate(value) {
     throw codedError("INVALID_ARGUMENT");
   }
   return value;
+}
+function chinaBusinessDate(value) {
+  return new Date(value.getTime() + 8 * 60 * 60 * 1e3).toISOString().slice(0, 10);
 }
 function checkinId(openid, challengeId, date) {
   return `checkin-${createHash("sha256").update(JSON.stringify([openid, challengeId, date])).digest("hex")}`;
@@ -269,8 +273,10 @@ function createChallengeApi({ database, getWXContext, now = () => /* @__PURE__ *
     const { OPENID: openid } = getWXContext();
     if (!openid) throw codedError("UNAUTHENTICATED");
     const payload = event.payload === void 0 ? {} : requireObject(event.payload);
+    const requestNow = now();
+    const trustedDate = chinaBusinessDate(requestNow);
     if (event.action === "create") {
-      const challenge = createChallenge(payload, now());
+      const challenge = createChallenge({ ...payload, startedAt: trustedDate }, requestNow);
       challenge.id = requireId(createChallengeId());
       return database.runTransaction(async (transaction) => {
         const ownerReference = transaction.collection("challengeOwners").doc(openid);
@@ -300,6 +306,7 @@ function createChallengeApi({ database, getWXContext, now = () => /* @__PURE__ *
       const challengeId = requireId(payload.challengeId);
       const commandId = requireId(payload.id);
       const date = requireDate(payload.date);
+      if (date > trustedDate) throw codedError("INVALID_ARGUMENT");
       const completed = event.action === "checkIn";
       return database.runTransaction(async (transaction) => {
         const challenge = await readOptionalDocument(
@@ -331,7 +338,10 @@ function createChallengeApi({ database, getWXContext, now = () => /* @__PURE__ *
     }
     if (event.action === "finish") {
       const challengeId = requireId(payload.challengeId);
-      const completedAt = requireDate(payload.date);
+      const completedAt = trustedDate;
+      if (payload.date !== void 0 && requireDate(payload.date) !== completedAt) {
+        throw codedError("INVALID_ARGUMENT");
+      }
       return database.runTransaction(async (transaction) => {
         const challengeReference = transaction.collection("challenges").doc(challengeId);
         const challenge = await readOptionalDocument(challengeReference);
@@ -342,6 +352,7 @@ function createChallengeApi({ database, getWXContext, now = () => /* @__PURE__ *
           await findCheckIns(transaction, openid, challengeId)
         );
         const progress = getChallengeProgress(hydrated, completedAt);
+        if (progress.isComplete !== true) throw codedError("CHALLENGE_NOT_COMPLETE");
         const history = createChallengeHistoryEntry(hydrated, progress, completedAt);
         await challengeReference.update({
           status: "completed",

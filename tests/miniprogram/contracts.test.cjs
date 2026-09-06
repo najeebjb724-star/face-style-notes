@@ -93,6 +93,24 @@ test("challenge creation receives the trusted active-conflict code through callC
   });
 });
 
+test("challenge completion receives the trusted incomplete code through callCloud", async t => {
+  t.after(() => delete global.wx);
+  global.wx = {
+    cloud: {
+      callFunction() {
+        return Promise.resolve({
+          result: { error: { code: "CHALLENGE_NOT_COMPLETE", message: "CHALLENGE_NOT_COMPLETE" } }
+        });
+      }
+    }
+  };
+
+  await assert.rejects(callCloud("challengeApi", { action: "finish" }), error => {
+    assert.equal(error.code, "CHALLENGE_NOT_COMPLETE");
+    return true;
+  });
+});
+
 for (const [name, response] of [
   ["a missing result", {}],
   ["a null result", { result: null }],
