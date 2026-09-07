@@ -3,6 +3,7 @@
     "pages/home/home",
     "pages/consent/consent",
     "pages/photo-check/photo-check",
+    "pages/analysis/analysis",
     "pages/challenges/challenges",
     "pages/challenge-create/challenge-create",
     "pages/challenge-detail/challenge-detail",

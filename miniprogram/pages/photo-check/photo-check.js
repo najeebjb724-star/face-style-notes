@@ -7,6 +7,7 @@ const {
   evaluateBasicPhotoQuality
 } = require("../../lib/photo-preflight");
 const { evaluatePhotoQuality, overridePhotoQuality } = require("../../lib/face-style-core");
+const ANALYSIS_STATE_STORAGE_KEY = "face-analysis-upload-state";
 
 function chooseOnePhoto() {
   return new Promise((resolve, reject) => {
@@ -103,7 +104,9 @@ Page({
         quality: this.data.quality,
         consent
       });
-      wx.showToast({ title: "照片已准备，分析任务将在下一步接入", icon: "none" });
+      wx.removeStorageSync(ANALYSIS_STATE_STORAGE_KEY);
+      wx.showToast({ title: "照片已准备，正在进入分析", icon: "none" });
+      wx.navigateTo({ url: "/pages/analysis/analysis" });
     } catch (_) {
       wx.showToast({ title: "保存照片准备状态失败，请重试", icon: "none" });
     }

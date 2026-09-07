@@ -436,6 +436,7 @@ test("canvas setup, image load, draw, export, and inspection failures are retrya
 test("successful compression automatically evaluates basic quality and stores the Task 8 preflight contract", async () => {
   const toasts = [];
   const writes = [];
+  const removals = [];
   const { definition } = loadPage("pages/photo-check/photo-check.js", {
     "../../lib/photo-preflight": {
       FACE_CONSENT_STORAGE_KEY: "face-analysis-consent",
@@ -465,7 +466,9 @@ test("successful compression automatically evaluates basic quality and stores th
     getStorageSync() { return { type: "face-analysis" }; },
     chooseMedia(options) { options.success({ tempFiles: [{ tempFilePath: "source.png", width: 1200, height: 1800 }] }); },
     showToast({ title }) { toasts.push(title); },
-    setStorageSync(key, value) { writes.push([key, value]); }
+    setStorageSync(key, value) { writes.push([key, value]); },
+    removeStorageSync(key) { removals.push(key); },
+    navigateTo() {}
   });
   const page = { ...definition, data: { ...definition.data }, createSelectorQuery() {}, setData(value) { Object.assign(this.data, value); } };
   await definition.choosePhoto.call(page);
@@ -476,7 +479,8 @@ test("successful compression automatically evaluates basic quality and stores th
   assert.equal(writes[0][1].photo.path, "ready.jpg");
   assert.equal(writes[0][1].quality.scope, "local-basic");
   assert.equal(writes[0][1].consent.type, "face-analysis");
-  assert.ok(toasts.some(title => /分析任务将在下一步接入/.test(title)));
+  assert.deepEqual(removals, ["face-analysis-upload-state"]);
+  assert.ok(toasts.some(title => /正在进入分析/.test(title)));
 });
 
 test("a real low basic-quality result reaches retake or explicit override", async () => {

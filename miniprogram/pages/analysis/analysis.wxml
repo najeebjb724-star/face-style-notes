@@ -1,0 +1,12 @@
+<view class="page analysis-page">
+  <view class="status-card">
+    <text class="eyebrow">照片结构参考</text>
+    <text class="title">{{statusText}}</text>
+    <text wx:if="{{status === 'queued' || status === 'processing'}}" class="body">正在准备你的结构参考。照片仅按本次授权处理，完成后会生成可阅读的内容。</text>
+    <text wx:if="{{errorText}}" class="error">{{errorText}}</text>
+    <button wx:if="{{canRetryUpload}}" class="primary tap-target" bindtap="startAnalysis">重试本次处理</button>
+    <button wx:if="{{canRefresh}}" class="secondary tap-target" bindtap="refreshStatus">手动刷新</button>
+    <button wx:if="{{status === 'failed'}}" class="secondary tap-target" bindtap="chooseAgain">重新选择照片</button>
+    <text wx:if="{{status === 'complete' && reportId}}" class="body">报告入口将在身份卡页面接入后开放。</text>
+  </view>
+</view>

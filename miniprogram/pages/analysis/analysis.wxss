@@ -1,0 +1,29 @@
+.analysis-page {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 40rpx 32rpx;
+  background: #f7f3ee;
+}
+
+.status-card {
+  box-sizing: border-box;
+  padding: 48rpx 36rpx;
+  border: 1px solid #ede5d8;
+  border-radius: 28rpx;
+  background: #fffdf9;
+}
+
+.eyebrow,
+.title,
+.body,
+.error {
+  display: block;
+}
+
+.eyebrow { color: #c9a87c; font-size: 24rpx; }
+.title { margin-top: 16rpx; color: #2c2420; font-size: 40rpx; font-weight: 600; }
+.body { margin-top: 24rpx; color: #7a6b5a; line-height: 1.7; }
+.error { margin-top: 24rpx; color: #7a6b5a; line-height: 1.6; }
+.tap-target { box-sizing: border-box; min-height: 44px; margin-top: 28rpx; }
+.primary { color: #fffdf9; background: #2c2420; }
+.secondary { color: #2c2420; background: #ede5d8; }
