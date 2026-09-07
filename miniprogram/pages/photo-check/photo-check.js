@@ -1,6 +1,8 @@
 const {
   FACE_CONSENT_STORAGE_KEY,
+  FACE_PREFLIGHT_STORAGE_KEY,
   assertFaceConsent,
+  getPhotoCanvas,
   compressPhotoToJpeg
 } = require("../../lib/photo-preflight");
 const { evaluatePhotoQuality, overridePhotoQuality } = require("../../lib/face-style-core");
@@ -23,6 +25,7 @@ Page({
     selectedPhoto: null,
     quality: null,
     compressionError: "",
+    preflightStatus: "idle",
     readyForAnalysis: false
   },
 
@@ -44,7 +47,8 @@ Page({
         this.setData({ choosing: false });
         return;
       }
-      const selectedPhoto = await compressPhotoToJpeg(wx, {
+      const canvas = await getPhotoCanvas(this);
+      const selectedPhoto = await compressPhotoToJpeg(wx, canvas, {
         path: media.tempFilePath,
         width: media.width,
         height: media.height
@@ -53,6 +57,7 @@ Page({
         choosing: false,
         selectedPhoto,
         quality: null,
+        preflightStatus: "awaiting-quality",
         readyForAnalysis: false
       });
     } catch (error) {
@@ -66,7 +71,11 @@ Page({
 
   applyQualitySignals(signals) {
     const quality = evaluatePhotoQuality(signals);
-    this.setData({ quality, readyForAnalysis: quality.accepted });
+    this.setData({
+      quality,
+      preflightStatus: quality.accepted ? "quality-ready" : "quality-blocked",
+      readyForAnalysis: quality.accepted
+    });
     return quality;
   },
 
@@ -77,6 +86,22 @@ Page({
   useAnyway() {
     if (!this.data.quality || this.data.quality.accepted) return;
     const quality = overridePhotoQuality(this.data.quality);
-    this.setData({ quality, readyForAnalysis: true });
+    this.setData({ quality, preflightStatus: "quality-ready", readyForAnalysis: true });
+  },
+
+  continueAnalysis() {
+    if (!this.data.readyForAnalysis || !this.data.selectedPhoto || !this.data.quality) {
+      wx.showToast({ title: "质量检查尚未接入，暂不能开始", icon: "none" });
+      return;
+    }
+    try {
+      wx.setStorageSync(FACE_PREFLIGHT_STORAGE_KEY, {
+        photo: this.data.selectedPhoto,
+        quality: this.data.quality
+      });
+      wx.showToast({ title: "照片已准备，分析将在下一步接入", icon: "none" });
+    } catch (_) {
+      wx.showToast({ title: "保存照片准备状态失败，请重试", icon: "none" });
+    }
   }
 });

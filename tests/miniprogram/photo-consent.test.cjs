@@ -134,6 +134,24 @@ test("consent accepts or declines without sharing challenge-photo state", () => 
   assert.deepEqual(navigations, ["/pages/photo-check/photo-check", "/pages/challenges/challenges"]);
 });
 
+test("consent storage failure is explained and does not open photo selection", () => {
+  const toasts = [];
+  const navigations = [];
+  const { definition } = loadPage("pages/consent/consent.js", {
+    "../../lib/photo-preflight": {
+      FACE_CONSENT_STORAGE_KEY: "face-analysis-consent",
+      createFaceConsent: () => ({ type: "face-analysis" })
+    }
+  }, {
+    setStorageSync() { throw new Error("storage unavailable"); },
+    showToast({ title }) { toasts.push(title); },
+    navigateTo({ url }) { navigations.push(url); }
+  });
+  assert.doesNotThrow(() => definition.acceptConsent());
+  assert.deepEqual(navigations, []);
+  assert.ok(toasts.some(title => /保存同意失败/.test(title)));
+});
+
 test("photo selection checks consent first and cancellation stays retryable", async () => {
   let chooseCalls = 0;
   const toasts = [];
@@ -172,27 +190,151 @@ test("declining still opens challenges when local consent cleanup fails", () => 
   assert.deepEqual(navigations, ["/pages/challenges/challenges"]);
 });
 
-test("compression failure preserves the page and a successful retry verifies JPEG bounds", async () => {
+test("chooseMedia cancellation stays on the photo page without an error", async () => {
+  const toasts = [];
+  const navigations = [];
+  const { definition } = loadPage("pages/photo-check/photo-check.js", {
+    "../../lib/photo-preflight": {
+      FACE_CONSENT_STORAGE_KEY: "face-analysis-consent",
+      FACE_PREFLIGHT_STORAGE_KEY: "face-analysis-preflight",
+      assertFaceConsent(value) { return value; },
+      compressPhotoToJpeg() { throw new Error("must not compress a cancellation"); }
+    },
+    "../../lib/face-style-core": { evaluatePhotoQuality() {}, overridePhotoQuality() {} }
+  }, {
+    getStorageSync() { return { type: "face-analysis" }; },
+    chooseMedia(options) { options.fail({ errMsg: "chooseMedia:fail cancel" }); },
+    showToast({ title }) { toasts.push(title); },
+    navigateTo({ url }) { navigations.push(url); }
+  });
+  const page = { ...definition, data: { ...definition.data }, setData(value) { Object.assign(this.data, value); } };
+  await definition.choosePhoto.call(page);
+  assert.equal(page.data.choosing, false);
+  assert.equal(page.data.compressionError, "");
+  assert.deepEqual(toasts, []);
+  assert.deepEqual(navigations, []);
+});
+
+test("PNG input is drawn to Canvas 2D and exported as bounded JPEG in order", async () => {
   let attempts = 0;
+  const order = [];
   const requests = [];
   const { compressPhotoToJpeg } = require("../../miniprogram/lib/photo-preflight");
+  function makeCanvas() {
+    const image = {};
+    Object.defineProperty(image, "src", {
+      set(value) {
+        order.push(["load", value]);
+        queueMicrotask(() => image.onload());
+      }
+    });
+    return {
+      width: 0,
+      height: 0,
+      createImage() { order.push(["createImage"]); return image; },
+      getContext(type) {
+        order.push(["context", type]);
+        return { drawImage(_image, x, y, width, height) { order.push(["draw", x, y, width, height]); } };
+      }
+    };
+  }
   const api = {
-    compressImage(options) {
+    canvasToTempFilePath(options) {
       requests.push(options);
       attempts += 1;
+      order.push(["export", options.fileType, options.destWidth, options.destHeight]);
       if (attempts === 1) options.fail(new Error("temporary"));
       else options.success({ tempFilePath: "ready.jpg" });
     },
     getImageInfo(options) {
+      order.push(["inspect", options.src]);
       options.success({ width: 1600, height: 1200, type: "jpeg" });
     }
   };
-  await assert.rejects(() => compressPhotoToJpeg(api, { path: "source.jpg", width: 3200, height: 2400 }), /PHOTO_COMPRESSION_FAILED/);
-  const ready = await compressPhotoToJpeg(api, { path: "source.jpg", width: 3200, height: 2400 });
+  await assert.rejects(() => compressPhotoToJpeg(api, makeCanvas(), { path: "source.png", width: 3200, height: 2400 }), /PHOTO_COMPRESSION_FAILED/);
+  const ready = await compressPhotoToJpeg(api, makeCanvas(), { path: "source.png", width: 3200, height: 2400 });
   assert.deepEqual(ready, { path: "ready.jpg", width: 1600, height: 1200, type: "jpeg" });
   assert.equal(attempts, 2);
-  assert.equal(requests[1].compressedWidth, 1600);
-  assert.equal(requests[1].compressedHeight, 1200);
+  assert.equal(requests[1].fileType, "jpg");
+  assert.equal(requests[1].quality, 0.85);
+  assert.equal(requests[1].destWidth, 1600);
+  assert.equal(requests[1].destHeight, 1200);
+  assert.deepEqual(order.slice(-6), [
+    ["createImage"],
+    ["load", "source.png"],
+    ["context", "2d"],
+    ["draw", 0, 0, 1600, 1200],
+    ["export", "jpg", 1600, 1200],
+    ["inspect", "ready.jpg"]
+  ]);
+});
+
+test("canvas setup, image load, draw, export, and inspection failures are retryable errors", async () => {
+  const { compressPhotoToJpeg } = require("../../miniprogram/lib/photo-preflight");
+  const photo = { path: "source.heic", width: 1200, height: 1800 };
+  const goodApi = {
+    canvasToTempFilePath(options) { options.success({ tempFilePath: "ready.jpg" }); },
+    getImageInfo(options) { options.success({ width: 800, height: 1200, type: "jpeg" }); }
+  };
+  const makeCanvas = ({ loadFails = false, drawFails = false } = {}) => {
+    const image = {};
+    Object.defineProperty(image, "src", {
+      set() { queueMicrotask(() => (loadFails ? image.onerror() : image.onload())); }
+    });
+    return {
+      createImage() { return image; },
+      getContext() {
+        return { drawImage() { if (drawFails) throw new Error("draw failed"); } };
+      }
+    };
+  };
+  const cases = [
+    [{}, goodApi],
+    [makeCanvas({ loadFails: true }), goodApi],
+    [makeCanvas({ drawFails: true }), goodApi],
+    [makeCanvas(), { ...goodApi, canvasToTempFilePath(options) { options.fail(new Error("export failed")); } }],
+    [makeCanvas(), { ...goodApi, getImageInfo(options) { options.fail(new Error("inspect failed")); } }]
+  ];
+  for (const [canvas, api] of cases) {
+    await assert.rejects(() => compressPhotoToJpeg(api, canvas, photo), /PHOTO_COMPRESSION_FAILED/);
+  }
+});
+
+test("successful compression enters an honest pending-quality state and readiness gates continuation", async () => {
+  const toasts = [];
+  const writes = [];
+  const { definition } = loadPage("pages/photo-check/photo-check.js", {
+    "../../lib/photo-preflight": {
+      FACE_CONSENT_STORAGE_KEY: "face-analysis-consent",
+      FACE_PREFLIGHT_STORAGE_KEY: "face-analysis-preflight",
+      assertFaceConsent(value) { return value; },
+      getPhotoCanvas: async () => ({ id: "canvas" }),
+      compressPhotoToJpeg: async () => ({ path: "ready.jpg", width: 800, height: 1200, type: "jpeg" })
+    },
+    "../../lib/face-style-core": {
+      evaluatePhotoQuality: () => ({ accepted: true, level: "high", issues: [] }),
+      overridePhotoQuality: value => value
+    }
+  }, {
+    getStorageSync() { return { type: "face-analysis" }; },
+    chooseMedia(options) { options.success({ tempFiles: [{ tempFilePath: "source.png", width: 1200, height: 1800 }] }); },
+    showToast({ title }) { toasts.push(title); },
+    setStorageSync(key, value) { writes.push([key, value]); }
+  });
+  const page = { ...definition, data: { ...definition.data }, createSelectorQuery() {}, setData(value) { Object.assign(this.data, value); } };
+  await definition.choosePhoto.call(page);
+  assert.equal(page.data.preflightStatus, "awaiting-quality");
+  assert.equal(page.data.quality, null);
+  assert.equal(page.data.readyForAnalysis, false);
+  definition.continueAnalysis.call(page);
+  assert.ok(toasts.some(title => /质量检查尚未接入，暂不能开始/.test(title)));
+  assert.deepEqual(writes, []);
+
+  definition.applyQualitySignals.call(page, { source: "future-analysis-adapter" });
+  assert.equal(page.data.preflightStatus, "quality-ready");
+  assert.equal(page.data.readyForAnalysis, true);
+  definition.continueAnalysis.call(page);
+  assert.equal(writes[0][0], "face-analysis-preflight");
 });
 
 test("low quality screen always offers retake and explicit continue", () => {
@@ -209,6 +351,9 @@ test("low quality screen always offers retake and explicit continue", () => {
   assert.match(qualityCopy, /重新拍一张/);
   assert.match(qualityCopy, /仍用这张照片分析/);
   assert.match(qualityCopy, /参考结果/);
+  assert.match(qualityCopy, /照片已准备，下一步进行质量检查/);
+  assert.match(qualityCopy, /bindtap="continueAnalysis"/);
+  assert.match(qualityCopy, /type="2d"/);
   assert.doesNotMatch(`${consentCopy}\n${qualityCopy}`, /颜值评分|缺点|完美比例|疗效|医疗/);
 
   for (const base of ["pages/consent/consent", "pages/photo-check/photo-check", "components/privacy-consent/privacy-consent"]) {

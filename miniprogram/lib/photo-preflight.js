@@ -1,4 +1,5 @@
 const FACE_CONSENT_STORAGE_KEY = "face-analysis-consent";
+const FACE_PREFLIGHT_STORAGE_KEY = "face-analysis-preflight";
 const FACE_CONSENT_VERSION = "2026-09-03";
 
 function createFaceConsent(now = new Date()) {
@@ -31,15 +32,59 @@ function callImageApi(api, method, options) {
   });
 }
 
-async function compressPhotoToJpeg(api, photo) {
+function getPhotoCanvas(page) {
+  return new Promise((resolve, reject) => {
+    try {
+      page.createSelectorQuery()
+        .select("#photo-compressor")
+        .fields({ node: true })
+        .exec(result => {
+          const canvas = result?.[0]?.node;
+          if (canvas) resolve(canvas);
+          else reject(new Error("PHOTO_CANVAS_UNAVAILABLE"));
+        });
+    } catch (_) {
+      reject(new Error("PHOTO_CANVAS_UNAVAILABLE"));
+    }
+  });
+}
+
+function loadCanvasImage(canvas, path) {
+  return new Promise((resolve, reject) => {
+    try {
+      const image = canvas.createImage();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("PHOTO_IMAGE_LOAD_FAILED"));
+      image.src = path;
+    } catch (_) {
+      reject(new Error("PHOTO_IMAGE_LOAD_FAILED"));
+    }
+  });
+}
+
+async function compressPhotoToJpeg(api, canvas, photo) {
   const target = fitPhotoDimensions(photo.width, photo.height);
+  try {
+    canvas.width = target.width;
+    canvas.height = target.height;
+    const image = await loadCanvasImage(canvas, photo.path);
+    const context = canvas.getContext("2d");
+    if (!context || typeof context.drawImage !== "function") throw new Error("PHOTO_CANVAS_UNAVAILABLE");
+    context.drawImage(image, 0, 0, target.width, target.height);
+  } catch (_) {
+    throw new Error("PHOTO_COMPRESSION_FAILED");
+  }
+
   let result;
   try {
-    result = await callImageApi(api, "compressImage", {
-      src: photo.path,
-      quality: 85,
-      compressedWidth: target.width,
-      compressedHeight: target.height
+    result = await callImageApi(api, "canvasToTempFilePath", {
+      canvas,
+      fileType: "jpg",
+      quality: 0.85,
+      width: target.width,
+      height: target.height,
+      destWidth: target.width,
+      destHeight: target.height
     });
   } catch (_) {
     throw new Error("PHOTO_COMPRESSION_FAILED");
@@ -61,9 +106,11 @@ async function compressPhotoToJpeg(api, photo) {
 
 module.exports = {
   FACE_CONSENT_STORAGE_KEY,
+  FACE_PREFLIGHT_STORAGE_KEY,
   FACE_CONSENT_VERSION,
   createFaceConsent,
   assertFaceConsent,
   fitPhotoDimensions,
+  getPhotoCanvas,
   compressPhotoToJpeg
 };

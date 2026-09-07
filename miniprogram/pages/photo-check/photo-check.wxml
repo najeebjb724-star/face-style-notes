@@ -3,10 +3,20 @@
   <text class="title">准备一张自然、清晰的正面照片</text>
   <text class="guide">照片问题只会影响结构与风格参考的稳定性，不代表对你的外貌评价。</text>
 
+  <canvas type="2d" id="photo-compressor" class="compression-canvas"></canvas>
   <image wx:if="{{selectedPhoto}}" class="preview" src="{{selectedPhoto.path}}" mode="aspectFit" />
   <view wx:if="{{compressionError}}" class="notice">{{compressionError}}</view>
 
-  <view wx:if="{{quality && !quality.accepted}}" class="quality-card">
+  <button wx:if="{{!selectedPhoto}}" class="tap-target primary-action" loading="{{choosing}}" disabled="{{choosing}}" bindtap="choosePhoto">拍照或从相册选择</button>
+
+  <view wx:elif="{{preflightStatus === 'awaiting-quality'}}" class="quality-card">
+    <text class="quality-title">照片已准备，下一步进行质量检查</text>
+    <text class="reference-note">目前只完成本地 JPEG 准备，尚未获得面部质量信号，也没有上传或开始分析。</text>
+    <button class="tap-target secondary-action" bindtap="chooseAgain">换一张照片</button>
+    <button class="tap-target primary-action" bindtap="continueAnalysis">继续下一步</button>
+  </view>
+
+  <view wx:elif="{{quality && !quality.accepted}}" class="quality-card">
     <text class="quality-title">这张照片可能影响部分参考结果</text>
     <view wx:for="{{quality.issues}}" wx:key="id" class="issue">
       <text>{{item.message}}：{{item.action}}</text>
@@ -16,8 +26,12 @@
     <text class="reference-note">继续后会把报告标记为参考结果，并降低相关结论的置信度。</text>
   </view>
 
-  <button wx:else class="tap-target primary-action" loading="{{choosing}}" disabled="{{choosing}}" bindtap="choosePhoto">
-    {{selectedPhoto ? "换一张照片" : "拍照或从相册选择"}}
-  </button>
+  <view wx:else class="quality-card">
+    <text class="quality-title">照片质量检查已完成</text>
+    <text wx:if="{{quality.overridden}}" class="reference-note">这张照片将生成参考结果。</text>
+    <button class="tap-target primary-action" bindtap="continueAnalysis">继续下一步</button>
+    <button class="tap-target secondary-action" bindtap="chooseAgain">换一张照片</button>
+  </view>
+
   <text class="safe-note">本页只完成本地准备，不会在此处上传照片或开始分析。</text>
 </view>

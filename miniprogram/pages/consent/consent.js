@@ -6,7 +6,12 @@ const {
 Page({
   acceptConsent() {
     const consent = createFaceConsent();
-    wx.setStorageSync(FACE_CONSENT_STORAGE_KEY, consent);
+    try {
+      wx.setStorageSync(FACE_CONSENT_STORAGE_KEY, consent);
+    } catch (_) {
+      wx.showToast({ title: "保存同意失败，请重试", icon: "none" });
+      return;
+    }
     wx.navigateTo({ url: "/pages/photo-check/photo-check" });
   },
 

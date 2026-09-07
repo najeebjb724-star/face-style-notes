@@ -46,6 +46,13 @@
   background: #EDE5D8;
 }
 
+.compression-canvas {
+  position: fixed;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+}
+
 .notice,
 .quality-card {
   box-sizing: border-box;
