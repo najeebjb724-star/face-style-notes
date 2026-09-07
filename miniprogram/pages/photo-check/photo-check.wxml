@@ -6,15 +6,9 @@
   <canvas type="2d" id="photo-compressor" class="compression-canvas"></canvas>
   <image wx:if="{{selectedPhoto}}" class="preview" src="{{selectedPhoto.path}}" mode="aspectFit" />
   <view wx:if="{{compressionError}}" class="notice">{{compressionError}}</view>
+  <text wx:if="{{quality && quality.pendingFaceChecks}}" class="reference-note">本地已检查亮度与清晰度；面部大小与姿态将在云端 68 点检查中补充。</text>
 
   <button wx:if="{{!selectedPhoto}}" class="tap-target primary-action" loading="{{choosing}}" disabled="{{choosing}}" bindtap="choosePhoto">拍照或从相册选择</button>
-
-  <view wx:elif="{{preflightStatus === 'awaiting-quality'}}" class="quality-card">
-    <text class="quality-title">照片已准备，下一步进行质量检查</text>
-    <text class="reference-note">目前只完成本地 JPEG 准备，尚未获得面部质量信号，也没有上传或开始分析。</text>
-    <button class="tap-target secondary-action" bindtap="chooseAgain">换一张照片</button>
-    <button class="tap-target primary-action" bindtap="continueAnalysis">继续下一步</button>
-  </view>
 
   <view wx:elif="{{quality && !quality.accepted}}" class="quality-card">
     <text class="quality-title">这张照片可能影响部分参考结果</text>
@@ -27,7 +21,7 @@
   </view>
 
   <view wx:else class="quality-card">
-    <text class="quality-title">照片质量检查已完成</text>
+    <text class="quality-title">本地基础质量检查已完成</text>
     <text wx:if="{{quality.overridden}}" class="reference-note">这张照片将生成参考结果。</text>
     <button class="tap-target primary-action" bindtap="continueAnalysis">继续下一步</button>
     <button class="tap-target secondary-action" bindtap="chooseAgain">换一张照片</button>

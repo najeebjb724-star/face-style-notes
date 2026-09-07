@@ -3,7 +3,8 @@ const {
   FACE_PREFLIGHT_STORAGE_KEY,
   assertFaceConsent,
   getPhotoCanvas,
-  compressPhotoToJpeg
+  compressPhotoToJpeg,
+  evaluateBasicPhotoQuality
 } = require("../../lib/photo-preflight");
 const { evaluatePhotoQuality, overridePhotoQuality } = require("../../lib/face-style-core");
 
@@ -53,12 +54,13 @@ Page({
         width: media.width,
         height: media.height
       });
+      const quality = evaluateBasicPhotoQuality(selectedPhoto.basicSignals);
       this.setData({
         choosing: false,
         selectedPhoto,
-        quality: null,
-        preflightStatus: "awaiting-quality",
-        readyForAnalysis: false
+        quality,
+        preflightStatus: quality.accepted ? "quality-ready" : "quality-blocked",
+        readyForAnalysis: quality.accepted
       });
     } catch (error) {
       const cancelled = /cancel/i.test(error?.errMsg || error?.message || "");
@@ -95,11 +97,13 @@ Page({
       return;
     }
     try {
+      const consent = assertFaceConsent(wx.getStorageSync(FACE_CONSENT_STORAGE_KEY));
       wx.setStorageSync(FACE_PREFLIGHT_STORAGE_KEY, {
         photo: this.data.selectedPhoto,
-        quality: this.data.quality
+        quality: this.data.quality,
+        consent
       });
-      wx.showToast({ title: "照片已准备，分析将在下一步接入", icon: "none" });
+      wx.showToast({ title: "照片已准备，分析任务将在下一步接入", icon: "none" });
     } catch (_) {
       wx.showToast({ title: "保存照片准备状态失败，请重试", icon: "none" });
     }

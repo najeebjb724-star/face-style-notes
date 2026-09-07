@@ -1,6 +1,8 @@
 const {
   FACE_CONSENT_STORAGE_KEY,
-  createFaceConsent
+  createFaceConsent,
+  activateFaceConsent,
+  revokeFaceConsent
 } = require("../../lib/photo-preflight");
 
 Page({
@@ -12,12 +14,14 @@ Page({
       wx.showToast({ title: "保存同意失败，请重试", icon: "none" });
       return;
     }
+    activateFaceConsent(consent);
     wx.navigateTo({ url: "/pages/photo-check/photo-check" });
   },
 
   declineConsent() {
+    const revokedConsent = revokeFaceConsent();
     try {
-      wx.removeStorageSync(FACE_CONSENT_STORAGE_KEY);
+      wx.setStorageSync(FACE_CONSENT_STORAGE_KEY, revokedConsent);
     } catch (_) {}
     wx.switchTab({ url: "/pages/challenges/challenges" });
   }

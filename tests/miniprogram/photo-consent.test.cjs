@@ -60,7 +60,7 @@ function goodSignals(overrides = {}) {
 }
 
 test("face analysis requires its own current and parseable consent", () => {
-  const { createFaceConsent, assertFaceConsent } = require("../../miniprogram/lib/photo-preflight");
+  const { createFaceConsent, activateFaceConsent, revokeFaceConsent, assertFaceConsent } = require("../../miniprogram/lib/photo-preflight");
   for (const invalid of [
     null,
     { type: "challenge-photo", version: "2026-09-03", acceptedAt: "2026-09-03T00:00:00.000Z" },
@@ -75,14 +75,60 @@ test("face analysis requires its own current and parseable consent", () => {
     acceptedAt: "2026-09-03T10:20:30.000Z"
   });
   assert.equal(assertFaceConsent(consent), consent);
+  revokeFaceConsent(new Date("2026-09-03T10:21:00.000Z"));
+  assert.throws(() => assertFaceConsent(consent), /CONSENT_REQUIRED/);
+  activateFaceConsent(consent);
+  assert.equal(assertFaceConsent(consent), consent);
+});
+
+test("local basic quality measures bounded pixels and leaves face checks pending", () => {
+  const { measureBasicPhotoQuality, evaluateBasicPhotoQuality } = require("../../miniprogram/lib/photo-preflight");
+  const width = 8;
+  const height = 8;
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const value = (x + y) % 2 ? 255 : 0;
+      const offset = (y * width + x) * 4;
+      pixels[offset] = value;
+      pixels[offset + 1] = value;
+      pixels[offset + 2] = value;
+      pixels[offset + 3] = 255;
+    }
+  }
+  const signals = measureBasicPhotoQuality({ data: pixels, width, height });
+  const quality = evaluateBasicPhotoQuality(signals);
+  assert.ok(signals.laplacianVariance > 45);
+  assert.ok(signals.meanBrightness > 55 && signals.meanBrightness < 215);
+  assert.equal(quality.accepted, true);
+  assert.deepEqual(quality.pendingFaceChecks, ["face_detection", "face_size", "head_pose"]);
+  assert.equal(quality.scope, "local-basic");
+
+  const dark = evaluateBasicPhotoQuality({ meanBrightness: 10, laplacianVariance: 0 });
+  assert.deepEqual(dark.issues.map(issue => issue.id), ["blurry", "too_dark"]);
 });
 
 test("photo dimensions fit inside 1600px without upscaling", () => {
-  const { fitPhotoDimensions } = require("../../miniprogram/lib/photo-preflight");
+  const { fitPhotoDimensions, validateExportedPhoto } = require("../../miniprogram/lib/photo-preflight");
   assert.deepEqual(fitPhotoDimensions(3200, 2400), { width: 1600, height: 1200 });
   assert.deepEqual(fitPhotoDimensions(900, 1800), { width: 800, height: 1600 });
   assert.deepEqual(fitPhotoDimensions(640, 480), { width: 640, height: 480 });
   assert.throws(() => fitPhotoDimensions(0, 480), /PHOTO_DIMENSIONS_INVALID/);
+  assert.doesNotThrow(() => validateExportedPhoto(
+    { width: 3201, height: 2400 },
+    { width: 1600, height: 1200 },
+    { width: 1600, height: 1200, type: "jpeg" }
+  ));
+  for (const info of [
+    { width: 0, height: 1200, type: "jpeg" },
+    { width: 1600, height: -1, type: "jpeg" },
+    { width: 1600, height: 1000, type: "jpeg" },
+    { width: 1601, height: 1200, type: "jpeg" }
+  ]) assert.throws(() => validateExportedPhoto(
+    { width: 3200, height: 2400 },
+    { width: 1600, height: 1200 },
+    info
+  ), /PHOTO_COMPRESSION_FAILED/);
 });
 
 test("mini-program quality gate keeps the web thresholds and explicit reference override", () => {
@@ -113,24 +159,26 @@ test("mini-program quality gate keeps the web thresholds and explicit reference 
 
 test("consent accepts or declines without sharing challenge-photo state", () => {
   const writes = [];
-  const removals = [];
   const navigations = [];
   const { definition } = loadPage("pages/consent/consent.js", {
     "../../lib/photo-preflight": {
       FACE_CONSENT_STORAGE_KEY: "face-analysis-consent",
-      createFaceConsent: () => ({ type: "face-analysis", version: "2026-09-03", acceptedAt: "now" })
+      createFaceConsent: () => ({ type: "face-analysis", version: "2026-09-03", acceptedAt: "now" }),
+      activateFaceConsent() {},
+      revokeFaceConsent: () => ({ type: "face-analysis", revokedAt: "now" })
     }
   }, {
     setStorageSync(key, value) { writes.push([key, value]); },
-    removeStorageSync(key) { removals.push(key); },
     navigateTo({ url }) { navigations.push(url); },
     switchTab({ url }) { navigations.push(url); }
   });
 
   definition.acceptConsent();
   definition.declineConsent();
-  assert.deepEqual(writes, [["face-analysis-consent", { type: "face-analysis", version: "2026-09-03", acceptedAt: "now" }]]);
-  assert.deepEqual(removals, ["face-analysis-consent"]);
+  assert.deepEqual(writes, [
+    ["face-analysis-consent", { type: "face-analysis", version: "2026-09-03", acceptedAt: "now" }],
+    ["face-analysis-consent", { type: "face-analysis", revokedAt: "now" }]
+  ]);
   assert.deepEqual(navigations, ["/pages/photo-check/photo-check", "/pages/challenges/challenges"]);
 });
 
@@ -140,7 +188,9 @@ test("consent storage failure is explained and does not open photo selection", (
   const { definition } = loadPage("pages/consent/consent.js", {
     "../../lib/photo-preflight": {
       FACE_CONSENT_STORAGE_KEY: "face-analysis-consent",
-      createFaceConsent: () => ({ type: "face-analysis" })
+      createFaceConsent: () => ({ type: "face-analysis" }),
+      activateFaceConsent() {},
+      revokeFaceConsent() {}
     }
   }, {
     setStorageSync() { throw new Error("storage unavailable"); },
@@ -180,14 +230,30 @@ test("declining still opens challenges when local consent cleanup fails", () => 
   const { definition } = loadPage("pages/consent/consent.js", {
     "../../lib/photo-preflight": {
       FACE_CONSENT_STORAGE_KEY: "face-analysis-consent",
-      createFaceConsent() {}
+      createFaceConsent() {},
+      revokeFaceConsent: () => ({ type: "face-analysis", revokedAt: "now" })
     }
   }, {
-    removeStorageSync() { throw new Error("storage unavailable"); },
+    setStorageSync() { throw new Error("storage unavailable"); },
     switchTab({ url }) { navigations.push(url); }
   });
   assert.doesNotThrow(() => definition.declineConsent());
   assert.deepEqual(navigations, ["/pages/challenges/challenges"]);
+});
+
+test("a failed revocation write still blocks old consent in the current session", () => {
+  const preflight = require("../../miniprogram/lib/photo-preflight");
+  const consent = preflight.createFaceConsent(new Date("2026-09-03T10:20:30.000Z"));
+  preflight.activateFaceConsent(consent);
+  const { definition } = loadPage("pages/consent/consent.js", {
+    "../../lib/photo-preflight": preflight
+  }, {
+    setStorageSync() { throw new Error("storage unavailable"); },
+    switchTab() {}
+  });
+  definition.declineConsent();
+  assert.throws(() => preflight.assertFaceConsent(consent), /CONSENT_REQUIRED/);
+  preflight.activateFaceConsent(consent);
 });
 
 test("chooseMedia cancellation stays on the photo page without an error", async () => {
@@ -234,7 +300,21 @@ test("PNG input is drawn to Canvas 2D and exported as bounded JPEG in order", as
       createImage() { order.push(["createImage"]); return image; },
       getContext(type) {
         order.push(["context", type]);
-        return { drawImage(_image, x, y, width, height) { order.push(["draw", x, y, width, height]); } };
+        return {
+          drawImage(_image, x, y, width, height) { order.push(["draw", x, y, width, height]); },
+          getImageData(x, y, width, height) {
+            order.push(["pixels", x, y, width, height]);
+            const data = new Uint8ClampedArray(width * height * 4);
+            for (let index = 0; index < data.length; index += 4) {
+              const value = (index / 4) % 2 ? 180 : 80;
+              data[index] = value;
+              data[index + 1] = value;
+              data[index + 2] = value;
+              data[index + 3] = 255;
+            }
+            return { data, width, height };
+          }
+        };
       }
     };
   }
@@ -253,16 +333,20 @@ test("PNG input is drawn to Canvas 2D and exported as bounded JPEG in order", as
   };
   await assert.rejects(() => compressPhotoToJpeg(api, makeCanvas(), { path: "source.png", width: 3200, height: 2400 }), /PHOTO_COMPRESSION_FAILED/);
   const ready = await compressPhotoToJpeg(api, makeCanvas(), { path: "source.png", width: 3200, height: 2400 });
-  assert.deepEqual(ready, { path: "ready.jpg", width: 1600, height: 1200, type: "jpeg" });
+  assert.deepEqual({ path: ready.path, width: ready.width, height: ready.height, type: ready.type }, { path: "ready.jpg", width: 1600, height: 1200, type: "jpeg" });
+  assert.ok(Number.isFinite(ready.basicSignals.meanBrightness));
+  assert.ok(Number.isFinite(ready.basicSignals.laplacianVariance));
   assert.equal(attempts, 2);
   assert.equal(requests[1].fileType, "jpg");
   assert.equal(requests[1].quality, 0.85);
   assert.equal(requests[1].destWidth, 1600);
   assert.equal(requests[1].destHeight, 1200);
-  assert.deepEqual(order.slice(-6), [
+  assert.deepEqual(order.slice(-8), [
     ["createImage"],
     ["load", "source.png"],
     ["context", "2d"],
+    ["draw", 0, 0, 256, 192],
+    ["pixels", 0, 0, 256, 192],
     ["draw", 0, 0, 1600, 1200],
     ["export", "jpg", 1600, 1200],
     ["inspect", "ready.jpg"]
@@ -284,7 +368,10 @@ test("canvas setup, image load, draw, export, and inspection failures are retrya
     return {
       createImage() { return image; },
       getContext() {
-        return { drawImage() { if (drawFails) throw new Error("draw failed"); } };
+        return {
+          drawImage() { if (drawFails) throw new Error("draw failed"); },
+          getImageData(_x, _y, width, height) { return { data: new Uint8ClampedArray(width * height * 4), width, height }; }
+        };
       }
     };
   };
@@ -300,7 +387,7 @@ test("canvas setup, image load, draw, export, and inspection failures are retrya
   }
 });
 
-test("successful compression enters an honest pending-quality state and readiness gates continuation", async () => {
+test("successful compression automatically evaluates basic quality and stores the Task 8 preflight contract", async () => {
   const toasts = [];
   const writes = [];
   const { definition } = loadPage("pages/photo-check/photo-check.js", {
@@ -309,7 +396,20 @@ test("successful compression enters an honest pending-quality state and readines
       FACE_PREFLIGHT_STORAGE_KEY: "face-analysis-preflight",
       assertFaceConsent(value) { return value; },
       getPhotoCanvas: async () => ({ id: "canvas" }),
-      compressPhotoToJpeg: async () => ({ path: "ready.jpg", width: 800, height: 1200, type: "jpeg" })
+      compressPhotoToJpeg: async () => ({
+        path: "ready.jpg",
+        width: 800,
+        height: 1200,
+        type: "jpeg",
+        basicSignals: { meanBrightness: 120, laplacianVariance: 90 }
+      }),
+      evaluateBasicPhotoQuality: () => ({
+        accepted: true,
+        level: "medium",
+        issues: [],
+        scope: "local-basic",
+        pendingFaceChecks: ["face_detection", "face_size", "head_pose"]
+      })
     },
     "../../lib/face-style-core": {
       evaluatePhotoQuality: () => ({ accepted: true, level: "high", issues: [] }),
@@ -323,18 +423,48 @@ test("successful compression enters an honest pending-quality state and readines
   });
   const page = { ...definition, data: { ...definition.data }, createSelectorQuery() {}, setData(value) { Object.assign(this.data, value); } };
   await definition.choosePhoto.call(page);
-  assert.equal(page.data.preflightStatus, "awaiting-quality");
-  assert.equal(page.data.quality, null);
-  assert.equal(page.data.readyForAnalysis, false);
-  definition.continueAnalysis.call(page);
-  assert.ok(toasts.some(title => /质量检查尚未接入，暂不能开始/.test(title)));
-  assert.deepEqual(writes, []);
-
-  definition.applyQualitySignals.call(page, { source: "future-analysis-adapter" });
   assert.equal(page.data.preflightStatus, "quality-ready");
   assert.equal(page.data.readyForAnalysis, true);
   definition.continueAnalysis.call(page);
   assert.equal(writes[0][0], "face-analysis-preflight");
+  assert.equal(writes[0][1].photo.path, "ready.jpg");
+  assert.equal(writes[0][1].quality.scope, "local-basic");
+  assert.equal(writes[0][1].consent.type, "face-analysis");
+  assert.ok(toasts.some(title => /分析任务将在下一步接入/.test(title)));
+});
+
+test("a real low basic-quality result reaches retake or explicit override", async () => {
+  const rejected = {
+    accepted: false,
+    level: "low",
+    issues: [{ id: "too_dark", message: "面部光线太暗" }],
+    scope: "local-basic",
+    pendingFaceChecks: ["face_detection", "face_size", "head_pose"]
+  };
+  const { definition } = loadPage("pages/photo-check/photo-check.js", {
+    "../../lib/photo-preflight": {
+      FACE_CONSENT_STORAGE_KEY: "face-analysis-consent",
+      FACE_PREFLIGHT_STORAGE_KEY: "face-analysis-preflight",
+      assertFaceConsent(value) { return value; },
+      getPhotoCanvas: async () => ({}),
+      compressPhotoToJpeg: async () => ({ path: "dark.jpg", width: 800, height: 1200, type: "jpeg", basicSignals: { meanBrightness: 10, laplacianVariance: 90 } }),
+      evaluateBasicPhotoQuality: () => rejected
+    },
+    "../../lib/face-style-core": {
+      evaluatePhotoQuality: () => rejected,
+      overridePhotoQuality: quality => ({ ...quality, accepted: true, overridden: true, referenceOnly: true })
+    }
+  }, {
+    getStorageSync() { return { type: "face-analysis" }; },
+    chooseMedia(options) { options.success({ tempFiles: [{ tempFilePath: "dark.png", width: 800, height: 1200 }] }); }
+  });
+  const page = { ...definition, data: { ...definition.data }, setData(value) { Object.assign(this.data, value); } };
+  await definition.choosePhoto.call(page);
+  assert.equal(page.data.preflightStatus, "quality-blocked");
+  assert.equal(page.data.readyForAnalysis, false);
+  definition.useAnyway.call(page);
+  assert.equal(page.data.readyForAnalysis, true);
+  assert.equal(page.data.quality.referenceOnly, true);
 });
 
 test("low quality screen always offers retake and explicit continue", () => {
@@ -351,7 +481,7 @@ test("low quality screen always offers retake and explicit continue", () => {
   assert.match(qualityCopy, /重新拍一张/);
   assert.match(qualityCopy, /仍用这张照片分析/);
   assert.match(qualityCopy, /参考结果/);
-  assert.match(qualityCopy, /照片已准备，下一步进行质量检查/);
+  assert.match(qualityCopy, /面部大小与姿态将在云端 68 点检查中补充/);
   assert.match(qualityCopy, /bindtap="continueAnalysis"/);
   assert.match(qualityCopy, /type="2d"/);
   assert.doesNotMatch(`${consentCopy}\n${qualityCopy}`, /颜值评分|缺点|完美比例|疗效|医疗/);
