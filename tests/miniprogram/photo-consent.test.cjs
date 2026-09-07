@@ -301,6 +301,8 @@ test("PNG input is drawn to Canvas 2D and exported as bounded JPEG in order", as
       getContext(type) {
         order.push(["context", type]);
         return {
+          set fillStyle(value) { order.push(["fillStyle", value]); },
+          fillRect(x, y, width, height) { order.push(["fill", x, y, width, height]); },
           drawImage(_image, x, y, width, height) { order.push(["draw", x, y, width, height]); },
           getImageData(x, y, width, height) {
             order.push(["pixels", x, y, width, height]);
@@ -341,16 +343,58 @@ test("PNG input is drawn to Canvas 2D and exported as bounded JPEG in order", as
   assert.equal(requests[1].quality, 0.85);
   assert.equal(requests[1].destWidth, 1600);
   assert.equal(requests[1].destHeight, 1200);
-  assert.deepEqual(order.slice(-8), [
+  assert.deepEqual(order.slice(-13), [
     ["createImage"],
     ["load", "source.png"],
     ["context", "2d"],
+    ["fillStyle", "#FFFFFF"],
+    ["fill", 0, 0, 256, 192],
     ["draw", 0, 0, 256, 192],
     ["pixels", 0, 0, 256, 192],
+    ["context", "2d"],
+    ["fillStyle", "#FFFFFF"],
+    ["fill", 0, 0, 1600, 1200],
     ["draw", 0, 0, 1600, 1200],
     ["export", "jpg", 1600, 1200],
     ["inspect", "ready.jpg"]
   ]);
+});
+
+test("transparent and half-transparent photos are measured after white Canvas compositing", async () => {
+  const { compressPhotoToJpeg, evaluateBasicPhotoQuality } = require("../../miniprogram/lib/photo-preflight");
+  function makeAlphaCanvas(alpha) {
+    let brightness = 0;
+    const image = { alpha };
+    Object.defineProperty(image, "src", { set() { queueMicrotask(() => image.onload()); } });
+    const context = {
+      fillStyle: "",
+      fillRect() { brightness = 255; },
+      drawImage(source) { brightness = 0 * source.alpha + brightness * (1 - source.alpha); },
+      getImageData(_x, _y, width, height) {
+        const data = new Uint8ClampedArray(width * height * 4);
+        for (let offset = 0; offset < data.length; offset += 4) {
+          data[offset] = brightness;
+          data[offset + 1] = brightness;
+          data[offset + 2] = brightness;
+          data[offset + 3] = 255;
+        }
+        return { data, width, height };
+      }
+    };
+    return { createImage: () => image, getContext: () => context };
+  }
+  const api = {
+    canvasToTempFilePath(options) { options.success({ tempFilePath: "ready.jpg" }); },
+    getImageInfo(options) { options.success({ width: 800, height: 800, type: "jpeg" }); }
+  };
+  const transparent = await compressPhotoToJpeg(api, makeAlphaCanvas(0), { path: "transparent.png", width: 800, height: 800 });
+  assert.equal(transparent.basicSignals.meanBrightness, 255);
+  const transparentQuality = evaluateBasicPhotoQuality(transparent.basicSignals);
+  assert.ok(transparentQuality.issues.some(issue => issue.id === "too_bright"));
+  assert.equal(transparentQuality.issues.some(issue => issue.id === "too_dark"), false);
+
+  const halfTransparent = await compressPhotoToJpeg(api, makeAlphaCanvas(0.5), { path: "half.png", width: 800, height: 800 });
+  assert.ok(halfTransparent.basicSignals.meanBrightness >= 127 && halfTransparent.basicSignals.meanBrightness <= 128);
 });
 
 test("canvas setup, image load, draw, export, and inspection failures are retryable errors", async () => {
@@ -369,6 +413,8 @@ test("canvas setup, image load, draw, export, and inspection failures are retrya
       createImage() { return image; },
       getContext() {
         return {
+          set fillStyle(_value) {},
+          fillRect() {},
           drawImage() { if (drawFails) throw new Error("draw failed"); },
           getImageData(_x, _y, width, height) { return { data: new Uint8ClampedArray(width * height * 4), width, height }; }
         };

@@ -143,21 +143,30 @@ function loadCanvasImage(canvas, path) {
   });
 }
 
+function prepareWhiteCanvas(canvas, width, height) {
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context || typeof context.fillRect !== "function" || typeof context.drawImage !== "function") {
+    throw new Error("PHOTO_CANVAS_UNAVAILABLE");
+  }
+  context.fillStyle = "#FFFFFF";
+  context.fillRect(0, 0, width, height);
+  return context;
+}
+
 async function compressPhotoToJpeg(api, canvas, photo) {
   const target = fitPhotoDimensions(photo.width, photo.height);
   let basicSignals;
   try {
     const image = await loadCanvasImage(canvas, photo.path);
     const sample = fitPhotoDimensions(photo.width, photo.height, BASIC_QUALITY_SAMPLE_EDGE);
-    canvas.width = sample.width;
-    canvas.height = sample.height;
-    const context = canvas.getContext("2d");
-    if (!context || typeof context.drawImage !== "function" || typeof context.getImageData !== "function") throw new Error("PHOTO_CANVAS_UNAVAILABLE");
-    context.drawImage(image, 0, 0, sample.width, sample.height);
-    basicSignals = measureBasicPhotoQuality(context.getImageData(0, 0, sample.width, sample.height));
-    canvas.width = target.width;
-    canvas.height = target.height;
-    context.drawImage(image, 0, 0, target.width, target.height);
+    const sampleContext = prepareWhiteCanvas(canvas, sample.width, sample.height);
+    if (typeof sampleContext.getImageData !== "function") throw new Error("PHOTO_CANVAS_UNAVAILABLE");
+    sampleContext.drawImage(image, 0, 0, sample.width, sample.height);
+    basicSignals = measureBasicPhotoQuality(sampleContext.getImageData(0, 0, sample.width, sample.height));
+    const exportContext = prepareWhiteCanvas(canvas, target.width, target.height);
+    exportContext.drawImage(image, 0, 0, target.width, target.height);
   } catch (_) {
     throw new Error("PHOTO_COMPRESSION_FAILED");
   }
