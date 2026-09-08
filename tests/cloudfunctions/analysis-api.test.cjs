@@ -77,6 +77,16 @@ function setup(openid = "openid-A", seed = {}, overrides = {}) {
   return { api, database };
 }
 
+function serializeTransactions(database) {
+  let tail = Promise.resolve();
+  database.runTransaction = callback => {
+    const result = tail.then(() => callback({ collection: database.collection }));
+    tail = result.catch(() => {});
+    return result;
+  };
+  return database;
+}
+
 const activeConsent = {
   _id: "consent-A",
   _openid: "openid-A",
@@ -116,10 +126,11 @@ test("upload reservation is owned, server-named, attached, and retention-bounded
 });
 
 test("concurrent retries of one upload reservation always return one stable cloud path", async () => {
-  const database = createDatabase({ consents: [activeConsent] });
+  const database = serializeTransactions(createDatabase({ consents: [activeConsent] }));
+  let clockCalls = 0;
   const api = createAnalysisApi({
     database, getWXContext: () => ({ OPENID: "openid-A" }),
-    now: () => new Date("2026-09-07T08:00:00.000Z"),
+    now: () => new Date(clockCalls++ === 0 ? "2026-09-07T08:00:00.000Z" : "2026-09-07T08:10:00.000Z"),
     createId: (() => { let sequence = 0; return prefix => `${prefix}-${++sequence}`; })()
   });
   const payload = { consentId: "consent-A", clientRequestId: "request-A", uploadRequestId: "upload-A" };
@@ -129,6 +140,9 @@ test("concurrent retries of one upload reservation always return one stable clou
   assert.equal(first.reservationId, second.reservationId);
   assert.equal(first.cloudPath, second.cloudPath);
   assert.equal(new Set(database.records.analysis_uploads.map(value => value.cloudPath)).size, 1);
+  assert.equal(database.records.analysis_uploads.length, 1);
+  assert.equal(database.records.analysis_uploads[0].deleteBy, "2026-09-07T08:30:00.000Z");
+  assert.equal(database.records.analysis_uploads[0].status, "pending");
 });
 
 test("the original upload deadline caps delayed job creation and credential lifetime", async () => {
@@ -261,7 +275,7 @@ test("an idempotent analysis retry returns the complete or failed minimal view",
   }
 });
 
-test("an idempotent retry cannot reuse an existing job after its upload deadline", async () => {
+test("an expired active job retry converges to failed and deleting without losing recovery", async () => {
   let current = new Date("2026-09-07T08:00:00.000Z");
   const database = createDatabase({ consents: [activeConsent], analysis_uploads: [{
     _id: "reservation-A", _openid: "openid-A", consentId: "consent-A", clientRequestId: "request-A",
@@ -274,8 +288,57 @@ test("an idempotent retry cannot reuse an existing job after its upload deadline
   });
   await api({ action: "createAnalysis", payload: analysisPayload() });
   current = new Date("2026-09-07T08:31:00.000Z");
-  await assert.rejects(() => api({ action: "createAnalysis", payload: analysisPayload() }), /UPLOAD_REQUIRED/);
+  assert.deepEqual(await api({ action: "createAnalysis", payload: analysisPayload() }), {
+    jobId: database.records.analysis_jobs[0]._id, status: "failed", error: "ANALYSIS_FAILED"
+  });
   assert.equal(database.records.analysis_jobs.length, 1);
+  assert.equal(database.records.analysis_jobs[0].status, "failed");
+  assert.equal(database.records.analysis_jobs[0].sourcePhotoStatus, "deleting");
+  assert.equal(database.records.analysis_uploads[0].status, "deleting");
+});
+
+test("terminal job retries stay readable after the original photo deadline", async () => {
+  for (const [status, extra, expected] of [
+    ["complete", { reportId: "report-A" }, { status: "complete", reportId: "report-A" }],
+    ["failed", { errorCode: "PRIVATE" }, { status: "failed", error: "ANALYSIS_FAILED" }]
+  ]) {
+    const { api, database } = setup("openid-A", {
+      analysis_jobs: [{
+        _id: "job-24502eda15ddb06402d474149c87fa6fa96e9086a9dfeb1aeb06f97f91ad9385",
+        _openid: "openid-A", reservationId: "reservation-A", status, sourcePhotoStatus: "pending", ...extra
+      }],
+      analysis_uploads: [{
+        _id: "reservation-A", _openid: "openid-A", status: "assigned", jobId: "job-24502eda15ddb06402d474149c87fa6fa96e9086a9dfeb1aeb06f97f91ad9385",
+        deleteBy: "2026-09-07T07:59:00.000Z"
+      }]
+    });
+    assert.deepEqual(await api({ action: "createAnalysis", payload: analysisPayload() }), {
+      jobId: database.records.analysis_jobs[0]._id, ...expected
+    });
+    assert.equal(database.records.analysis_jobs[0].sourcePhotoStatus, "deleting");
+    assert.equal(database.records.analysis_uploads[0].status, "deleting");
+  }
+});
+
+test("reserving an expired assigned upload returns its terminal job view while scheduling cleanup", async () => {
+  const jobId = "job-A";
+  const uploadRequestId = "upload-A";
+  const reservationId = `reservation-${require("node:crypto").createHash("sha256").update(JSON.stringify(["openid-A", uploadRequestId])).digest("hex")}`;
+  const database = createDatabase({
+    consents: [activeConsent],
+    analysis_jobs: [{ _id: jobId, _openid: "openid-A", status: "complete", sourcePhotoStatus: "pending", reportId: "report-A" }],
+    analysis_uploads: [{
+      _id: reservationId, _openid: "openid-A", consentId: "consent-A", clientRequestId: "request-A",
+      jobId, status: "assigned", cloudPath: `analysis/${reservationId}/source.jpg`, deleteBy: "2026-09-07T07:59:00.000Z"
+    }]
+  });
+  const api = createAnalysisApi({ database, getWXContext: () => ({ OPENID: "openid-A" }), now: () => new Date("2026-09-07T08:00:00.000Z") });
+  assert.deepEqual(await api({ action: "reserveUpload", payload: {
+    consentId: "consent-A", clientRequestId: "request-A", uploadRequestId
+  }}), {
+    reservationId, cloudPath: `analysis/${reservationId}/source.jpg`, jobId, status: "complete", reportId: "report-A"
+  });
+  assert.equal(database.records.analysis_jobs[0].sourcePhotoStatus, "deleting");
   assert.equal(database.records.analysis_uploads[0].status, "deleting");
 });
 
@@ -329,34 +392,45 @@ test("container credential is stored only as hash and can be consumed once", asy
 
 test("container credential rejects wrong, expired, and wrong-purpose tokens", async () => {
   const makeJob = purpose => ({
-    _id: "job-A", credentialHash: require("node:crypto").createHash("sha256").update("container-secret").digest("hex"),
+    _id: "job-A", _openid: "openid-A", reservationId: "reservation-A", tempFileId: "cloud://env/analysis/reservation-A/source.jpg",
+    credentialHash: require("node:crypto").createHash("sha256").update("container-secret").digest("hex"),
     status: "queued", sourcePhotoStatus: "pending", deleteBy: "2026-09-07T08:30:00.000Z",
     credentialPurpose: purpose, credentialExpiresAt: "2026-09-07T08:05:00.000Z", credentialUsedAt: null
   });
-  await assert.rejects(() => consumeContainerCredential({ database: createDatabase({ analysis_jobs: [makeJob("face-analysis")] }), jobId: "job-A", credential: "wrong-secret-value", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_INVALID/);
-  await assert.rejects(() => consumeContainerCredential({ database: createDatabase({ analysis_jobs: [makeJob("face-analysis")] }), jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:06:00Z") }), /CREDENTIAL_EXPIRED/);
-  await assert.rejects(() => consumeContainerCredential({ database: createDatabase({ analysis_jobs: [makeJob("other")] }), jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_INVALID/);
+  const databaseFor = job => createDatabase({
+    analysis_jobs: [job], analysis_uploads: [{
+      _id: "reservation-A", _openid: "openid-A", jobId: "job-A", status: "assigned",
+      tempFileId: "cloud://env/analysis/reservation-A/source.jpg", deleteBy: "2026-09-07T08:30:00.000Z"
+    }]
+  });
+  await assert.rejects(() => consumeContainerCredential({ database: databaseFor(makeJob("face-analysis")), jobId: "job-A", credential: "wrong-secret-value", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_INVALID/);
+  await assert.rejects(() => consumeContainerCredential({ database: databaseFor(makeJob("face-analysis")), jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:06:00Z") }), /CREDENTIAL_EXPIRED/);
+  await assert.rejects(() => consumeContainerCredential({ database: databaseFor(makeJob("other")), jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_INVALID/);
   const invalidExpiry = makeJob("face-analysis");
   invalidExpiry.credentialExpiresAt = "not-a-date";
-  await assert.rejects(() => consumeContainerCredential({ database: createDatabase({ analysis_jobs: [invalidExpiry] }), jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_INVALID/);
+  await assert.rejects(() => consumeContainerCredential({ database: databaseFor(invalidExpiry), jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_INVALID/);
   for (const changes of [
     { status: "failed" }, { status: "complete" }, { sourcePhotoStatus: "deleting" }
   ]) {
     await assert.rejects(() => consumeContainerCredential({
-      database: createDatabase({ analysis_jobs: [{ ...makeJob("face-analysis"), ...changes }] }),
+      database: databaseFor({ ...makeJob("face-analysis"), ...changes }),
       jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z")
     }), /CREDENTIAL_INVALID/);
   }
   const retentionExpired = makeJob("face-analysis");
   retentionExpired.deleteBy = "2026-09-07T08:00:30.000Z";
-  await assert.rejects(() => consumeContainerCredential({ database: createDatabase({ analysis_jobs: [retentionExpired] }), jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_EXPIRED/);
+  await assert.rejects(() => consumeContainerCredential({ database: databaseFor(retentionExpired), jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_EXPIRED/);
 });
 
 test("concurrent credential consumption has exactly one winner", async () => {
   const hash = require("node:crypto").createHash("sha256").update("container-secret").digest("hex");
   const database = createDatabase({ analysis_jobs: [{
-    _id: "job-A", status: "queued", sourcePhotoStatus: "pending", deleteBy: "2026-09-07T08:30:00.000Z",
+    _id: "job-A", _openid: "openid-A", reservationId: "reservation-A", tempFileId: "cloud://env/analysis/reservation-A/source.jpg",
+    status: "queued", sourcePhotoStatus: "pending", deleteBy: "2026-09-07T08:30:00.000Z",
     credentialHash: hash, credentialPurpose: "face-analysis", credentialExpiresAt: "2026-09-07T08:05:00.000Z", credentialUsedAt: null
+  }], analysis_uploads: [{
+    _id: "reservation-A", _openid: "openid-A", jobId: "job-A", status: "assigned",
+    tempFileId: "cloud://env/analysis/reservation-A/source.jpg", deleteBy: "2026-09-07T08:30:00.000Z"
   }] });
   let tail = Promise.resolve();
   database.runTransaction = callback => {
@@ -387,12 +461,57 @@ test("dispatch rejection makes the job failed without redispatch or retention ex
   });
   const first = await api({ action: "createAnalysis", payload: analysisPayload() });
   const second = await api({ action: "createAnalysis", payload: analysisPayload() });
-  assert.deepEqual(first, { jobId: first.jobId, status: "failed" });
-  assert.deepEqual(second, { ...first, error: "ANALYSIS_FAILED" });
+  assert.deepEqual(first, { jobId: first.jobId, status: "failed", error: "ANALYSIS_FAILED" });
+  assert.deepEqual(second, first);
   assert.equal(dispatches, 1);
   assert.equal(credentials, 1);
   assert.equal(database.records.analysis_jobs[0].deleteBy, "2026-09-07T08:30:00.000Z");
   assert.equal(database.records.analysis_jobs[0].sourcePhotoStatus, "deleting");
+  assert.equal(database.records.analysis_uploads[0].status, "deleting");
+});
+
+test("a lost dispatch acknowledgement preserves a credential already consumed by the container", async () => {
+  const database = serializeTransactions(createDatabase({
+    consents: [activeConsent],
+    analysis_uploads: [{
+      _id: "reservation-A", _openid: "openid-A", consentId: "consent-A", clientRequestId: "request-A",
+      cloudPath: "analysis/reservation-A/source.jpg", tempFileId: "cloud://env/analysis/random/photo.jpg",
+      status: "attached", deleteBy: "2026-09-07T08:30:00.000Z"
+    }]
+  }));
+  const api = createAnalysisApi({
+    database, getWXContext: () => ({ OPENID: "openid-A" }),
+    now: () => new Date("2026-09-07T08:00:00.000Z"), createCredential: () => "container-secret",
+    dispatchAnalysis: async delivery => {
+      await consumeContainerCredential({
+        database, jobId: delivery.jobId, credential: delivery.credential,
+        now: new Date("2026-09-07T08:01:00.000Z")
+      });
+      throw new Error("acknowledgement lost");
+    }
+  });
+  const result = await api({ action: "createAnalysis", payload: analysisPayload() });
+  assert.deepEqual(result, { jobId: result.jobId, status: "processing" });
+  assert.equal(database.records.analysis_jobs[0].status, "processing");
+  assert.notEqual(database.records.analysis_jobs[0].credentialUsedAt, null);
+  assert.equal(database.records.analysis_uploads[0].status, "assigned");
+});
+
+test("a late dispatch rejection preserves a job already completed by the container", async () => {
+  let database;
+  const initialized = setup("openid-A", { consents: [activeConsent] }, {
+    dispatchAnalysis: async delivery => {
+      Object.assign(database.records.analysis_jobs[0], {
+        status: "complete", sourcePhotoStatus: "deleting", reportId: "report-A", credentialUsedAt: { $serverDate: true }
+      });
+      Object.assign(database.records.analysis_uploads[0], { status: "deleting", jobId: delivery.jobId });
+      throw new Error("late dispatch acknowledgement");
+    }
+  });
+  database = initialized.database;
+  const result = await initialized.api({ action: "createAnalysis", payload: analysisPayload() });
+  assert.deepEqual(result, { jobId: result.jobId, status: "complete", reportId: "report-A" });
+  assert.equal(database.records.analysis_jobs[0].status, "complete");
   assert.equal(database.records.analysis_uploads[0].status, "deleting");
 });
 
@@ -405,6 +524,68 @@ test("createAnalysis rejects an unattached, foreign, or mismatched reservation",
     const { api } = setup("openid-A", { consents: [activeConsent], analysis_uploads: [upload] });
     await assert.rejects(() => api({ action: "createAnalysis", payload: analysisPayload() }), /UPLOAD_REQUIRED|FORBIDDEN/);
   }
+});
+
+test("create assignment wins atomically over a concurrent abandon request", async () => {
+  const database = serializeTransactions(createDatabase({
+    consents: [activeConsent],
+    analysis_uploads: [{
+      _id: "reservation-A", _openid: "openid-A", consentId: "consent-A", clientRequestId: "request-A",
+      cloudPath: "analysis/reservation-A/source.jpg", tempFileId: "cloud://env/analysis/random/photo.jpg",
+      status: "attached", deleteBy: "2026-09-07T08:30:00.000Z"
+    }]
+  }));
+  const api = createAnalysisApi({
+    database, getWXContext: () => ({ OPENID: "openid-A" }),
+    now: () => new Date("2026-09-07T08:00:00.000Z"), createCredential: () => "container-secret"
+  });
+  const creating = api({ action: "createAnalysis", payload: analysisPayload() });
+  const abandoning = api({ action: "abandonUpload", payload: { reservationId: "reservation-A" } });
+  const [created, abandoned] = await Promise.allSettled([creating, abandoning]);
+  assert.equal(created.status, "fulfilled");
+  assert.equal(abandoned.status, "rejected");
+  assert.match(abandoned.reason.message, /INVALID_STATUS/);
+  assert.equal(database.records.analysis_uploads[0].status, "assigned");
+  assert.equal(database.records.analysis_jobs.length, 1);
+});
+
+test("attach and abandon transactions never revive a deleting reservation", async () => {
+  for (const firstAction of ["attachUpload", "abandonUpload"]) {
+    const database = serializeTransactions(createDatabase({ analysis_uploads: [{
+      _id: "reservation-A", _openid: "openid-A", consentId: "consent-A", clientRequestId: "request-A",
+      cloudPath: "analysis/reservation-A/source.jpg", status: "pending", deleteBy: "2026-09-07T08:30:00.000Z"
+    }] }));
+    const api = createAnalysisApi({
+      database, getWXContext: () => ({ OPENID: "openid-A" }), now: () => new Date("2026-09-07T08:00:00.000Z")
+    });
+    const attach = () => api({ action: "attachUpload", payload: {
+      reservationId: "reservation-A", tempFileId: "cloud://env/analysis/reservation-A/source.jpg"
+    }});
+    const abandon = () => api({ action: "abandonUpload", payload: { reservationId: "reservation-A" } });
+    const operations = firstAction === "attachUpload" ? [attach(), abandon()] : [abandon(), attach()];
+    const results = await Promise.allSettled(operations);
+    assert.equal(database.records.analysis_uploads[0].status, "deleting");
+    if (firstAction === "abandonUpload") assert.equal(results[1].status, "rejected");
+  }
+});
+
+test("container credential refuses a job whose assigned upload has begun deleting", async () => {
+  const hash = require("node:crypto").createHash("sha256").update("container-secret").digest("hex");
+  const database = createDatabase({
+    analysis_jobs: [{
+      _id: "job-A", _openid: "openid-A", reservationId: "reservation-A", tempFileId: "cloud://env/analysis/reservation-A/source.jpg",
+      status: "queued", sourcePhotoStatus: "pending", deleteBy: "2026-09-07T08:30:00.000Z",
+      credentialHash: hash, credentialPurpose: "face-analysis", credentialExpiresAt: "2026-09-07T08:05:00.000Z", credentialUsedAt: null
+    }],
+    analysis_uploads: [{
+      _id: "reservation-A", _openid: "openid-A", jobId: "job-A", tempFileId: "cloud://env/analysis/reservation-A/source.jpg",
+      status: "deleting", deleteBy: "2026-09-07T08:30:00.000Z"
+    }]
+  });
+  await assert.rejects(() => consumeContainerCredential({
+    database, jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00.000Z")
+  }), /CREDENTIAL_INVALID/);
+  assert.equal(database.records.analysis_jobs[0].status, "queued");
 });
 
 function loadPage(relativePath, dependencies, wx) {
