@@ -437,6 +437,7 @@ test("successful compression automatically evaluates basic quality and stores th
   const toasts = [];
   const writes = [];
   const removals = [];
+  const cloudCalls = [];
   const { definition } = loadPage("pages/photo-check/photo-check.js", {
     "../../lib/photo-preflight": {
       FACE_CONSENT_STORAGE_KEY: "face-analysis-consent",
@@ -461,9 +462,10 @@ test("successful compression automatically evaluates basic quality and stores th
     "../../lib/face-style-core": {
       evaluatePhotoQuality: () => ({ accepted: true, level: "high", issues: [] }),
       overridePhotoQuality: value => value
-    }
+    },
+    "../../services/cloud-client": { callCloud: async (...args) => cloudCalls.push(args) }
   }, {
-    getStorageSync() { return { type: "face-analysis" }; },
+    getStorageSync(key) { return key === "face-analysis-upload-state" ? { reservationId: "old-reservation" } : { type: "face-analysis" }; },
     chooseMedia(options) { options.success({ tempFiles: [{ tempFilePath: "source.png", width: 1200, height: 1800 }] }); },
     showToast({ title }) { toasts.push(title); },
     setStorageSync(key, value) { writes.push([key, value]); },
@@ -474,12 +476,13 @@ test("successful compression automatically evaluates basic quality and stores th
   await definition.choosePhoto.call(page);
   assert.equal(page.data.preflightStatus, "quality-ready");
   assert.equal(page.data.readyForAnalysis, true);
-  definition.continueAnalysis.call(page);
+  await definition.continueAnalysis.call(page);
   assert.equal(writes[0][0], "face-analysis-preflight");
   assert.equal(writes[0][1].photo.path, "ready.jpg");
   assert.equal(writes[0][1].quality.scope, "local-basic");
   assert.equal(writes[0][1].consent.type, "face-analysis");
   assert.deepEqual(removals, ["face-analysis-upload-state"]);
+  assert.equal(cloudCalls[0][1].action, "abandonUpload");
   assert.ok(toasts.some(title => /正在进入分析/.test(title)));
 });
 

@@ -92,13 +92,20 @@ Page({
     this.setData({ quality, preflightStatus: "quality-ready", readyForAnalysis: true });
   },
 
-  continueAnalysis() {
+  async continueAnalysis() {
     if (!this.data.readyForAnalysis || !this.data.selectedPhoto || !this.data.quality) {
       wx.showToast({ title: "质量检查尚未接入，暂不能开始", icon: "none" });
       return;
     }
     try {
       const consent = assertFaceConsent(wx.getStorageSync(FACE_CONSENT_STORAGE_KEY));
+      const previous = wx.getStorageSync(ANALYSIS_STATE_STORAGE_KEY);
+      if (previous?.reservationId) {
+        try {
+          const { callCloud } = require("../../services/cloud-client");
+          await callCloud("analysisApi", { action: "abandonUpload", payload: { reservationId: previous.reservationId } });
+        } catch (_) {}
+      }
       wx.setStorageSync(FACE_PREFLIGHT_STORAGE_KEY, {
         photo: this.data.selectedPhoto,
         quality: this.data.quality,
