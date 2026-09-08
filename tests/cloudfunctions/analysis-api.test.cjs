@@ -100,7 +100,7 @@ test("upload reservation is owned, server-named, attached, and retention-bounded
     createId: prefix => `${prefix}-server-random`
   });
   const reservation = await api({ action: "reserveUpload", payload: { consentId: "consent-A", clientRequestId: "request-A", uploadRequestId: "upload-A" } });
-  assert.match(reservation.cloudPath, /^analysis\/reservation-[0-9a-f]{64}\/photo-server-random\.jpg$/);
+  assert.match(reservation.cloudPath, /^analysis\/reservation-[0-9a-f]{64}\/source\.jpg$/);
   const stored = database.records.analysis_uploads[0];
   assert.equal(stored._openid, "openid-A");
   assert.equal(stored.deleteBy, "2026-09-07T08:30:00.000Z");
@@ -113,6 +113,76 @@ test("upload reservation is owned, server-named, attached, and retention-bounded
     reservationId: reservation.reservationId,
     tempFileId: `cloud://env/${reservation.cloudPath}`
   }}), attached);
+});
+
+test("concurrent retries of one upload reservation always return one stable cloud path", async () => {
+  const database = createDatabase({ consents: [activeConsent] });
+  const api = createAnalysisApi({
+    database, getWXContext: () => ({ OPENID: "openid-A" }),
+    now: () => new Date("2026-09-07T08:00:00.000Z"),
+    createId: (() => { let sequence = 0; return prefix => `${prefix}-${++sequence}`; })()
+  });
+  const payload = { consentId: "consent-A", clientRequestId: "request-A", uploadRequestId: "upload-A" };
+  const [first, second] = await Promise.all([
+    api({ action: "reserveUpload", payload }), api({ action: "reserveUpload", payload })
+  ]);
+  assert.equal(first.reservationId, second.reservationId);
+  assert.equal(first.cloudPath, second.cloudPath);
+  assert.equal(new Set(database.records.analysis_uploads.map(value => value.cloudPath)).size, 1);
+});
+
+test("the original upload deadline caps delayed job creation and credential lifetime", async () => {
+  let current = new Date("2026-09-07T08:00:00.000Z");
+  const database = createDatabase({ consents: [activeConsent] });
+  const api = createAnalysisApi({
+    database, getWXContext: () => ({ OPENID: "openid-A" }), now: () => current,
+    createId: prefix => `${prefix}-stable`, createCredential: () => "container-secret"
+  });
+  const reserved = await api({ action: "reserveUpload", payload: {
+    consentId: "consent-A", clientRequestId: "request-A", uploadRequestId: "upload-A"
+  }});
+  const tempFileId = `cloud://env/${reserved.cloudPath}`;
+  await api({ action: "attachUpload", payload: { reservationId: reserved.reservationId, tempFileId } });
+  current = new Date("2026-09-07T08:29:00.000Z");
+  await api({ action: "createAnalysis", payload: analysisPayload({ reservationId: reserved.reservationId, tempFileId }) });
+  const job = database.records.analysis_jobs[0];
+  assert.equal(job.deleteBy, "2026-09-07T08:30:00.000Z");
+  assert.equal(job.credentialExpiresAt, "2026-09-07T08:30:00.000Z");
+});
+
+test("an expired reservation is rejected, marked deleting, and never creates a job", async () => {
+  let current = new Date("2026-09-07T08:00:00.000Z");
+  const database = createDatabase({ consents: [activeConsent] });
+  const api = createAnalysisApi({
+    database, getWXContext: () => ({ OPENID: "openid-A" }), now: () => current,
+    createId: prefix => `${prefix}-stable`, createCredential: () => "container-secret"
+  });
+  const reserved = await api({ action: "reserveUpload", payload: {
+    consentId: "consent-A", clientRequestId: "request-A", uploadRequestId: "upload-A"
+  }});
+  const tempFileId = `cloud://env/${reserved.cloudPath}`;
+  await api({ action: "attachUpload", payload: { reservationId: reserved.reservationId, tempFileId } });
+  current = new Date("2026-09-07T08:31:00.000Z");
+  await assert.rejects(() => api({ action: "createAnalysis", payload: analysisPayload({
+    reservationId: reserved.reservationId, tempFileId
+  }) }), /UPLOAD_REQUIRED/);
+  assert.equal(database.records.analysis_jobs?.length || 0, 0);
+  assert.equal(database.records.analysis_uploads[0].status, "deleting");
+  await assert.rejects(() => api({ action: "reserveUpload", payload: {
+    consentId: "consent-A", clientRequestId: "request-A", uploadRequestId: "upload-A"
+  }}), /UPLOAD_REQUIRED/);
+});
+
+test("an expired pending reservation cannot attach a file and is marked deleting", async () => {
+  const upload = {
+    _id: "reservation-A", _openid: "openid-A", consentId: "consent-A", clientRequestId: "request-A",
+    cloudPath: "analysis/reservation-A/source.jpg", status: "pending", deleteBy: "2026-09-07T07:59:59.000Z"
+  };
+  const { api, database } = setup("openid-A", { analysis_uploads: [upload] });
+  await assert.rejects(() => api({ action: "attachUpload", payload: {
+    reservationId: "reservation-A", tempFileId: "cloud://env/analysis/reservation-A/source.jpg"
+  }}), /UPLOAD_REQUIRED/);
+  assert.equal(database.records.analysis_uploads[0].status, "deleting");
 });
 
 test("an upload reservation cannot be reused for another analysis request or consent", async () => {
@@ -177,6 +247,38 @@ test("createAnalysis is per-user idempotent and uses trusted retention time", as
   assert.equal(first.status, "queued");
 });
 
+test("an idempotent analysis retry returns the complete or failed minimal view", async () => {
+  for (const [status, fields, expected] of [
+    ["complete", { reportId: "report-A" }, { status: "complete", reportId: "report-A" }],
+    ["failed", { errorCode: "SECRET_INTERNAL_ERROR" }, { status: "failed", error: "ANALYSIS_FAILED" }]
+  ]) {
+    const { api, database } = setup("openid-A", { consents: [activeConsent] });
+    const created = await api({ action: "createAnalysis", payload: analysisPayload() });
+    Object.assign(database.records.analysis_jobs[0], { status, ...fields });
+    assert.deepEqual(await api({ action: "createAnalysis", payload: analysisPayload() }), {
+      jobId: created.jobId, ...expected
+    });
+  }
+});
+
+test("an idempotent retry cannot reuse an existing job after its upload deadline", async () => {
+  let current = new Date("2026-09-07T08:00:00.000Z");
+  const database = createDatabase({ consents: [activeConsent], analysis_uploads: [{
+    _id: "reservation-A", _openid: "openid-A", consentId: "consent-A", clientRequestId: "request-A",
+    cloudPath: "analysis/reservation-A/source.jpg", tempFileId: "cloud://env/analysis/random/photo.jpg",
+    status: "attached", deleteBy: "2026-09-07T08:30:00.000Z"
+  }] });
+  const api = createAnalysisApi({
+    database, getWXContext: () => ({ OPENID: "openid-A" }), now: () => current,
+    createCredential: () => "container-secret"
+  });
+  await api({ action: "createAnalysis", payload: analysisPayload() });
+  current = new Date("2026-09-07T08:31:00.000Z");
+  await assert.rejects(() => api({ action: "createAnalysis", payload: analysisPayload() }), /UPLOAD_REQUIRED/);
+  assert.equal(database.records.analysis_jobs.length, 1);
+  assert.equal(database.records.analysis_uploads[0].status, "deleting");
+});
+
 test("one-time credential is handed only to the internal dispatcher", async () => {
   const deliveries = [];
   const { api, database } = setup("openid-A", { consents: [activeConsent] }, {
@@ -228,6 +330,7 @@ test("container credential is stored only as hash and can be consumed once", asy
 test("container credential rejects wrong, expired, and wrong-purpose tokens", async () => {
   const makeJob = purpose => ({
     _id: "job-A", credentialHash: require("node:crypto").createHash("sha256").update("container-secret").digest("hex"),
+    status: "queued", sourcePhotoStatus: "pending", deleteBy: "2026-09-07T08:30:00.000Z",
     credentialPurpose: purpose, credentialExpiresAt: "2026-09-07T08:05:00.000Z", credentialUsedAt: null
   });
   await assert.rejects(() => consumeContainerCredential({ database: createDatabase({ analysis_jobs: [makeJob("face-analysis")] }), jobId: "job-A", credential: "wrong-secret-value", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_INVALID/);
@@ -236,11 +339,25 @@ test("container credential rejects wrong, expired, and wrong-purpose tokens", as
   const invalidExpiry = makeJob("face-analysis");
   invalidExpiry.credentialExpiresAt = "not-a-date";
   await assert.rejects(() => consumeContainerCredential({ database: createDatabase({ analysis_jobs: [invalidExpiry] }), jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_INVALID/);
+  for (const changes of [
+    { status: "failed" }, { status: "complete" }, { sourcePhotoStatus: "deleting" }
+  ]) {
+    await assert.rejects(() => consumeContainerCredential({
+      database: createDatabase({ analysis_jobs: [{ ...makeJob("face-analysis"), ...changes }] }),
+      jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z")
+    }), /CREDENTIAL_INVALID/);
+  }
+  const retentionExpired = makeJob("face-analysis");
+  retentionExpired.deleteBy = "2026-09-07T08:00:30.000Z";
+  await assert.rejects(() => consumeContainerCredential({ database: createDatabase({ analysis_jobs: [retentionExpired] }), jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_EXPIRED/);
 });
 
 test("concurrent credential consumption has exactly one winner", async () => {
   const hash = require("node:crypto").createHash("sha256").update("container-secret").digest("hex");
-  const database = createDatabase({ analysis_jobs: [{ _id: "job-A", credentialHash: hash, credentialPurpose: "face-analysis", credentialExpiresAt: "2026-09-07T08:05:00.000Z", credentialUsedAt: null }] });
+  const database = createDatabase({ analysis_jobs: [{
+    _id: "job-A", status: "queued", sourcePhotoStatus: "pending", deleteBy: "2026-09-07T08:30:00.000Z",
+    credentialHash: hash, credentialPurpose: "face-analysis", credentialExpiresAt: "2026-09-07T08:05:00.000Z", credentialUsedAt: null
+  }] });
   let tail = Promise.resolve();
   database.runTransaction = callback => {
     const result = tail.then(() => callback({ collection: database.collection }));
@@ -250,6 +367,7 @@ test("concurrent credential consumption has exactly one winner", async () => {
   const results = await Promise.allSettled([1, 2].map(() => consumeContainerCredential({ database, jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z") })));
   assert.equal(results.filter(value => value.status === "fulfilled").length, 1);
   assert.equal(results.filter(value => value.status === "rejected" && /CREDENTIAL_USED/.test(value.reason.message)).length, 1);
+  assert.equal(database.records.analysis_jobs[0].status, "processing");
 });
 
 test("internal transitions enforce the documented status enums", () => {
@@ -270,7 +388,7 @@ test("dispatch rejection makes the job failed without redispatch or retention ex
   const first = await api({ action: "createAnalysis", payload: analysisPayload() });
   const second = await api({ action: "createAnalysis", payload: analysisPayload() });
   assert.deepEqual(first, { jobId: first.jobId, status: "failed" });
-  assert.deepEqual(second, first);
+  assert.deepEqual(second, { ...first, error: "ANALYSIS_FAILED" });
   assert.equal(dispatches, 1);
   assert.equal(credentials, 1);
   assert.equal(database.records.analysis_jobs[0].deleteBy, "2026-09-07T08:30:00.000Z");
@@ -428,7 +546,7 @@ test("retry after a lost create response reuses the uploaded file and request id
       creates += 1;
       createPayloads.push(data.payload);
       if (creates === 1) throw new Error("response lost");
-      return { jobId: "job-A", status: "queued" };
+      return { jobId: "job-A", status: "complete", reportId: "report-A" };
     }
     return { status: "processing" };
   };
@@ -446,7 +564,66 @@ test("retry after a lost create response reuses the uploaded file and request id
   assert.equal(creates, 2);
   assert.equal(createPayloads[0].tempFileId, createPayloads[1].tempFileId);
   assert.equal(createPayloads[0].clientRequestId, createPayloads[1].clientRequestId);
+  assert.equal(reloaded.data.status, "complete");
+  assert.equal(reloaded.data.reportId, "report-A");
   reloadedDefinition.onUnload.call(reloaded);
+});
+
+test("a reloaded client recovers an assigned reservation without overwriting its photo", async () => {
+  let uploads = 0;
+  const calls = [];
+  const saved = {
+    consentId: "consent-A", clientRequestId: "request-A", uploadRequestId: "upload-A",
+    reservationId: "reservation-A", cloudPath: "analysis/reservation-A/source.jpg"
+  };
+  const preflight = { photo: { path: "local.jpg", type: "jpeg" }, quality: { accepted: true, scope: "local-basic" }, consent: { type: "face-analysis" } };
+  const wx = {
+    getStorageSync: key => key === "face-analysis-upload-state" ? saved : preflight,
+    setStorageSync() {}, showToast() {}, setTimeout, clearTimeout,
+    cloud: { uploadFile() { uploads += 1; } }
+  };
+  const definition = loadPage("pages/analysis/analysis.js", {
+    "../../lib/photo-preflight": { FACE_PREFLIGHT_STORAGE_KEY: "preflight", assertFaceConsent: value => value },
+    "../../services/cloud-client": { callCloud: async (_name, data) => {
+      calls.push(data.action);
+      if (data.action === "reserveUpload") return {
+        reservationId: "reservation-A", cloudPath: "analysis/reservation-A/source.jpg",
+        jobId: "job-A", status: "complete", reportId: "report-A"
+      };
+      throw new Error("must recover before upload");
+    } }
+  }, wx);
+  const page = { ...definition, data: { ...definition.data }, setData(value) { Object.assign(this.data, value); } };
+  await definition.startAnalysis.call(page);
+  assert.deepEqual(calls, ["reserveUpload"]);
+  assert.equal(uploads, 0);
+  assert.equal(page.data.status, "complete");
+  assert.equal(page.data.reportId, "report-A");
+});
+
+test("an expired reservation on reload fails without uploading or creating a job", async () => {
+  let uploads = 0;
+  const calls = [];
+  const saved = { consentId: "consent-A", clientRequestId: "request-A", uploadRequestId: "upload-A" };
+  const preflight = { photo: { path: "local.jpg", type: "jpeg" }, quality: { accepted: true, scope: "local-basic" }, consent: { type: "face-analysis" } };
+  const wx = {
+    getStorageSync: key => key === "face-analysis-upload-state" ? saved : preflight,
+    setStorageSync() {}, showToast() {}, setTimeout, clearTimeout,
+    cloud: { uploadFile() { uploads += 1; } }
+  };
+  const definition = loadPage("pages/analysis/analysis.js", {
+    "../../lib/photo-preflight": { FACE_PREFLIGHT_STORAGE_KEY: "preflight", assertFaceConsent: value => value },
+    "../../services/cloud-client": { callCloud: async (_name, data) => {
+      calls.push(data.action);
+      if (data.action === "reserveUpload") throw new Error("UPLOAD_REQUIRED");
+      throw new Error("unexpected call");
+    } }
+  }, wx);
+  const page = { ...definition, data: { ...definition.data }, setData(value) { Object.assign(this.data, value); } };
+  await definition.startAnalysis.call(page);
+  assert.deepEqual(calls, ["reserveUpload"]);
+  assert.equal(uploads, 0);
+  assert.equal(page.data.status, "failed");
 });
 
 test("analysis page uses runtime global timers rather than wx timer methods", () => {
@@ -526,6 +703,22 @@ test("manual refresh accepts a WeChat tap event and applies the latest status", 
   };
   await definition.refreshStatus.call(page, { type: "tap" });
   assert.equal(page.data.status, "failed");
+});
+
+test("choosing another photo still navigates when local upload-state cleanup fails", async () => {
+  let navigated = false;
+  const wx = {
+    getStorageSync: () => null, setStorageSync() {}, showToast() {}, setTimeout, clearTimeout,
+    removeStorageSync() { throw new Error("storage unavailable"); },
+    navigateBack() { navigated = true; }
+  };
+  const definition = loadPage("pages/analysis/analysis.js", {
+    "../../lib/photo-preflight": { FACE_PREFLIGHT_STORAGE_KEY: "preflight", assertFaceConsent: value => value },
+    "../../services/cloud-client": { callCloud: async () => ({}) }
+  }, wx);
+  const page = { ...definition, data: { ...definition.data }, stopPolling() {} };
+  await definition.chooseAgain.call(page);
+  assert.equal(navigated, true);
 });
 
 test("a reloaded page can resume an owned job after local preflight cleanup", async () => {

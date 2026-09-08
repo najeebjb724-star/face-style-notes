@@ -100,15 +100,22 @@ Page({
       this._uploadRequestId = this._uploadRequestId || await randomId();
       if (!active()) return;
       persistState(this);
-      if (!this._reservationId) {
-        const reservation = await callCloud("analysisApi", {
-          action: "reserveUpload", payload: { consentId: this._consentId, clientRequestId, uploadRequestId: this._uploadRequestId }
-        });
-        if (!active()) return;
-        this._reservationId = reservation.reservationId;
-        this._cloudPath = reservation.cloudPath;
+      const reservation = await callCloud("analysisApi", {
+        action: "reserveUpload", payload: { consentId: this._consentId, clientRequestId, uploadRequestId: this._uploadRequestId }
+      });
+      if (!active()) return;
+      if (this._reservationId && this._reservationId !== reservation.reservationId) throw new Error("UPLOAD_REQUIRED");
+      this._reservationId = reservation.reservationId;
+      this._cloudPath = reservation.cloudPath;
+      if (reservation.jobId) {
+        this._jobId = reservation.jobId;
         persistState(this);
+        this._pollIndex = 0;
+        this.applyStatus(reservation);
+        this.schedulePoll();
+        return;
       }
+      persistState(this);
       if (!this._tempFileId) {
         this._tempFileId = await uploadPhoto(preflight.photo.path, this._cloudPath);
         if (!active()) return;
@@ -195,7 +202,9 @@ Page({
         await callCloud("analysisApi", { action: "abandonUpload", payload: { reservationId: this._reservationId } });
       } catch (_) {}
     }
-    wx.removeStorageSync(ANALYSIS_STATE_STORAGE_KEY);
+    try {
+      wx.removeStorageSync(ANALYSIS_STATE_STORAGE_KEY);
+    } catch (_) {}
     wx.navigateBack({ delta: 1 });
   },
 

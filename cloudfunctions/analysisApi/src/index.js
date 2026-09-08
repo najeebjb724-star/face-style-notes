@@ -66,6 +66,20 @@ function stableReservationId(openid, uploadRequestId) {
   return `reservation-${createHash("sha256").update(JSON.stringify([openid, uploadRequestId])).digest("hex")}`;
 }
 
+function deadlineMillis(value) {
+  const parsed = typeof value === "string" ? Date.parse(value) : NaN;
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+async function rejectExpiredUpload(reference, upload, requestTime, database) {
+  const deadline = deadlineMillis(upload?.deleteBy);
+  if (Number.isFinite(deadline) && deadline > requestTime.getTime()) return deadline;
+  try {
+    await reference.update({ status: "deleting", abandonedAt: database.serverDate() });
+  } catch (_) {}
+  throw codedError("UPLOAD_REQUIRED");
+}
+
 function createClientSafeMain(handle) {
   return async function main(event, context) {
     try {
@@ -152,16 +166,22 @@ function createAnalysisApi({
       if (!consent || consent._openid !== openid || consent.type !== CONSENT_TYPE || consent.version !== CONSENT_VERSION
         || !Number.isFinite(acceptedAt) || acceptedAt > requestTime.getTime() || consent.revokedAt) throw codedError("CONSENT_REQUIRED");
       const reservationId = stableReservationId(openid, uploadRequestId);
-      const existing = await readOptional(database.collection("analysis_uploads").doc(reservationId));
+      const reference = database.collection("analysis_uploads").doc(reservationId);
+      const existing = await readOptional(reference);
       if (existing) {
         assertOwnedRecord(existing, openid);
+        await rejectExpiredUpload(reference, existing, requestTime, database);
         if (existing.consentId !== consentId || existing.clientRequestId !== clientRequestId
           || !["pending", "attached", "assigned"].includes(existing.status)) throw codedError("UPLOAD_REQUIRED");
+        if (existing.status === "assigned") {
+          const job = await readOptional(database.collection("analysis_jobs").doc(requireId(existing.jobId)));
+          assertOwnedRecord(job, openid);
+          return { reservationId, cloudPath: existing.cloudPath, jobId: existing.jobId, ...minimalStatus(job) };
+        }
         return { reservationId, cloudPath: existing.cloudPath };
       }
-      const fileName = requireId(createId("photo"));
-      const cloudPath = `analysis/${reservationId}/${fileName}.jpg`;
-      await database.collection("analysis_uploads").doc(reservationId).set({
+      const cloudPath = `analysis/${reservationId}/source.jpg`;
+      await reference.set({
         _openid: openid, consentId, clientRequestId, uploadRequestId, cloudPath, status: "pending",
         deleteBy: new Date(requestTime.getTime() + 30 * 60 * 1000).toISOString(), createdAt: database.serverDate()
       });
@@ -174,6 +194,7 @@ function createAnalysisApi({
       const reference = database.collection("analysis_uploads").doc(reservationId);
       const upload = await readOptional(reference);
       assertOwnedRecord(upload, openid);
+      await rejectExpiredUpload(reference, upload, now(), database);
       if (upload.status === "attached" && upload.tempFileId === tempFileId) {
         return { reservationId, status: "attached" };
       }
@@ -205,7 +226,15 @@ function createAnalysisApi({
         const existing = await readOptional(transaction.collection("analysis_jobs").doc(jobId));
         if (existing) {
           assertOwnedRecord(existing, openid);
-          return { view: { jobId: existing._id || jobId, status: existing.status } };
+          const existingUploadReference = transaction.collection("analysis_uploads").doc(requireId(existing.reservationId));
+          const existingUpload = await readOptional(existingUploadReference);
+          assertOwnedRecord(existingUpload, openid);
+          const existingDeadline = deadlineMillis(existingUpload.deleteBy);
+          if (!Number.isFinite(existingDeadline) || existingDeadline <= requestTime.getTime()) {
+            await existingUploadReference.update({ status: "deleting", abandonedAt: database.serverDate() });
+            return { expired: true };
+          }
+          return { view: { jobId: existing._id || jobId, ...minimalStatus(existing) } };
         }
         const consent = await readOptional(transaction.collection("consents").doc(consentId));
         const consentAcceptedAt = typeof consent?.acceptedAt === "string" ? Date.parse(consent.acceptedAt) : NaN;
@@ -213,10 +242,16 @@ function createAnalysisApi({
           || !Number.isFinite(consentAcceptedAt) || consentAcceptedAt > requestTime.getTime() || consent.revokedAt) {
           throw codedError("CONSENT_REQUIRED");
         }
-        const upload = await readOptional(transaction.collection("analysis_uploads").doc(reservationId));
+        const uploadReference = transaction.collection("analysis_uploads").doc(reservationId);
+        const upload = await readOptional(uploadReference);
         assertOwnedRecord(upload, openid);
         if (upload.status !== "attached" || upload.tempFileId !== tempFileId
           || upload.consentId !== consentId || upload.clientRequestId !== clientRequestId) throw codedError("UPLOAD_REQUIRED");
+        const uploadDeadline = deadlineMillis(upload.deleteBy);
+        if (!Number.isFinite(uploadDeadline) || uploadDeadline <= requestTime.getTime()) {
+          await uploadReference.update({ status: "deleting", abandonedAt: database.serverDate() });
+          return { expired: true };
+        }
         const credential = createCredential();
         if (typeof credential !== "string" || credential.length < 16) throw codedError("INVALID_CONFIGURATION");
         const record = {
@@ -228,10 +263,10 @@ function createAnalysisApi({
           quality,
           status: "queued",
           sourcePhotoStatus: "pending",
-          deleteBy: new Date(requestTime.getTime() + 30 * 60 * 1000).toISOString(),
+          deleteBy: new Date(uploadDeadline).toISOString(),
           credentialHash: credentialDigest(credential),
           credentialPurpose: "face-analysis",
-          credentialExpiresAt: new Date(requestTime.getTime() + 5 * 60 * 1000).toISOString(),
+          credentialExpiresAt: new Date(Math.min(requestTime.getTime() + 5 * 60 * 1000, uploadDeadline)).toISOString(),
           credentialUsedAt: null,
           createdAt: database.serverDate()
         };
@@ -242,6 +277,7 @@ function createAnalysisApi({
           dispatch: { jobId, reservationId, tempFileId, credential, credentialExpiresAt: record.credentialExpiresAt }
         };
       });
+      if (created.expired) throw codedError("UPLOAD_REQUIRED");
       if (created.dispatch) {
         try {
           await dispatchAnalysis(created.dispatch);
@@ -276,14 +312,22 @@ async function consumeContainerCredential({ database, jobId, credential, now = n
     const job = await readOptional(reference);
     if (!job || typeof credential !== "string" || typeof job.credentialHash !== "string") throw codedError("CREDENTIAL_INVALID");
     if (job.credentialUsedAt) throw codedError("CREDENTIAL_USED");
+    if (job.status !== "queued" || job.sourcePhotoStatus !== "pending") throw codedError("CREDENTIAL_INVALID");
     if (job.credentialPurpose !== "face-analysis") throw codedError("CREDENTIAL_INVALID");
     const expiresAt = Date.parse(job.credentialExpiresAt);
     if (!Number.isFinite(expiresAt)) throw codedError("CREDENTIAL_INVALID");
-    if (expiresAt <= now.getTime()) throw codedError("CREDENTIAL_EXPIRED");
+    const deleteBy = deadlineMillis(job.deleteBy);
+    if (!Number.isFinite(deleteBy)) throw codedError("CREDENTIAL_INVALID");
+    if (expiresAt <= now.getTime() || deleteBy <= now.getTime()) throw codedError("CREDENTIAL_EXPIRED");
     const expected = Buffer.from(job.credentialHash, "hex");
     const actual = Buffer.from(credentialDigest(credential), "hex");
     if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) throw codedError("CREDENTIAL_INVALID");
-    await reference.update({ credentialUsedAt: database.serverDate() });
+    const next = transitionAnalysisJob(job, { status: "processing" });
+    await reference.update({
+      status: next.status,
+      sourcePhotoStatus: next.sourcePhotoStatus,
+      credentialUsedAt: database.serverDate()
+    });
     return true;
   });
 }
