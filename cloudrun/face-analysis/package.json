@@ -1,0 +1,14 @@
+{
+  "name": "face-style-analysis",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test ../../tests/cloudrun/*.test.cjs"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs-node": "4.16.0",
+    "@vladmandic/face-api": "1.7.15",
+    "express": "4.21.2"
+  }
+}
