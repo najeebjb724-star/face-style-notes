@@ -1,5 +1,10 @@
 const express = require("express");
-const { codedError, downloadPhoto: defaultDownloadPhoto, validateAnalyzeInput } = require("./validate");
+const {
+  codedError,
+  downloadPhoto: defaultDownloadPhoto,
+  validateAnalyzeInput,
+  validateDownloadDescriptor
+} = require("./validate");
 
 const CLIENT_ERROR_CODES = new Set([
   "INVALID_CREDENTIAL", "INVALID_JOB_ID", "INVALID_PHOTO_URL", "INVALID_SHA256", "PHOTO_HOST_NOT_ALLOWED"
@@ -24,15 +29,22 @@ function safeError(error) {
 function createApp(dependencies) {
   const {
     allowedPhotoHosts,
-    consumeCredential,
     inferBuffer,
     isModelLoaded,
+    jobCoordinator,
     loadModels
   } = dependencies;
   const fetchPhoto = dependencies.downloadPhoto || ((url, sha256) => defaultDownloadPhoto(url, sha256));
   const app = express();
   app.disable("x-powered-by");
+  app.set("query parser", false);
   app.use(express.json({ limit: "16kb", strict: true }));
+  let inferenceTail = Promise.resolve();
+  const runInference = task => {
+    const result = inferenceTail.then(task);
+    inferenceTail = result.catch(() => {});
+    return result;
+  };
 
   app.get("/health", (_request, response) => {
     const modelLoaded = isModelLoaded();
@@ -40,14 +52,23 @@ function createApp(dependencies) {
   });
 
   app.post("/analyze", async (request, response) => {
+    let claim;
+    let settled = false;
     try {
-      const input = validateAnalyzeInput({ authorization: request.get("authorization"), body: request.body }, allowedPhotoHosts);
-      await consumeCredential({ jobId: input.jobId, credential: input.credential });
-      const photo = await fetchPhoto(input.photoUrl, input.expectedSha256);
-      const result = await inferBuffer(photo, input.jobId);
+      const input = validateAnalyzeInput({ authorization: request.get("authorization"), body: request.body });
+      claim = await jobCoordinator.claim(input);
+      if (!claim || claim.jobId !== input.jobId) throw codedError("CREDENTIAL_SERVICE_UNAVAILABLE");
+      const download = validateDownloadDescriptor(claim.download, allowedPhotoHosts);
+      const photo = await fetchPhoto(download.url, download.sha256);
+      const result = await runInference(() => inferBuffer(photo, input.jobId));
+      await jobCoordinator.complete({ claim, result });
+      settled = true;
       response.status(200).json(result);
     } catch (error) {
       const safe = safeError(error);
+      if (claim && !settled) {
+        try { await jobCoordinator.fail({ claim, errorCode: safe.code }); } catch {}
+      }
       response.status(safe.status).json({ ok: false, code: safe.code });
     }
   });
@@ -71,9 +92,13 @@ function validateServiceUrl(value) {
   return url.toString();
 }
 
-function createCredentialConsumer({ endpoint, fetchImpl = globalThis.fetch, timeoutMs = 5_000 }) {
+async function discardResponse(response) {
+  try { await response?.body?.cancel(); } catch {}
+}
+
+function createJobCoordinator({ endpoint, fetchImpl = globalThis.fetch, timeoutMs = 5_000 }) {
   const serviceUrl = validateServiceUrl(endpoint);
-  return async ({ jobId, credential }) => {
+  const call = async ({ action, jobId, token, body }) => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -81,16 +106,22 @@ function createCredentialConsumer({ endpoint, fetchImpl = globalThis.fetch, time
         method: "POST",
         redirect: "manual",
         signal: controller.signal,
-        headers: { authorization: `Bearer ${credential}`, "content-type": "application/json" },
-        body: JSON.stringify({ jobId })
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({ action, jobId, ...body })
       });
-      if (response.status >= 300 && response.status < 400) throw codedError("CREDENTIAL_INVALID");
-      if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
         let body;
         try { body = await response.json(); } catch { body = {}; }
         const code = CREDENTIAL_ERROR_CODES.has(body.code) ? body.code : "CREDENTIAL_INVALID";
         throw codedError(code);
       }
+      if (!response.ok) {
+        await discardResponse(response);
+        throw codedError("CREDENTIAL_SERVICE_UNAVAILABLE");
+      }
+      let result;
+      try { result = await response.json(); } catch { throw codedError("CREDENTIAL_SERVICE_UNAVAILABLE"); }
+      return result;
     } catch (error) {
       if (CREDENTIAL_ERROR_CODES.has(error && error.code)) throw error;
       throw codedError("CREDENTIAL_SERVICE_UNAVAILABLE");
@@ -98,13 +129,43 @@ function createCredentialConsumer({ endpoint, fetchImpl = globalThis.fetch, time
       clearTimeout(timeout);
     }
   };
+  return {
+    async claim({ jobId, credential }) {
+      const result = await call({ action: "claim", jobId, token: credential });
+      if (!result || result.jobId !== jobId || typeof result.leaseId !== "string" || !result.leaseId
+        || typeof result.leaseToken !== "string" || result.leaseToken.length < 16 || !result.download) {
+        throw codedError("CREDENTIAL_SERVICE_UNAVAILABLE");
+      }
+      return result;
+    },
+    async complete({ claim, result }) {
+      const response = await call({
+        action: "complete", jobId: claim.jobId, token: claim.leaseToken,
+        body: { leaseId: claim.leaseId, result }
+      });
+      if (!response || response.ok !== true || response.jobId !== claim.jobId || response.status !== "complete") {
+        throw codedError("CREDENTIAL_SERVICE_UNAVAILABLE");
+      }
+      return response;
+    },
+    async fail({ claim, errorCode }) {
+      const response = await call({
+        action: "fail", jobId: claim.jobId, token: claim.leaseToken,
+        body: { leaseId: claim.leaseId, errorCode }
+      });
+      if (!response || response.ok !== true || response.jobId !== claim.jobId || !["failed", "complete"].includes(response.status)) {
+        throw codedError("CREDENTIAL_SERVICE_UNAVAILABLE");
+      }
+      return response;
+    }
+  };
 }
 
 async function start() {
   const inference = require("./inference");
   const allowedPhotoHosts = String(process.env.PHOTO_URL_HOSTS || "").split(",").map(value => value.trim()).filter(Boolean);
-  const consumeCredential = createCredentialConsumer({ endpoint: process.env.CREDENTIAL_CONSUMER_URL });
-  const app = createApp({ allowedPhotoHosts, consumeCredential, ...inference });
+  const jobCoordinator = createJobCoordinator({ endpoint: process.env.CREDENTIAL_CONSUMER_URL });
+  const app = createApp({ allowedPhotoHosts, jobCoordinator, ...inference });
   await inference.loadModels();
   app.listen(Number(process.env.PORT) || 8080, "0.0.0.0");
 }
@@ -116,4 +177,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createApp, createCredentialConsumer, safeError, start };
+module.exports = { createApp, createJobCoordinator, safeError, start };

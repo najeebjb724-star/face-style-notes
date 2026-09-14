@@ -7,8 +7,11 @@ const vm = require("node:vm");
 const { execFileSync } = require("node:child_process");
 
 const {
+  claimContainerJob,
+  completeContainerJob,
   createAnalysisApi,
-  consumeContainerCredential,
+  failContainerJob,
+  recoverExpiredContainerLease,
   transitionAnalysisJob
 } = require("../../cloudfunctions/analysisApi");
 
@@ -378,7 +381,7 @@ test("failed status never exposes an internal error message", async () => {
   });
 });
 
-test("container credential is stored only as hash and can be consumed once", async () => {
+test("container claim binds a server-created download descriptor and can be claimed once", async () => {
   const { api, database } = setup("openid-A", { consents: [activeConsent] });
   await api({ action: "createAnalysis", payload: {
     ...analysisPayload({ quality: { accepted: true } })
@@ -386,11 +389,26 @@ test("container credential is stored only as hash and can be consumed once", asy
   const job = database.records.analysis_jobs[0];
   assert.equal(job.credential, undefined);
   assert.notEqual(job.credentialHash, "container-secret");
-  assert.equal(await consumeContainerCredential({ database, jobId: job._id, credential: "container-secret", now: new Date("2026-09-07T08:01:00.000Z") }), true);
-  await assert.rejects(() => consumeContainerCredential({ database, jobId: job._id, credential: "container-secret", now: new Date("2026-09-07T08:02:00.000Z") }), /CREDENTIAL_USED/);
+  const claim = await claimContainerJob({
+    database, jobId: job._id, credential: "container-secret", now: new Date("2026-09-07T08:01:00.000Z"),
+    createLeaseCredential: () => ({ leaseId: "lease-A", leaseToken: "lease-secret-value" }),
+    createDownloadDescriptor: async tempFileId => {
+      assert.equal(tempFileId, job.tempFileId);
+      return { url: "https://photo.example.test/server-signed", sha256: "a".repeat(64) };
+    }
+  });
+  assert.deepEqual(claim, {
+    jobId: job._id, leaseId: "lease-A", leaseToken: "lease-secret-value",
+    download: { url: "https://photo.example.test/server-signed", sha256: "a".repeat(64) }
+  });
+  assert.equal(job.leaseToken, undefined);
+  await assert.rejects(() => claimContainerJob({
+    database, jobId: job._id, credential: "container-secret", now: new Date("2026-09-07T08:02:00.000Z"),
+    createDownloadDescriptor: async () => ({ url: "https://photo.example.test/x", sha256: "a".repeat(64) })
+  }), /CREDENTIAL_USED/);
 });
 
-test("container credential rejects wrong, expired, and wrong-purpose tokens", async () => {
+test("container claim rejects wrong, expired, and wrong-purpose tokens", async () => {
   const makeJob = purpose => ({
     _id: "job-A", _openid: "openid-A", reservationId: "reservation-A", tempFileId: "cloud://env/analysis/reservation-A/source.jpg",
     credentialHash: require("node:crypto").createHash("sha256").update("container-secret").digest("hex"),
@@ -403,26 +421,27 @@ test("container credential rejects wrong, expired, and wrong-purpose tokens", as
       tempFileId: "cloud://env/analysis/reservation-A/source.jpg", deleteBy: "2026-09-07T08:30:00.000Z"
     }]
   });
-  await assert.rejects(() => consumeContainerCredential({ database: databaseFor(makeJob("face-analysis")), jobId: "job-A", credential: "wrong-secret-value", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_INVALID/);
-  await assert.rejects(() => consumeContainerCredential({ database: databaseFor(makeJob("face-analysis")), jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:06:00Z") }), /CREDENTIAL_EXPIRED/);
-  await assert.rejects(() => consumeContainerCredential({ database: databaseFor(makeJob("other")), jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_INVALID/);
+  const options = { createDownloadDescriptor: async () => ({ url: "https://photo.example.test/x", sha256: "a".repeat(64) }) };
+  await assert.rejects(() => claimContainerJob({ ...options, database: databaseFor(makeJob("face-analysis")), jobId: "job-A", credential: "wrong-secret-value", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_INVALID/);
+  await assert.rejects(() => claimContainerJob({ ...options, database: databaseFor(makeJob("face-analysis")), jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:06:00Z") }), /CREDENTIAL_EXPIRED/);
+  await assert.rejects(() => claimContainerJob({ ...options, database: databaseFor(makeJob("other")), jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_INVALID/);
   const invalidExpiry = makeJob("face-analysis");
   invalidExpiry.credentialExpiresAt = "not-a-date";
-  await assert.rejects(() => consumeContainerCredential({ database: databaseFor(invalidExpiry), jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_INVALID/);
+  await assert.rejects(() => claimContainerJob({ ...options, database: databaseFor(invalidExpiry), jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_INVALID/);
   for (const changes of [
     { status: "failed" }, { status: "complete" }, { sourcePhotoStatus: "deleting" }
   ]) {
-    await assert.rejects(() => consumeContainerCredential({
+    await assert.rejects(() => claimContainerJob({ ...options,
       database: databaseFor({ ...makeJob("face-analysis"), ...changes }),
       jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z")
     }), /CREDENTIAL_INVALID/);
   }
   const retentionExpired = makeJob("face-analysis");
   retentionExpired.deleteBy = "2026-09-07T08:00:30.000Z";
-  await assert.rejects(() => consumeContainerCredential({ database: databaseFor(retentionExpired), jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_EXPIRED/);
+  await assert.rejects(() => claimContainerJob({ ...options, database: databaseFor(retentionExpired), jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z") }), /CREDENTIAL_EXPIRED/);
 });
 
-test("concurrent credential consumption has exactly one winner", async () => {
+test("concurrent container claims have exactly one winner", async () => {
   const hash = require("node:crypto").createHash("sha256").update("container-secret").digest("hex");
   const database = createDatabase({ analysis_jobs: [{
     _id: "job-A", _openid: "openid-A", reservationId: "reservation-A", tempFileId: "cloud://env/analysis/reservation-A/source.jpg",
@@ -438,10 +457,59 @@ test("concurrent credential consumption has exactly one winner", async () => {
     tail = result.catch(() => {});
     return result;
   };
-  const results = await Promise.allSettled([1, 2].map(() => consumeContainerCredential({ database, jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z") })));
+  const results = await Promise.allSettled([1, 2].map(() => claimContainerJob({
+    database, jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00Z"),
+    createDownloadDescriptor: async () => ({ url: "https://photo.example.test/x", sha256: "a".repeat(64) })
+  })));
   assert.equal(results.filter(value => value.status === "fulfilled").length, 1);
   assert.equal(results.filter(value => value.status === "rejected" && /CREDENTIAL_USED/.test(value.reason.message)).length, 1);
   assert.equal(database.records.analysis_jobs[0].status, "processing");
+});
+
+test("container lease completion and failure are idempotent and always schedule source deletion", async () => {
+  const leaseHash = require("node:crypto").createHash("sha256").update("lease-secret-value").digest("hex");
+  const result = {
+    jobId: "job-A", detectionScore: 0.9,
+    points: Array.from({ length: 68 }, () => ({ x: 1, y: 2 })),
+    faceBox: { x: 1, y: 2, width: 3, height: 4 }, imageSize: { width: 100, height: 100 }, modelVersion: "model-A"
+  };
+  for (const action of ["complete", "fail"]) {
+    const database = createDatabase({
+      analysis_jobs: [{
+        _id: "job-A", _openid: "openid-A", reservationId: "reservation-A", status: "processing", sourcePhotoStatus: "pending",
+        leaseId: "lease-A", leaseHash, leaseExpiresAt: "2026-09-07T08:03:00.000Z"
+      }],
+      analysis_uploads: [{ _id: "reservation-A", _openid: "openid-A", jobId: "job-A", status: "assigned" }]
+    });
+    const args = { database, jobId: "job-A", leaseId: "lease-A", leaseToken: "lease-secret-value", now: new Date("2026-09-07T08:02:00.000Z") };
+    if (action === "complete") {
+      assert.deepEqual(await completeContainerJob({ ...args, result }), { jobId: "job-A", status: "complete" });
+      assert.deepEqual(await completeContainerJob({ ...args, result }), { jobId: "job-A", status: "complete" });
+      assert.equal(database.records.analysis_jobs[0].analysisResult.points.length, 68);
+    } else {
+      assert.deepEqual(await failContainerJob({ ...args, errorCode: "NO_FACE" }), { jobId: "job-A", status: "failed" });
+      assert.deepEqual(await failContainerJob({ ...args, errorCode: "NO_FACE" }), { jobId: "job-A", status: "failed" });
+      assert.equal(database.records.analysis_jobs[0].errorCode, "NO_FACE");
+    }
+    assert.equal(database.records.analysis_jobs[0].sourcePhotoStatus, "deleting");
+    assert.equal(database.records.analysis_uploads[0].status, "deleting");
+  }
+});
+
+test("an expired processing lease converges to failed and deleting", async () => {
+  const database = createDatabase({
+    analysis_jobs: [{
+      _id: "job-A", _openid: "openid-A", reservationId: "reservation-A", status: "processing", sourcePhotoStatus: "pending",
+      leaseId: "lease-A", leaseHash: "a".repeat(64), leaseExpiresAt: "2026-09-07T08:03:00.000Z"
+    }],
+    analysis_uploads: [{ _id: "reservation-A", _openid: "openid-A", jobId: "job-A", status: "assigned" }]
+  });
+  assert.deepEqual(await recoverExpiredContainerLease({
+    database, jobId: "job-A", now: new Date("2026-09-07T08:03:01.000Z")
+  }), { jobId: "job-A", status: "failed" });
+  assert.equal(database.records.analysis_jobs[0].errorCode, "LEASE_EXPIRED");
+  assert.equal(database.records.analysis_jobs[0].sourcePhotoStatus, "deleting");
+  assert.equal(database.records.analysis_uploads[0].status, "deleting");
 });
 
 test("internal transitions enforce the documented status enums", () => {
@@ -483,9 +551,10 @@ test("a lost dispatch acknowledgement preserves a credential already consumed by
     database, getWXContext: () => ({ OPENID: "openid-A" }),
     now: () => new Date("2026-09-07T08:00:00.000Z"), createCredential: () => "container-secret",
     dispatchAnalysis: async delivery => {
-      await consumeContainerCredential({
+      await claimContainerJob({
         database, jobId: delivery.jobId, credential: delivery.credential,
-        now: new Date("2026-09-07T08:01:00.000Z")
+        now: new Date("2026-09-07T08:01:00.000Z"),
+        createDownloadDescriptor: async () => ({ url: "https://photo.example.test/x", sha256: "a".repeat(64) })
       });
       throw new Error("acknowledgement lost");
     }
@@ -569,7 +638,7 @@ test("attach and abandon transactions never revive a deleting reservation", asyn
   }
 });
 
-test("container credential refuses a job whose assigned upload has begun deleting", async () => {
+test("container claim refuses a job whose assigned upload has begun deleting", async () => {
   const hash = require("node:crypto").createHash("sha256").update("container-secret").digest("hex");
   const database = createDatabase({
     analysis_jobs: [{
@@ -582,8 +651,9 @@ test("container credential refuses a job whose assigned upload has begun deletin
       status: "deleting", deleteBy: "2026-09-07T08:30:00.000Z"
     }]
   });
-  await assert.rejects(() => consumeContainerCredential({
-    database, jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00.000Z")
+  await assert.rejects(() => claimContainerJob({
+    database, jobId: "job-A", credential: "container-secret", now: new Date("2026-09-07T08:01:00.000Z"),
+    createDownloadDescriptor: async () => ({ url: "https://photo.example.test/x", sha256: "a".repeat(64) })
   }), /CREDENTIAL_INVALID/);
   assert.equal(database.records.analysis_jobs[0].status, "queued");
 });

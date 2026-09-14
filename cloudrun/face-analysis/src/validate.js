@@ -9,22 +9,25 @@ function codedError(code) {
   return error;
 }
 
-function validateAnalyzeInput({ authorization, body }, allowedPhotoHosts) {
-  if (!Array.isArray(allowedPhotoHosts) || allowedPhotoHosts.length === 0) {
-    throw codedError("INVALID_CONFIGURATION");
-  }
+function validateAnalyzeInput({ authorization, body }) {
   const match = typeof authorization === "string" && authorization.match(/^Bearer ([^\s]{16,512})$/);
   if (!match) throw codedError("INVALID_CREDENTIAL");
   if (!body || typeof body.jobId !== "string" || !/^job-[A-Za-z0-9_-]{1,124}$/.test(body.jobId)) {
     throw codedError("INVALID_JOB_ID");
   }
-  if (typeof body.expectedSha256 !== "string" || !/^[a-f0-9]{64}$/.test(body.expectedSha256)) {
+
+  return { credential: match[1], jobId: body.jobId };
+}
+
+function validateDownloadDescriptor(download, allowedPhotoHosts) {
+  if (!Array.isArray(allowedPhotoHosts) || allowedPhotoHosts.length === 0) throw codedError("INVALID_CONFIGURATION");
+  if (!download || typeof download.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(download.sha256)) {
     throw codedError("INVALID_SHA256");
   }
 
   let url;
   try {
-    url = new URL(body.photoUrl);
+    url = new URL(download.url);
   } catch {
     throw codedError("INVALID_PHOTO_URL");
   }
@@ -33,13 +36,7 @@ function validateAnalyzeInput({ authorization, body }, allowedPhotoHosts) {
   }
   const hosts = allowedPhotoHosts.map(host => String(host).trim().toLowerCase()).filter(Boolean);
   if (!hosts.includes(url.hostname.toLowerCase())) throw codedError("PHOTO_HOST_NOT_ALLOWED");
-
-  return {
-    credential: match[1],
-    jobId: body.jobId,
-    photoUrl: url.toString(),
-    expectedSha256: body.expectedSha256
-  };
+  return { url: url.toString(), sha256: download.sha256 };
 }
 
 function validateResult(result) {
@@ -78,9 +75,15 @@ async function downloadPhoto(photoUrl, expectedSha256, options = {}) {
 
   try {
     const response = await fetchImpl(photoUrl, { redirect: "manual", signal: controller.signal });
-    if (!response || response.status !== 200) throw codedError("PHOTO_DOWNLOAD_FAILED");
+    if (!response || response.status !== 200) {
+      try { await response?.body?.cancel(); } catch {}
+      throw codedError("PHOTO_DOWNLOAD_FAILED");
+    }
     const declaredLength = Number(response.headers.get("content-length"));
-    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) throw codedError("PHOTO_TOO_LARGE");
+    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+      try { await response.body?.cancel(); } catch {}
+      throw codedError("PHOTO_TOO_LARGE");
+    }
     if (!response.body || typeof response.body.getReader !== "function") throw codedError("PHOTO_DOWNLOAD_FAILED");
 
     const chunks = [];
@@ -109,4 +112,4 @@ async function downloadPhoto(photoUrl, expectedSha256, options = {}) {
   }
 }
 
-module.exports = { codedError, downloadPhoto, validateAnalyzeInput, validateResult };
+module.exports = { codedError, downloadPhoto, validateAnalyzeInput, validateDownloadDescriptor, validateResult };

@@ -58,6 +58,35 @@ function credentialDigest(credential) {
   return createHash("sha256").update(credential).digest("hex");
 }
 
+function validateDownloadDescriptor(value) {
+  if (!value || typeof value.url !== "string" || !/^https:\/\//.test(value.url)
+    || typeof value.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(value.sha256)) {
+    throw codedError("INVALID_CONFIGURATION");
+  }
+  return { url: value.url, sha256: value.sha256 };
+}
+
+function validateAnalysisResult(result, jobId) {
+  if (!result || result.jobId !== jobId || !Array.isArray(result.points) || result.points.length !== 68
+    || !result.points.every(point => point && Number.isFinite(point.x) && Number.isFinite(point.y))
+    || !Number.isFinite(result.detectionScore) || result.detectionScore < 0 || result.detectionScore > 1
+    || !result.faceBox || !Number.isFinite(result.faceBox.x) || !Number.isFinite(result.faceBox.y)
+    || !Number.isFinite(result.faceBox.width) || result.faceBox.width <= 0
+    || !Number.isFinite(result.faceBox.height) || result.faceBox.height <= 0
+    || !result.imageSize || !Number.isInteger(result.imageSize.width) || result.imageSize.width <= 0
+    || !Number.isInteger(result.imageSize.height) || result.imageSize.height <= 0
+    || typeof result.modelVersion !== "string" || !result.modelVersion) throw codedError("INVALID_RESULT");
+  return result;
+}
+
+function assertLease(job, leaseId, leaseToken) {
+  if (!job || typeof leaseId !== "string" || job.leaseId !== leaseId || typeof leaseToken !== "string"
+    || typeof job.leaseHash !== "string") throw codedError("LEASE_INVALID");
+  const expected = Buffer.from(job.leaseHash, "hex");
+  const actual = Buffer.from(credentialDigest(leaseToken), "hex");
+  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) throw codedError("LEASE_INVALID");
+}
+
 function stableJobId(openid, clientRequestId) {
   return `job-${createHash("sha256").update(JSON.stringify([openid, clientRequestId])).digest("hex")}`;
 }
@@ -341,8 +370,12 @@ function createAnalysisApi({
 
     if (event.action === "getAnalysis") {
       const jobId = requireId(payload.jobId);
-      const job = await readOptional(database.collection("analysis_jobs").doc(jobId));
+      let job = await readOptional(database.collection("analysis_jobs").doc(jobId));
       assertOwnedRecord(job, openid);
+      if (job.status === "processing" && deadlineMillis(job.leaseExpiresAt) <= now().getTime()) {
+        await recoverExpiredContainerLease({ database, jobId, now: now() });
+        job = await readOptional(database.collection("analysis_jobs").doc(jobId));
+      }
       if (!ANALYSIS_STATUSES.has(job.status)) throw codedError("INVALID_STATUS");
       return minimalStatus(job);
     }
@@ -351,7 +384,15 @@ function createAnalysisApi({
   };
 }
 
-async function consumeContainerCredential({ database, jobId, credential, now = new Date() }) {
+async function claimContainerJob({
+  database,
+  jobId,
+  credential,
+  now = new Date(),
+  createDownloadDescriptor,
+  createLeaseCredential = () => ({ leaseId: `lease-${randomUUID()}`, leaseToken: randomBytes(32).toString("base64url") })
+}) {
+  if (typeof createDownloadDescriptor !== "function") throw codedError("INVALID_CONFIGURATION");
   return database.runTransaction(async transaction => {
     const reference = transaction.collection("analysis_jobs").doc(requireId(jobId));
     const job = await readOptional(reference);
@@ -370,13 +411,66 @@ async function consumeContainerCredential({ database, jobId, credential, now = n
     const expected = Buffer.from(job.credentialHash, "hex");
     const actual = Buffer.from(credentialDigest(credential), "hex");
     if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) throw codedError("CREDENTIAL_INVALID");
+    const lease = createLeaseCredential();
+    if (!lease || typeof lease.leaseId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(lease.leaseId)
+      || typeof lease.leaseToken !== "string" || lease.leaseToken.length < 16) throw codedError("INVALID_CONFIGURATION");
+    const download = validateDownloadDescriptor(await createDownloadDescriptor(job.tempFileId, jobId));
+    const leaseExpiresAt = new Date(Math.min(now.getTime() + 2 * 60 * 1000, deleteBy)).toISOString();
     const next = transitionAnalysisJob(job, { status: "processing" });
     await reference.update({
       status: next.status,
       sourcePhotoStatus: next.sourcePhotoStatus,
-      credentialUsedAt: database.serverDate()
+      credentialUsedAt: database.serverDate(),
+      leaseId: lease.leaseId,
+      leaseHash: credentialDigest(lease.leaseToken),
+      leaseExpiresAt
     });
-    return true;
+    return { jobId, leaseId: lease.leaseId, leaseToken: lease.leaseToken, download };
+  });
+}
+
+async function settleContainerJob({ database, jobId, leaseId, leaseToken, now, status, errorCode, result }) {
+  return database.runTransaction(async transaction => {
+    const reference = transaction.collection("analysis_jobs").doc(requireId(jobId));
+    const job = await readOptional(reference);
+    assertLease(job, leaseId, leaseToken);
+    if (job.status === "complete" || job.status === "failed") return { jobId, status: job.status };
+    if (job.status !== "processing" || deadlineMillis(job.leaseExpiresAt) <= now.getTime()) throw codedError("LEASE_EXPIRED");
+    const uploadReference = transaction.collection("analysis_uploads").doc(requireId(job.reservationId));
+    const upload = await readOptional(uploadReference);
+    if (!upload || upload._openid !== job._openid || upload.jobId !== jobId || upload.status !== "assigned") throw codedError("LEASE_INVALID");
+    const next = transitionAnalysisJob(job, { status, sourcePhotoStatus: "deleting" });
+    const changes = { status: next.status, sourcePhotoStatus: next.sourcePhotoStatus, settledAt: database.serverDate() };
+    if (status === "complete") changes.analysisResult = validateAnalysisResult(result, jobId);
+    else changes.errorCode = typeof errorCode === "string" && /^[A-Z0-9_]{1,64}$/.test(errorCode) ? errorCode : "ANALYSIS_FAILED";
+    await reference.update(changes);
+    await uploadReference.update({ status: "deleting", abandonedAt: database.serverDate() });
+    return { jobId, status };
+  });
+}
+
+function completeContainerJob({ database, jobId, leaseId, leaseToken, result, now = new Date() }) {
+  return settleContainerJob({ database, jobId, leaseId, leaseToken, result, now, status: "complete" });
+}
+
+function failContainerJob({ database, jobId, leaseId, leaseToken, errorCode, now = new Date() }) {
+  return settleContainerJob({ database, jobId, leaseId, leaseToken, errorCode, now, status: "failed" });
+}
+
+async function recoverExpiredContainerLease({ database, jobId, now = new Date() }) {
+  return database.runTransaction(async transaction => {
+    const reference = transaction.collection("analysis_jobs").doc(requireId(jobId));
+    const job = await readOptional(reference);
+    if (!job) throw codedError("INVALID_STATUS");
+    if (job.status !== "processing" || deadlineMillis(job.leaseExpiresAt) > now.getTime()) return { jobId, status: job.status };
+    const next = transitionAnalysisJob(job, { status: "failed", sourcePhotoStatus: "deleting" });
+    await reference.update({ status: next.status, sourcePhotoStatus: next.sourcePhotoStatus, errorCode: "LEASE_EXPIRED" });
+    const uploadReference = transaction.collection("analysis_uploads").doc(requireId(job.reservationId));
+    const upload = await readOptional(uploadReference);
+    if (upload && upload._openid === job._openid && upload.jobId === jobId && upload.status === "assigned") {
+      await uploadReference.update({ status: "deleting", abandonedAt: database.serverDate() });
+    }
+    return { jobId, status: "failed" };
   });
 }
 
@@ -389,8 +483,11 @@ async function analysisApi(event, context) {
 module.exports = {
   main: createClientSafeMain(analysisApi),
   analysisApi,
+  claimContainerJob,
+  completeContainerJob,
   createAnalysisApi,
   createClientSafeMain,
-  consumeContainerCredential,
+  failContainerJob,
+  recoverExpiredContainerLease,
   transitionAnalysisJob
 };
