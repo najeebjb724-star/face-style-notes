@@ -94,7 +94,7 @@ test("photo download enforces its timeout", async () => {
   );
 });
 
-serviceTest("job coordinator retries transient claim failures and strictly validates successful claims", async () => {
+serviceTest("job coordinator classifies transient claim failures and strictly validates successful claims", async () => {
   const { createJobCoordinator } = require("../../cloudrun/face-analysis/src/server");
   assert.throws(
     () => createJobCoordinator({ endpoint: "http://credential.example.test/consume" }),
@@ -120,6 +120,13 @@ serviceTest("job coordinator retries transient claim failures and strictly valid
     fetchImpl: async () => new Response(JSON.stringify({ ok: true }), { status: 200 })
   });
   await assert.rejects(malformed.claim({ jobId: "job-a", credential: "a".repeat(32) }), /CREDENTIAL_SERVICE_UNAVAILABLE/);
+});
+
+serviceTest("invalid server download descriptors are unavailable rather than client errors", () => {
+  const { safeError } = require("../../cloudrun/face-analysis/src/server");
+  for (const code of ["INVALID_PHOTO_URL", "INVALID_SHA256", "PHOTO_HOST_NOT_ALLOWED"]) {
+    assert.deepEqual(safeError({ code }), { status: 503, code: "CREDENTIAL_SERVICE_UNAVAILABLE" });
+  }
 });
 
 serviceTest("health stays unavailable until model loading has completed", async t => {
@@ -189,15 +196,16 @@ serviceTest("analyze downloads only the server-bound descriptor then completes i
   assert.deepEqual(calls[1], ["download", "https://photo.example.test/server-bound", SHA256]);
 });
 
-serviceTest("analyze reports a claimed job failure and serializes inference", async t => {
+serviceTest("analyze rejects overload before claim or download and releases capacity after failure", async t => {
   let active = 0;
   let maxActive = 0;
   let releaseFirst;
   const failures = [];
+  const claims = [];
   const app = createApp({
     allowedPhotoHosts: ["photo.example.test"],
     jobCoordinator: {
-      async claim({ jobId }) { return { jobId, leaseId: `lease-${jobId}`, leaseToken: "l".repeat(32), download: { url: "https://photo.example.test/server", sha256: SHA256 } }; },
+      async claim({ jobId }) { claims.push(jobId); return { jobId, leaseId: `lease-${jobId}`, leaseToken: "l".repeat(32), download: { url: "https://photo.example.test/server", sha256: SHA256 } }; },
       async complete() {},
       async fail(value) { failures.push(value); }
     },
@@ -217,21 +225,24 @@ serviceTest("analyze reports a claimed job failure and serializes inference", as
   t.after(() => server.close());
   const base = `http:\/\/127.0.0.1:${server.address().port}`;
   const request = jobId => fetch(`${base}/analyze`, {
+    signal: AbortSignal.timeout(2000),
     method: "POST", headers: { authorization: `Bearer ${"a".repeat(32)}`, "content-type": "application/json" },
     body: JSON.stringify({ jobId })
   });
   const first = request("job-first");
   while (!releaseFirst) await new Promise(resolve => setImmediate(resolve));
-  const second = request("job-second");
-  await new Promise(resolve => setImmediate(resolve));
+  t.after(() => releaseFirst());
+  const second = await request("job-second");
+  assert.equal(second.status, 429);
+  assert.deepEqual(claims, ["job-first"]);
   assert.equal(maxActive, 1);
   releaseFirst();
   assert.equal((await first).status, 200);
-  assert.equal((await second).status, 200);
   const failed = await request("job-fail");
   assert.equal(failed.status, 422);
   assert.equal(failures.length, 1);
   assert.equal(failures[0].errorCode, "NO_FACE");
+  assert.equal((await request("job-retry")).status, 200);
 });
 
 serviceTest("analyze exposes stable face error codes without leaking internal messages", async t => {

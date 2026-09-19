@@ -7,7 +7,7 @@ const {
 } = require("./validate");
 
 const CLIENT_ERROR_CODES = new Set([
-  "INVALID_CREDENTIAL", "INVALID_JOB_ID", "INVALID_PHOTO_URL", "INVALID_SHA256", "PHOTO_HOST_NOT_ALLOWED"
+  "INVALID_CREDENTIAL", "INVALID_JOB_ID"
 ]);
 const CREDENTIAL_ERROR_CODES = new Set(["CREDENTIAL_INVALID", "CREDENTIAL_EXPIRED", "CREDENTIAL_USED"]);
 const PHOTO_ERROR_CODES = new Set([
@@ -20,6 +20,9 @@ function safeError(error) {
   if (CLIENT_ERROR_CODES.has(code)) return { status: 400, code };
   if (CREDENTIAL_ERROR_CODES.has(code)) return { status: 401, code };
   if (code === "CREDENTIAL_SERVICE_UNAVAILABLE") return { status: 503, code };
+  if (["INVALID_PHOTO_URL", "INVALID_SHA256", "PHOTO_HOST_NOT_ALLOWED"].includes(code)) {
+    return { status: 503, code: "CREDENTIAL_SERVICE_UNAVAILABLE" };
+  }
   if (PHOTO_ERROR_CODES.has(code)) return { status: 422, code };
   if (FACE_ERROR_CODES.has(code)) return { status: 422, code };
   if (code === "INVALID_CONFIGURATION") return { status: 503, code };
@@ -39,12 +42,7 @@ function createApp(dependencies) {
   app.disable("x-powered-by");
   app.set("query parser", false);
   app.use(express.json({ limit: "16kb", strict: true }));
-  let inferenceTail = Promise.resolve();
-  const runInference = task => {
-    const result = inferenceTail.then(task);
-    inferenceTail = result.catch(() => {});
-    return result;
-  };
+  let busy = false;
 
   app.get("/health", (_request, response) => {
     const modelLoaded = isModelLoaded();
@@ -52,6 +50,11 @@ function createApp(dependencies) {
   });
 
   app.post("/analyze", async (request, response) => {
+    if (busy) {
+      response.status(429).json({ ok: false, code: "ANALYSIS_BUSY" });
+      return;
+    }
+    busy = true;
     let claim;
     let settled = false;
     try {
@@ -60,7 +63,7 @@ function createApp(dependencies) {
       if (!claim || claim.jobId !== input.jobId) throw codedError("CREDENTIAL_SERVICE_UNAVAILABLE");
       const download = validateDownloadDescriptor(claim.download, allowedPhotoHosts);
       const photo = await fetchPhoto(download.url, download.sha256);
-      const result = await runInference(() => inferBuffer(photo, input.jobId));
+      const result = await inferBuffer(photo, input.jobId);
       await jobCoordinator.complete({ claim, result });
       settled = true;
       response.status(200).json(result);
@@ -70,6 +73,8 @@ function createApp(dependencies) {
         try { await jobCoordinator.fail({ claim, errorCode: safe.code }); } catch {}
       }
       response.status(safe.status).json({ ok: false, code: safe.code });
+    } finally {
+      busy = false;
     }
   });
 

@@ -40,5 +40,6 @@ test("release verification cannot silently skip real model and container checks"
   assert.match(gate, /npm[\s\S]*audit[\s\S]*audit-level[\s\S]*critical/);
   assert.match(gate, /docker/);
   assert.match(dockerfile, /USER node/);
+  assert.match(dockerfile, /^FROM node:20-bookworm-slim@sha256:[a-f0-9]{64}/);
   assert.match(dockerfile, /org\.opencontainers\.image\.base\.digest/);
 });
