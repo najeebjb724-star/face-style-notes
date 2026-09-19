@@ -12,10 +12,22 @@ function run(command, args, options = {}) {
     ...options
   });
   if (result.error) throw result.error;
-  if (result.status !== 0) process.exit(result.status || 1);
+  if (result.status !== 0) {
+    const error = new Error(`Release check failed: ${command}`);
+    error.exitCode = result.status || 1;
+    throw error;
+  }
 }
 
-run("npm", ["audit", "--package-lock-only", "--omit=dev", "--audit-level=critical"], {
+function npmInvocation() {
+  const cli = process.env.npm_execpath || path.join(path.dirname(process.execPath), "node_modules/npm/bin/npm-cli.js");
+  if (!require("node:fs").existsSync(cli)) throw new Error("Run this check using npm run test:face-analysis-release");
+  return { command: process.execPath, args: [cli] };
+}
+
+function main() {
+const npm = npmInvocation();
+run(npm.command, [...npm.args, "audit", "--package-lock-only", "--omit=dev", "--audit-level=critical"], {
   cwd: path.join(root, "cloudrun/face-analysis")
 });
 run("docker", ["build", "-t", image, "cloudrun/face-analysis"]);
@@ -32,3 +44,13 @@ run("docker", [
   image,
   "node", "--test", "tests/cloudrun/inference-contract.test.cjs", "tests/cloudrun/service-contract.test.cjs"
 ]);
+}
+
+if (require.main === module) {
+  try { main(); } catch (error) {
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = error.exitCode || 1;
+  }
+}
+
+module.exports = { npmInvocation };
