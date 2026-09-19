@@ -1,4 +1,4 @@
-// analysisApi-build-fingerprint:ec0cad3e0362c2dd6cdc89948782cf0c21ff9dd66b63f4bb854b699cf6e8ec6b:fe570b19aa8ac7e4d08712efc5a60883d8f1c4cb3b97cf83abbc3ddaf9dab146
+// analysisApi-build-fingerprint:9b087ffd8444211890b13a038b27b9b3a39da1bb707fad25d58797e5e08c3f45:65862ff40e772c00109d7ea17c8be62da323b06395b00da2416d7463a4731d98
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
@@ -454,10 +454,131 @@ async function recoverExpiredContainerLease({ database, jobId, now = /* @__PURE_
     return { jobId, status: "failed" };
   });
 }
+function requireHttpsUrl(value, hosts) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw codedError("INVALID_CONFIGURATION");
+  }
+  if (url.protocol !== "https:" || url.username || url.password || url.port && url.port !== "443" || hosts && !hosts.includes(url.hostname.toLowerCase())) throw codedError("INVALID_CONFIGURATION");
+  return url.toString();
+}
+function createProductionDownloadDescriptor({ cloud, allowedPhotoHosts, fetchImpl = globalThis.fetch }) {
+  if (!cloud || !Array.isArray(allowedPhotoHosts) || !allowedPhotoHosts.length) throw codedError("INVALID_CONFIGURATION");
+  const hosts = allowedPhotoHosts.map((host) => String(host).toLowerCase());
+  return async (tempFileId) => {
+    requireTempFileId(tempFileId);
+    const signed = await cloud.getTempFileURL({ fileList: [tempFileId] });
+    const item = signed?.fileList?.[0];
+    if (item?.fileID !== tempFileId || item.status !== 0) throw codedError("INVALID_CONFIGURATION");
+    const url = requireHttpsUrl(item.tempFileURL, hosts);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1e4);
+    try {
+      const response = await fetchImpl(url, { redirect: "manual", signal: controller.signal });
+      if (response?.status !== 200 || !response.body?.getReader) {
+        try {
+          await response?.body?.cancel?.();
+        } catch {
+        }
+        throw codedError("PHOTO_DOWNLOAD_FAILED");
+      }
+      if (Number(response.headers.get("content-length")) > 8 * 1024 * 1024) {
+        try {
+          await response.body.cancel();
+        } catch {
+        }
+        throw codedError("PHOTO_TOO_LARGE");
+      }
+      const reader = response.body.getReader();
+      const digest = createHash("sha256");
+      let size = 0;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > 8 * 1024 * 1024) {
+          await reader.cancel();
+          throw codedError("PHOTO_TOO_LARGE");
+        }
+        digest.update(value);
+      }
+      return { url, sha256: digest.digest("hex") };
+    } catch (error) {
+      if (controller.signal.aborted) throw codedError("PHOTO_DOWNLOAD_TIMEOUT");
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+function createProductionDispatch({ endpoint, fetchImpl = globalThis.fetch }) {
+  const url = requireHttpsUrl(endpoint);
+  return async ({ jobId, credential }) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 115e3);
+    try {
+      const response = await fetchImpl(url, {
+        method: "POST",
+        redirect: "manual",
+        signal: controller.signal,
+        headers: { authorization: `Bearer ${credential}`, "content-type": "application/json" },
+        body: JSON.stringify({ jobId })
+      });
+      try {
+        await response?.body?.cancel?.();
+      } catch {
+      }
+      if (response?.status !== 200) throw codedError("DISPATCH_FAILED");
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+function createContainerCoordinatorMain({ database, createDownloadDescriptor, now = () => /* @__PURE__ */ new Date() }) {
+  if (!database || typeof createDownloadDescriptor !== "function") throw codedError("INVALID_CONFIGURATION");
+  return async (event) => {
+    const reply = (statusCode, value) => ({ statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(value) });
+    if (event?.httpMethod !== "POST") return reply(405, { ok: false, code: "INVALID_METHOD" });
+    const auth = event.headers?.authorization || event.headers?.Authorization;
+    const match = typeof auth === "string" && auth.match(/^Bearer ([^\s]{16,512})$/);
+    if (!match) return reply(401, { ok: false, code: "CREDENTIAL_INVALID" });
+    let input;
+    try {
+      input = typeof event.body === "string" ? JSON.parse(event.body) : event.body;
+    } catch {
+      return reply(400, { ok: false, code: "INVALID_REQUEST" });
+    }
+    if (!input || typeof input !== "object" || Array.isArray(input)) return reply(400, { ok: false, code: "INVALID_REQUEST" });
+    try {
+      const jobId = requireId(input.jobId);
+      let result;
+      if (input.action === "claim") result = await claimContainerJob({ database, jobId, credential: match[1], now: now(), createDownloadDescriptor });
+      else if (input.action === "complete") result = await completeContainerJob({ database, jobId, leaseId: input.leaseId, leaseToken: match[1], result: input.result, now: now() });
+      else if (input.action === "fail") result = await failContainerJob({ database, jobId, leaseId: input.leaseId, leaseToken: match[1], errorCode: input.errorCode, now: now() });
+      else return reply(400, { ok: false, code: "INVALID_ACTION" });
+      return reply(200, { ok: true, ...result });
+    } catch (error) {
+      if (["CREDENTIAL_INVALID", "CREDENTIAL_EXPIRED", "CREDENTIAL_USED", "LEASE_INVALID", "LEASE_EXPIRED"].includes(error?.code)) {
+        return reply(401, { ok: false, code: "CREDENTIAL_INVALID" });
+      }
+      return reply(503, { ok: false, code: "CREDENTIAL_SERVICE_UNAVAILABLE" });
+    }
+  };
+}
 async function analysisApi(event, context) {
   const cloud = require("wx-server-sdk");
   cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
-  return createAnalysisApi({ database: cloud.database(), getWXContext: () => cloud.getWXContext() })(event, context);
+  if (event?.httpMethod) {
+    const createDownloadDescriptor = createProductionDownloadDescriptor({
+      cloud,
+      allowedPhotoHosts: String(process.env.PHOTO_URL_HOSTS || "").split(",").map((host) => host.trim()).filter(Boolean)
+    });
+    return createContainerCoordinatorMain({ database: cloud.database(), createDownloadDescriptor })(event);
+  }
+  const dispatchAnalysis = (delivery) => createProductionDispatch({ endpoint: process.env.FACE_ANALYSIS_URL })(delivery);
+  return createAnalysisApi({ database: cloud.database(), getWXContext: () => cloud.getWXContext(), dispatchAnalysis })(event, context);
 }
 module.exports = {
   main: createClientSafeMain(analysisApi),
@@ -466,6 +587,9 @@ module.exports = {
   completeContainerJob,
   createAnalysisApi,
   createClientSafeMain,
+  createContainerCoordinatorMain,
+  createProductionDispatch,
+  createProductionDownloadDescriptor,
   failContainerJob,
   recoverExpiredContainerLease,
   transitionAnalysisJob

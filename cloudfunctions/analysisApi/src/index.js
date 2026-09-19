@@ -474,10 +474,109 @@ async function recoverExpiredContainerLease({ database, jobId, now = new Date() 
   });
 }
 
+function requireHttpsUrl(value, hosts) {
+  let url;
+  try { url = new URL(value); } catch { throw codedError("INVALID_CONFIGURATION"); }
+  if (url.protocol !== "https:" || url.username || url.password || (url.port && url.port !== "443")
+    || (hosts && !hosts.includes(url.hostname.toLowerCase()))) throw codedError("INVALID_CONFIGURATION");
+  return url.toString();
+}
+
+function createProductionDownloadDescriptor({ cloud, allowedPhotoHosts, fetchImpl = globalThis.fetch }) {
+  if (!cloud || !Array.isArray(allowedPhotoHosts) || !allowedPhotoHosts.length) throw codedError("INVALID_CONFIGURATION");
+  const hosts = allowedPhotoHosts.map(host => String(host).toLowerCase());
+  return async tempFileId => {
+    requireTempFileId(tempFileId);
+    const signed = await cloud.getTempFileURL({ fileList: [tempFileId] });
+    const item = signed?.fileList?.[0];
+    if (item?.fileID !== tempFileId || item.status !== 0) throw codedError("INVALID_CONFIGURATION");
+    const url = requireHttpsUrl(item.tempFileURL, hosts);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    try {
+      const response = await fetchImpl(url, { redirect: "manual", signal: controller.signal });
+      if (response?.status !== 200 || !response.body?.getReader) {
+        try { await response?.body?.cancel?.(); } catch {}
+        throw codedError("PHOTO_DOWNLOAD_FAILED");
+      }
+      if (Number(response.headers.get("content-length")) > 8 * 1024 * 1024) {
+        try { await response.body.cancel(); } catch {}
+        throw codedError("PHOTO_TOO_LARGE");
+      }
+      const reader = response.body.getReader();
+      const digest = createHash("sha256");
+      let size = 0;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > 8 * 1024 * 1024) { await reader.cancel(); throw codedError("PHOTO_TOO_LARGE"); }
+        digest.update(value);
+      }
+      return { url, sha256: digest.digest("hex") };
+    } catch (error) {
+      if (controller.signal.aborted) throw codedError("PHOTO_DOWNLOAD_TIMEOUT");
+      throw error;
+    } finally { clearTimeout(timer); }
+  };
+}
+
+function createProductionDispatch({ endpoint, fetchImpl = globalThis.fetch }) {
+  const url = requireHttpsUrl(endpoint);
+  return async ({ jobId, credential }) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 115_000);
+    try {
+      const response = await fetchImpl(url, {
+        method: "POST", redirect: "manual", signal: controller.signal,
+        headers: { authorization: `Bearer ${credential}`, "content-type": "application/json" },
+        body: JSON.stringify({ jobId })
+      });
+      try { await response?.body?.cancel?.(); } catch {}
+      if (response?.status !== 200) throw codedError("DISPATCH_FAILED");
+    } finally { clearTimeout(timer); }
+  };
+}
+
+function createContainerCoordinatorMain({ database, createDownloadDescriptor, now = () => new Date() }) {
+  if (!database || typeof createDownloadDescriptor !== "function") throw codedError("INVALID_CONFIGURATION");
+  return async event => {
+    const reply = (statusCode, value) => ({ statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(value) });
+    if (event?.httpMethod !== "POST") return reply(405, { ok: false, code: "INVALID_METHOD" });
+    const auth = event.headers?.authorization || event.headers?.Authorization;
+    const match = typeof auth === "string" && auth.match(/^Bearer ([^\s]{16,512})$/);
+    if (!match) return reply(401, { ok: false, code: "CREDENTIAL_INVALID" });
+    let input;
+    try { input = typeof event.body === "string" ? JSON.parse(event.body) : event.body; }
+    catch { return reply(400, { ok: false, code: "INVALID_REQUEST" }); }
+    if (!input || typeof input !== "object" || Array.isArray(input)) return reply(400, { ok: false, code: "INVALID_REQUEST" });
+    try {
+      const jobId = requireId(input.jobId);
+      let result;
+      if (input.action === "claim") result = await claimContainerJob({ database, jobId, credential: match[1], now: now(), createDownloadDescriptor });
+      else if (input.action === "complete") result = await completeContainerJob({ database, jobId, leaseId: input.leaseId, leaseToken: match[1], result: input.result, now: now() });
+      else if (input.action === "fail") result = await failContainerJob({ database, jobId, leaseId: input.leaseId, leaseToken: match[1], errorCode: input.errorCode, now: now() });
+      else return reply(400, { ok: false, code: "INVALID_ACTION" });
+      return reply(200, { ok: true, ...result });
+    } catch (error) {
+      if (["CREDENTIAL_INVALID", "CREDENTIAL_EXPIRED", "CREDENTIAL_USED", "LEASE_INVALID", "LEASE_EXPIRED"].includes(error?.code)) {
+        return reply(401, { ok: false, code: "CREDENTIAL_INVALID" });
+      }
+      return reply(503, { ok: false, code: "CREDENTIAL_SERVICE_UNAVAILABLE" });
+    }
+  };
+}
+
 async function analysisApi(event, context) {
   const cloud = require("wx-server-sdk");
   cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
-  return createAnalysisApi({ database: cloud.database(), getWXContext: () => cloud.getWXContext() })(event, context);
+  if (event?.httpMethod) {
+    const createDownloadDescriptor = createProductionDownloadDescriptor({ cloud,
+      allowedPhotoHosts: String(process.env.PHOTO_URL_HOSTS || "").split(",").map(host => host.trim()).filter(Boolean) });
+    return createContainerCoordinatorMain({ database: cloud.database(), createDownloadDescriptor })(event);
+  }
+  const dispatchAnalysis = delivery => createProductionDispatch({ endpoint: process.env.FACE_ANALYSIS_URL })(delivery);
+  return createAnalysisApi({ database: cloud.database(), getWXContext: () => cloud.getWXContext(), dispatchAnalysis })(event, context);
 }
 
 module.exports = {
@@ -487,6 +586,9 @@ module.exports = {
   completeContainerJob,
   createAnalysisApi,
   createClientSafeMain,
+  createContainerCoordinatorMain,
+  createProductionDispatch,
+  createProductionDownloadDescriptor,
   failContainerJob,
   recoverExpiredContainerLease,
   transitionAnalysisJob

@@ -10,10 +10,79 @@ const {
   claimContainerJob,
   completeContainerJob,
   createAnalysisApi,
+  createContainerCoordinatorMain,
+  createProductionDispatch,
+  createProductionDownloadDescriptor,
   failContainerJob,
   recoverExpiredContainerLease,
   transitionAnalysisJob
 } = require("../../cloudfunctions/analysisApi");
+
+test("container HTTP adapter rejects missing bearer without touching jobs", async () => {
+  const main = createContainerCoordinatorMain({
+    database: { runTransaction() { throw new Error("must not read database"); } },
+    createDownloadDescriptor: async () => { throw new Error("must not sign"); }
+  });
+  const response = await main({ httpMethod: "POST", headers: {}, body: JSON.stringify({ action: "claim", jobId: "job-A" }) });
+  assert.equal(response.statusCode, 401);
+  assert.equal(JSON.parse(response.body).code, "CREDENTIAL_INVALID");
+});
+
+test("container HTTP adapter claims the owned photo then settles failure with a lease", async () => {
+  const { api, database } = setup("openid-A", { consents: [activeConsent] });
+  await api({ action: "createAnalysis", payload: analysisPayload() });
+  const job = database.records.analysis_jobs[0];
+  const main = createContainerCoordinatorMain({ database, now: () => new Date("2026-09-07T08:01:00.000Z"),
+    createDownloadDescriptor: async fileId => {
+      assert.equal(fileId, job.tempFileId);
+      return { url: "https://photo.example.test/server", sha256: "a".repeat(64) };
+    }
+  });
+  const send = (token, body) => main({ httpMethod: "POST", headers: { authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+  const claimed = await send("container-secret", { action: "claim", jobId: job._id });
+  assert.equal(claimed.statusCode, 200);
+  const claim = JSON.parse(claimed.body);
+  assert.equal(claim.download.url, "https://photo.example.test/server");
+  assert.equal(job.status, "processing");
+  const settled = await send(claim.leaseToken, { action: "fail", jobId: job._id,
+    leaseId: claim.leaseId, errorCode: "NO_FACE" });
+  assert.equal(JSON.parse(settled.body).status, "failed");
+  assert.equal(job.sourcePhotoStatus, "deleting");
+  assert.equal(database.records.analysis_uploads[0].status, "deleting");
+});
+
+test("production dispatch sends only job id and bearer to the configured HTTPS model", async () => {
+  const calls = [];
+  const dispatch = createProductionDispatch({
+    endpoint: "https://model.example.test/analyze",
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return { status: 200, ok: true, body: { cancel() {} } };
+    }
+  });
+  await dispatch({ jobId: "job-A", credential: "secret-credential-value", tempFileId: "cloud://private.jpg" });
+  assert.equal(calls[0].url, "https://model.example.test/analyze");
+  assert.deepEqual(JSON.parse(calls[0].options.body), { jobId: "job-A" });
+  assert.equal(calls[0].options.headers.authorization, "Bearer secret-credential-value");
+  assert.throws(() => createProductionDispatch({ endpoint: "http://insecure.test" }), /INVALID_CONFIGURATION/);
+});
+
+test("production descriptor hashes only the server-selected cloud file and rejects oversized downloads", async () => {
+  const photo = Buffer.from("photo-data");
+  const cloud = { getTempFileURL: async ({ fileList }) => {
+    assert.deepEqual(fileList, ["cloud://env/analysis/reservation-A/source.jpg"]);
+    return { fileList: [{ fileID: fileList[0], status: 0, tempFileURL: "https://photo.example.test/signed" }] };
+  } };
+  const descriptor = createProductionDownloadDescriptor({ cloud, allowedPhotoHosts: ["photo.example.test"],
+    fetchImpl: async () => new Response(photo, { status: 200 }) });
+  assert.deepEqual(await descriptor("cloud://env/analysis/reservation-A/source.jpg"), {
+    url: "https://photo.example.test/signed",
+    sha256: require("node:crypto").createHash("sha256").update(photo).digest("hex")
+  });
+  const tooLarge = createProductionDownloadDescriptor({ cloud, allowedPhotoHosts: ["photo.example.test"],
+    fetchImpl: async () => new Response(photo, { status: 200, headers: { "content-length": String(9 * 1024 * 1024) } }) });
+  await assert.rejects(tooLarge("cloud://env/analysis/reservation-A/source.jpg"), /PHOTO_TOO_LARGE/);
+});
 
 function createDatabase(seed = {}) {
   const records = Object.fromEntries(Object.entries(seed).map(([name, values]) => [name, values.map(value => ({ ...value }))]));
