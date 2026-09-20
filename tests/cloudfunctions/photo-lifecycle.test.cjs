@@ -16,10 +16,11 @@ const NOW = new Date("2026-09-07T08:00:00.000Z");
 function database(seed = {}) {
   const records = structuredClone(seed);
   let inTransaction = false;
-  const command = Object.fromEntries(["lte", "in", "neq"].map(op => [op, value => ({ op, value })]));
+  const command = Object.fromEntries(["lte", "gt", "in", "neq"].map(op => [op, value => ({ op, value })]));
   const matches = (item, filter) => Object.entries(filter).every(([key, value]) => {
     if (!value?.op) return item[key] === value;
     if (value.op === "lte") return item[key] <= value.value;
+    if (value.op === "gt") return item[key] > value.value;
     if (value.op === "in") return value.value.includes(item[key]);
     return item[key] !== value.value;
   });
@@ -30,9 +31,9 @@ function database(seed = {}) {
       async update(data) { Object.assign(records[name].find(x => x._id === id), data); },
       async remove() { records[name] = records[name].filter(x => x._id !== id); }
     }; },
-    where(filter) { let limit = 100; return {
-      limit(value) { limit = value; return this; }, orderBy() { return this; },
-      async get() { return { data: structuredClone((records[name] || []).filter(x => matches(x, filter)).slice(0, limit)) }; }
+    where(filter) { let limit = 100; let order; return {
+      limit(value) { limit = value; return this; }, orderBy(key) { order = key; return this; },
+      async get() { const rows = (records[name] || []).filter(x => matches(x, filter)); if (order) rows.sort((a, b) => String(a[order]).localeCompare(String(b[order]))); return { data: structuredClone(rows.slice(0, limit)) }; }
     }; }
   });
   return { records, command, collection, serverDate: () => NOW.toISOString(),
@@ -167,6 +168,59 @@ test("timer deletes no more than 50 photos in one invocation", async () => {
   await lifecycle.deleteExpiredPhotos(NOW); assert.equal(calls.length, 65);
 });
 
+test("overdue analysis originals have priority over a large challenge deletion", async () => {
+  const seed = { ...seedJob(), deletion_jobs: [{ _id: "challenge-c", kind: "challenge", sourceId: "c", _openid: "owner", state: "pending", dueAt: "2026-09-01", deleteAll: true }],
+    challenge_photos: Array.from({ length: 60 }, (_, i) => ({ _id: `photo-${String(i).padStart(2, "0")}`, challengeId: "c", _openid: "owner", fileId: `cloud://env/photo-${i}` })) };
+  seed.analysis_jobs[0].status = "failed";
+  const { lifecycle, calls } = setup(seed);
+  await lifecycle.deleteExpiredPhotos(NOW);
+  assert.deepEqual(calls[0], ["cloud://env/analysis/upload-A/source.jpg"]);
+  assert.equal(calls.length, 50);
+});
+
+test("challenge cleanup advances past retry-not-due photos and reaches later pages", async () => {
+  const photos = Array.from({ length: 60 }, (_, i) => ({ _id: `photo-${String(i).padStart(2, "0")}`, challengeId: "c", _openid: "owner", fileId: `cloud://env/photo-${i}` }));
+  const seed = { deletion_jobs: [{ _id: "challenge-c", kind: "challenge", sourceId: "c", _openid: "owner", state: "pending", dueAt: "2026-09-01", deleteAll: true },
+    ...photos.slice(0, 50).map(photo => ({ _id: `challenge-photo-${photo._id}`, kind: "challenge-photo", sourceId: photo._id, _openid: "owner", state: "retrying", dueAt: "2026-09-08" }))], challenge_photos: photos };
+  const { lifecycle, calls } = setup(seed);
+  await lifecycle.deleteExpiredPhotos(NOW);
+  assert.equal(calls.length, 0);
+  await lifecycle.deleteExpiredPhotos(new Date(NOW.getTime() + 60000));
+  assert.equal(calls.length, 10);
+  assert.deepEqual(calls.map(x => x[0]), photos.slice(50).map(x => x.fileId));
+});
+
+test("repeated challenge failures rotate the scan so photos beyond fifty get an attempt", async () => {
+  const photos = Array.from({ length: 60 }, (_, i) => ({ _id: `photo-${String(i).padStart(2, "0")}`, challengeId: "c", _openid: "owner", fileId: `cloud://env/photo-${i}` }));
+  const { db, lifecycle, calls } = setup({ deletion_jobs: [{ _id: "challenge-c", kind: "challenge", sourceId: "c", _openid: "owner", state: "pending", dueAt: "2026-09-01", deleteAll: true }], challenge_photos: photos },
+    { deleteFile: async ({ fileList }) => { calls.push(fileList); return { fileList: fileList.map(fileID => ({ fileID, status: -1 })) }; } });
+  await lifecycle.deleteExpiredPhotos(NOW);
+  await lifecycle.deleteExpiredPhotos(new Date(NOW.getTime() + 60000));
+  assert.equal(new Set(calls.map(x => x[0])).size, 60);
+  assert.equal(db.records.deletion_jobs.find(x => x._id === "challenge-c").photoScanAfter !== undefined, true);
+});
+
+test("retry-waiting analysis rows cannot permanently hide a later due original", async () => {
+  const base = seedJob().analysis_jobs[0];
+  const jobs = Array.from({ length: 51 }, (_, i) => ({ ...base, _id: `job-${String(i).padStart(2, "0")}`, status: "failed", sourcePhotoStatus: "deleting", tempFileId: `cloud://env/job-${i}` }));
+  const intents = jobs.slice(0, 50).map(job => ({ _id: `analysis-${job._id}`, kind: "analysis", sourceId: job._id, state: "retrying", dueAt: "2026-09-08" }));
+  const { lifecycle, calls } = setup({ analysis_jobs: jobs, deletion_jobs: intents });
+  await lifecycle.deleteExpiredPhotos(NOW);
+  assert.equal(calls.length, 0);
+  await lifecycle.deleteExpiredPhotos(new Date(NOW.getTime() + 60000));
+  assert.deepEqual(calls, [["cloud://env/job-50"]]);
+});
+
+test("retry-waiting uploads cannot permanently hide a later due reservation", async () => {
+  const uploads = Array.from({ length: 51 }, (_, i) => ({ _id: `upload-${String(i).padStart(2, "0")}`, _openid: "owner", status: "deleting", tempFileId: `cloud://env/upload-${i}` }));
+  const intents = uploads.slice(0, 50).map(upload => ({ _id: `upload-${upload._id}`, kind: "upload", sourceId: upload._id, state: "retrying", dueAt: "2026-09-08" }));
+  const { lifecycle, calls } = setup({ analysis_uploads: uploads, deletion_jobs: intents });
+  await lifecycle.deleteExpiredPhotos(NOW);
+  assert.equal(calls.length, 0);
+  await lifecycle.deleteExpiredPhotos(new Date(NOW.getTime() + 60000));
+  assert.deepEqual(calls, [["cloud://env/upload-50"]]);
+});
+
 test("the existing choose-again abandon action cancels an assigned job and rejects other owners", async () => {
   const { db, cloud, calls } = setup(seedJob());
   const photoCleanup = analysis.createPhotoCleanup({ database: db, cloud, now: () => NOW });
@@ -183,7 +237,7 @@ test("unattached reservations without a server-stored file ID escalate without i
   const { db, lifecycle, calls } = setup({ analysis_uploads: [{ _id: "upload-A", _openid: "owner", cloudPath: "analysis/upload-A/source.jpg", status: "pending", deleteBy: NOW.toISOString() }] });
   for (let n = 0; n < 3; n++) await lifecycle.deleteExpiredPhotos(new Date(NOW.getTime() + n * 60000));
   assert.equal(calls.length, 0);
-  assert.equal(db.records.deletion_jobs[0].state, "manual_review");
+  assert.equal(db.records.deletion_jobs.find(x => x._id === "upload-upload-A").state, "manual_review");
   assert.equal(db.records.analysis_uploads[0].photoDeletedAt, undefined);
 });
 
@@ -223,5 +277,5 @@ test("failed terminal cleanup does not retry the same file through its upload re
   await analysis.failContainerJob({ database: db, photoCleanup: lifecycle, jobId: "job-A", leaseId: "lease-A", leaseToken: "lease-secret-value", now: NOW });
   await lifecycle.deleteExpiredPhotos(new Date(NOW.getTime() + 60000));
   assert.equal(attempts, 2);
-  assert.equal(db.records.deletion_jobs.length, 1);
+  assert.equal(db.records.deletion_jobs.filter(x => x.kind === "analysis").length, 1);
 });

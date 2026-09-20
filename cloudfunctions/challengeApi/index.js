@@ -1,4 +1,4 @@
-// challengeApi-build-fingerprint:2bb4232fe677d55fe08f29922587f5e5a32dcc0c6af6d859f5e8585d0db49290:7651f31da863f443d114bd1813fb7c2b9c088effbf3cad2a99df7cd9f953889b
+// challengeApi-build-fingerprint:a2e2c53ff5a2ff18c5ffde6a444ec2676bbfd685cec6b5f3338f8d990457f0e5:9b10ac0b7b510d2d7788c4499074835412655ede1b31ed7c65eae38b272c68da
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
@@ -190,30 +190,69 @@ var require_lifecycleJobs = __commonJS({
         if (!deleteAll && (challenge?.status !== "completed" || !Number.isFinite(deadline) || deadline > at.getTime())) throw codedError2("NOT_DUE");
         const filter = { challengeId: id, _openid: owner, deletionState: database.command.neq("deleted") };
         if (!deleteAll) filter.retentionPolicy = database.command.neq("keep");
-        const photos = await list("challenge_photos", filter, limit);
-        for (const photo of photos) {
-          const attempt = await read(database.collection("deletion_jobs").doc(`challenge-photo-${photo._id}`));
-          if (attempt?.dueAt > at.toISOString()) continue;
-          await removePhoto(
-            "challenge-photo",
-            photo,
-            "challenge_photos",
-            photo.fileId,
-            { deletionState: "deleted", deletedAt: database.serverDate() },
-            at
-          );
+        const initialCursor = (intent || challenge).photoScanAfter || "";
+        let cursor = initialCursor;
+        let wrapped = false;
+        let processed = 0;
+        let scanned = 0;
+        while (processed < limit && scanned < batchSize) {
+          const page = await list("challenge_photos", { ...filter, ...cursor ? { _id: database.command.gt(cursor) } : {} }, Math.min(batchSize - scanned, limit - processed), "_id");
+          if (!page.length) {
+            if (wrapped || !initialCursor) break;
+            cursor = "";
+            wrapped = true;
+            continue;
+          }
+          let reachedStart = false;
+          for (const photo of page) {
+            if (wrapped && photo._id > initialCursor) {
+              reachedStart = true;
+              break;
+            }
+            cursor = photo._id;
+            scanned++;
+            const attempt = await read(database.collection("deletion_jobs").doc(`challenge-photo-${photo._id}`));
+            if (attempt?.dueAt > at.toISOString()) continue;
+            processed++;
+            await removePhoto(
+              "challenge-photo",
+              photo,
+              "challenge_photos",
+              photo.fileId,
+              { deletionState: "deleted", deletedAt: database.serverDate() },
+              at
+            );
+            if (processed >= limit) break;
+          }
+          if (reachedStart || wrapped && cursor >= initialCursor) break;
         }
+        await database.runTransaction((tx) => tx.collection(intent ? "deletion_jobs" : "challenges").doc(intent ? `challenge-${id}` : id).update({
+          photoScanAfter: cursor,
+          ...intent ? { dueAt: new Date(at.getTime() + 6e4).toISOString() } : {}
+        }));
         if ((await list("challenge_photos", filter, 1)).length === 0) {
           if (intent) await write("deletion_jobs", `challenge-${id}`, { state: "deleted" });
           if (challenge) await write("challenges", id, { photosCleaned: true });
         }
-        return { processed: photos.length };
+        return { processed, scanned };
       }
       async function deleteExpiredPhotos(at = now()) {
         const cutoff = at.toISOString();
         const cmd = database.command;
         let processed = 0;
+        let scanned = 0;
         const seen = /* @__PURE__ */ new Set();
+        const scan = async (name, filter, key) => {
+          if (scanned >= batchSize) return [];
+          const cursorId = `scan-${key}`;
+          const checkpoint = await read(database.collection("deletion_jobs").doc(cursorId));
+          const after = checkpoint?.after || "";
+          let rows = await list(name, { ...filter, ...after ? { _id: cmd.gt(after) } : {} }, batchSize - scanned, "_id");
+          if (!rows.length && after) rows = await list(name, filter, batchSize - scanned, "_id");
+          scanned += rows.length;
+          if (rows.length) await database.collection("deletion_jobs").doc(cursorId).set({ after: rows.at(-1)._id });
+          return rows;
+        };
         const run = async (kind, id, fn) => {
           if (processed >= batchSize || seen.has(`${kind}-${id}`)) return;
           const intent = await read(database.collection("deletion_jobs").doc(`${kind}-${id}`));
@@ -226,34 +265,55 @@ var require_lifecycleJobs = __commonJS({
             alert({ code: "LIFECYCLE_JOB_FAILED", kind, sourceId: id });
           }
         };
-        for (const intent of await list("deletion_jobs", { state: cmd.in(["pending", "retrying", "manual_review"]), dueAt: cmd.lte(cutoff) }, Math.max(1, Math.floor(batchSize / 2)), "dueAt")) {
+        const intents = await list("deletion_jobs", { state: cmd.in(["pending", "retrying", "manual_review"]), dueAt: cmd.lte(cutoff) }, Math.max(1, Math.floor(batchSize / 2)), "dueAt");
+        for (const intent of intents) {
           if (intent.kind === "analysis") await run("analysis", intent.sourceId, () => deleteAnalysisPhoto(intent.sourceId, at));
           if (intent.kind === "upload") await run("upload", intent.sourceId, () => deleteUploadPhoto(intent.sourceId, at));
+        }
+        const sources = [
+          ["analysis_jobs", { sourcePhotoStatus: "pending", deleteBy: cmd.lte(cutoff) }],
+          ["analysis_jobs", { sourcePhotoStatus: "pending", status: "processing", leaseExpiresAt: cmd.lte(cutoff) }],
+          ["analysis_jobs", { sourcePhotoStatus: "pending", status: cmd.in(["complete", "failed"]) }],
+          ["analysis_jobs", { sourcePhotoStatus: "deleting" }],
+          ["analysis_uploads", { status: cmd.in(["pending", "attached"]), deleteBy: cmd.lte(cutoff) }],
+          ["analysis_uploads", { status: "deleting" }]
+        ];
+        const sourceCheckpoint = await read(database.collection("deletion_jobs").doc("scan-source-filter"));
+        const start = sourceCheckpoint?.next || 0;
+        let next = start;
+        for (let offset = 0; offset < sources.length && scanned < batchSize; offset++) {
+          const index = (start + offset) % sources.length;
+          const [name, filter] = sources[index];
+          for (const row of await scan(name, filter, `source-${index}`)) {
+            if (name === "analysis_jobs") await run("analysis", row._id, () => deleteAnalysisPhoto(row._id, at));
+            else await run(row.jobId ? "analysis" : "upload", row.jobId || row._id, () => deleteUploadPhoto(row._id, at));
+          }
+          next = (index + 1) % sources.length;
+        }
+        await database.collection("deletion_jobs").doc("scan-source-filter").set({ next });
+        for (const intent of intents) {
+          if (processed >= batchSize) break;
           if (intent.kind === "challenge-photo") {
             const photo = await read(database.collection("challenge_photos").doc(intent.sourceId));
             if (photo) await run("challenge-photo", photo._id, () => removePhoto("challenge-photo", photo, "challenge_photos", photo.fileId, { deletionState: "deleted", deletedAt: database.serverDate() }, at));
           }
-          if (intent.kind === "challenge" && processed < batchSize) {
-            const result = await deleteChallengePhotos(intent.sourceId, at, batchSize - processed);
+          if (intent.kind === "challenge" && scanned < batchSize) {
+            const result = await deleteChallengePhotos(intent.sourceId, at, Math.min(batchSize - processed, batchSize - scanned));
             processed += result.processed;
+            scanned += result.scanned;
           }
         }
-        for (const filter of [
-          { sourcePhotoStatus: "deleting" },
-          { sourcePhotoStatus: "pending", status: "processing", leaseExpiresAt: cmd.lte(cutoff) },
-          { sourcePhotoStatus: "pending", deleteBy: cmd.lte(cutoff) }
-        ]) for (const job of await list("analysis_jobs", filter, batchSize - processed)) await run("analysis", job._id, () => deleteAnalysisPhoto(job._id, at));
-        for (const filter of [
-          { status: "deleting" },
-          { status: cmd.in(["pending", "attached"]), deleteBy: cmd.lte(cutoff) }
-        ]) for (const upload of await list("analysis_uploads", filter, batchSize - processed)) {
-          await run(upload.jobId ? "analysis" : "upload", upload.jobId || upload._id, () => deleteUploadPhoto(upload._id, at));
-        }
-        for (const challenge of await list("challenges", { status: "completed", photosCleaned: cmd.neq(true), completedAt: cmd.lte(new Date(at.getTime() - WEEK_MS).toISOString()) }, batchSize - processed)) {
-          if (processed >= batchSize) break;
+        const completedFilter = { status: "completed", photosCleaned: cmd.neq(true), completedAt: cmd.lte(new Date(at.getTime() - WEEK_MS).toISOString()) };
+        const completedCursor = await read(database.collection("deletion_jobs").doc("scan-completed-challenges"));
+        let completedRows = await list("challenges", { ...completedFilter, ...completedCursor?.after ? { _id: cmd.gt(completedCursor.after) } : {} }, 1, "_id");
+        if (!completedRows.length && completedCursor?.after) completedRows = await list("challenges", completedFilter, 1, "_id");
+        for (const challenge of completedRows) {
+          if (processed >= batchSize || scanned >= batchSize) break;
+          await database.collection("deletion_jobs").doc("scan-completed-challenges").set({ after: challenge._id });
           if (challenge.photoDeleteBy && Date.parse(challenge.photoDeleteBy) > at.getTime()) continue;
-          const result = await deleteChallengePhotos(challenge._id, at, batchSize - processed);
+          const result = await deleteChallengePhotos(challenge._id, at, Math.min(batchSize - processed, batchSize - scanned));
           processed += Math.max(1, result.processed);
+          scanned += result.scanned;
         }
         return { processed };
       }
