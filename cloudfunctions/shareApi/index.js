@@ -74,7 +74,16 @@ function createShareApi({ database, getWXContext, now = () => new Date(), create
     return { kind: record.kind, preview: sanitizePreview(record.kind, record.preview) };
   }
 
-  return { createPreview, getPreview };
+  async function linkMiniCode({ token, fileId } = {}) {
+    if (typeof fileId !== "string" || !fileId.startsWith("cloud://")) throw codedError("INVALID_ARGUMENT");
+    const reference = database.collection("share_previews").doc(validToken(token));
+    const record = (await reference.get())?.data;
+    if (!record) throw codedError("PREVIEW_NOT_FOUND");
+    const miniCodeFileIds = [...new Set([...(record.miniCodeFileIds || []), fileId])];
+    await reference.set({ data: { ...record, miniCodeFileIds } });
+  }
+
+  return { createPreview, getPreview, linkMiniCode };
 }
 
 function createMiniCodeService(cloud) {
@@ -98,12 +107,16 @@ function getMiniCode(request, cloud) {
 async function main(event) {
   const cloud = require("wx-server-sdk");
   cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+  const api = createShareApi({ database: cloud.database(), getWXContext: () => cloud.getWXContext() });
   if (event?.action === "createPreview" || event?.action === "getPreview") {
-    const api = createShareApi({ database: cloud.database(), getWXContext: () => cloud.getWXContext() });
     if (event.action === "createPreview") return { token: await api.createPreview(event.payload) };
     return api.getPreview(event.payload);
   }
-  return { fileId: await getMiniCode(event, cloud) };
+  const isPreviewToken = TOKEN_PATTERN.test(event?.scene || "");
+  if (isPreviewToken) await api.getPreview({ token: event.scene });
+  const fileId = await getMiniCode(event, cloud);
+  if (isPreviewToken) await api.linkMiniCode({ token: event.scene, fileId });
+  return { fileId };
 }
 
 module.exports = { main, getMiniCode, createMiniCodeService, createShareApi, sanitizePreview, validateRequest };

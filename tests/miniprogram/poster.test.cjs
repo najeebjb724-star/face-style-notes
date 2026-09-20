@@ -108,6 +108,10 @@ test("report sharing sends a presentation-only preview that a recipient can rend
   await page.onLoad.call({ setData(value) { updates.push(value); } }, { token: "uNguessableToken1234567890123456" });
   assert.equal(cloudCalls, 0);
   assert.equal(updates.at(-1).report.identity.title, "温和表达者");
+
+  const scannedUpdates = [];
+  await page.onLoad.call({ setData(value) { scannedUpdates.push(value); } }, { scene: "uNguessableToken1234567890123456" });
+  assert.equal(scannedUpdates.at(-1).report.identity.title, "温和表达者");
 });
 
 test("challenge sharing renders a safe recap without sender local storage", async () => {
@@ -125,6 +129,10 @@ test("challenge sharing renders a safe recap without sender local storage", asyn
   await page.onLoad.call({ setData(value) { updates.push(value); }, getOpenerEventChannel() { return null; } }, { token: "uNguessableToken1234567890123456" });
   assert.equal(updates.at(-1).history.title, "七日练习");
   assert.equal(updates.at(-1).history.completed, 7);
+
+  const scannedUpdates = [];
+  await page.onLoad.call({ setData(value) { scannedUpdates.push(value); }, getOpenerEventChannel() { return null; } }, { scene: "uNguessableToken1234567890123456" });
+  assert.equal(scannedUpdates.at(-1).history.title, "七日练习");
 });
 
 test("challenge poster photo opt-in is fresh, local, and never persisted", () => {
@@ -180,6 +188,8 @@ test("server share previews are sanitized, unguessable, and expire before lookup
   assert.equal(token, "uNguessableToken1234567890123456");
   assert.equal("measurements" in records.get(token).preview, false);
   assert.deepEqual(await api.getPreview({ token }), { kind: "report", preview: { title: "温和表达者", subtitle: "自然清透", memory: "轻盈且有层次" } });
+  await api.linkMiniCode({ token, fileId: "cloud://env.mini-codes/code.png" });
+  assert.deepEqual(records.get(token).miniCodeFileIds, ["cloud://env.mini-codes/code.png"]);
   await assert.rejects(() => api.getPreview({ token: "invalid" }), { code: "INVALID_ARGUMENT" });
   records.get(token).expiresAt = "2026-09-19T00:00:00.000Z";
   await assert.rejects(() => api.getPreview({ token }), { code: "PREVIEW_EXPIRED" });

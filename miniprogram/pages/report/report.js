@@ -95,9 +95,10 @@ async function getMiniCode(canvas, scene) {
 Page({
   data: { report: null, reportId: "", shareToken: "", loading: true, errorText: "", posterSaving: false, posterError: "" },
   async onLoad(query) {
-    if (query?.token) {
+    const token = query?.token || (query?.scene && query.scene !== "preview" ? query.scene : "");
+    if (token) {
       try {
-        const shared = await getPreview(query.token);
+        const shared = await getPreview(token);
         if (shared?.kind !== "report") throw new Error("PREVIEW_NOT_FOUND");
         return this.setData({ report: buildSharedReport(shared.preview), reportId: "", loading: false });
       } catch (_) {

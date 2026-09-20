@@ -97,9 +97,10 @@ Page({
   data: { challengeId: "", history: null, shareToken: "", posterSaving: false, posterError: "", posterPhotos: [], includePosterPhotos: false },
 
   async onLoad(options = {}) {
-    if (options.token) {
+    const token = options.token || (options.scene && options.scene !== "preview" ? options.scene : "");
+    if (token) {
       try {
-        const shared = await getPreview(options.token);
+        const shared = await getPreview(token);
         if (shared?.kind !== "challenge") throw new Error("PREVIEW_NOT_FOUND");
         return this.setData({ challengeId: "", history: buildSharedHistory(shared.preview) });
       } catch (_) {
