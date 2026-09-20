@@ -15,7 +15,11 @@
   </view>
   <view class="quiet-card">
     <text class="section-title">接下来</text>
-    <text class="muted">稍后可以从挑战中心开启新的练习。分享海报将在后续功能中提供。</text>
+    <text class="muted">稍后可以从挑战中心开启新的练习。海报仅保存到你的本地相册。</text>
   </view>
+  <canvas id="challengePoster" type="2d" style="width: 300px; height: 420px; position: fixed; left: -9999px;"></canvas>
+  <button wx:if="{{history}}" class="tap-target primary-button" bindtap="saveChallengePoster" loading="{{posterSaving}}">保存结营海报</button>
+  <text wx:if="{{posterError}}" class="muted">{{posterError}}</text>
+  <button wx:if="{{posterError}}" class="tap-target" bindtap="retryChallengePosterAuthorization">授权后重试</button>
   <button class="tap-target primary-button" bindtap="backToChallenges">回到挑战中心</button>
 </view>

@@ -13,5 +13,9 @@
     <view wx:if="{{report.carePlan}}" class="group"><text class="group-title">基础护理</text><text>{{report.carePlan.tendency}}</text><text wx:for="{{report.carePlan.morning}}" wx:key="*this" class="line">早：{{item}}</text><text wx:for="{{report.carePlan.evening}}" wx:key="*this" class="line">晚：{{item}}</text><text>{{report.carePlan.boundary}}</text></view>
     <view class="group"><text class="group-title">使用边界与来源</text><text wx:for="{{report.limitations}}" wx:key="*this" class="line">{{item}}</text><text wx:for="{{report.sources}}" wx:key="id" class="line">{{item.title}}</text></view>
     <button class="primary tap-target" bindtap="createRecommendedChallenge">加入推荐挑战</button>
+    <canvas id="identityPoster" type="2d" style="width: 300px; height: 420px; position: fixed; left: -9999px;"></canvas>
+    <button class="primary tap-target" bindtap="saveIdentityPoster" loading="{{posterSaving}}">保存身份卡海报</button>
+    <text wx:if="{{posterError}}" class="error">{{posterError}}</text>
+    <button wx:if="{{posterError}}" class="tap-target" bindtap="retryIdentityPosterAuthorization">授权后重试</button>
   </block>
 </view>
