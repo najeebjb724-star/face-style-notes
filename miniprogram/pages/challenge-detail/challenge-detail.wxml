@@ -10,6 +10,8 @@
     <button class="tap-target primary-action" bindtap="completeToday" disabled="{{finishing || checkedIn || !canCheckIn}}">{{checkedIn ? '今天已完成' : '完成今日打卡'}}</button>
     <button wx:if="{{checkedIn && !finishing}}" class="tap-target text-action" bindtap="undoToday">撤销今天的打卡</button>
     <button wx:if="{{canCheckInYesterday && !finishing}}" class="tap-target text-action" bindtap="recordYesterday">补记昨天</button>
+    <button class="tap-target text-action" bindtap="addToPhoneCalendar">添加到手机日历</button>
+    <button class="tap-target text-action" bindtap="enableWechatReminder">开启微信提醒</button>
 
     <view wx:if="{{challenge.tutorials.length}}" class="quiet-card">
       <text class="section-title">需要时再看教程</text>

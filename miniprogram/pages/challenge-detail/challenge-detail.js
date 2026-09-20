@@ -37,6 +37,31 @@ function refreshCalendar(page) {
   return { today, yesterday };
 }
 
+function buildCalendarEvent(challenge, occurrence) {
+  const task = challenge.taskLabel || challenge.title || "今日任务";
+  const startTime = occurrence.startsAt;
+  return {
+    title: `挑战第 ${occurrence.day} 天：${task}`,
+    startTime,
+    endTime: startTime + 30 * 60,
+    description: `${task}。完成后请回到小程序完成打卡。`,
+    alarm: true
+  };
+}
+
+function calendarOccurrence(challenge, date) {
+  const [hour, minute] = (challenge.reminderTime || "21:30").split(":").map(Number);
+  const startsAt = Math.floor(new Date(`${date}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`).getTime() / 1000);
+  return { day: getChallengeProgress(challenge, date).day, startsAt };
+}
+
+function saveSubscriptionResult(templateId, status) {
+  return callCloud("reminderApi", {
+    action: "saveSubscriptionResult",
+    payload: { templateId, status }
+  });
+}
+
 Page({
   data: {
     challenge: null,
@@ -126,6 +151,40 @@ Page({
       .catch(() => {});
   },
 
+  addToPhoneCalendar() {
+    const challenge = this.data.challenge;
+    if (!challenge || typeof wx.addPhoneCalendar !== "function") {
+      wx.showToast({ title: "当前设备暂不支持添加日历", icon: "none" });
+      return;
+    }
+    try {
+      wx.addPhoneCalendar({
+        ...buildCalendarEvent(challenge, calendarOccurrence(challenge, this.data.today || localDate())),
+        fail: () => wx.showToast({ title: "未添加到手机日历，挑战仍可继续", icon: "none" })
+      });
+    } catch (_) {
+      wx.showToast({ title: "未添加到手机日历，挑战仍可继续", icon: "none" });
+    }
+  },
+
+  async enableWechatReminder() {
+    let config;
+    try {
+      config = await callCloud("reminderApi", { action: "getConfig" });
+    } catch (_) {
+      wx.showToast({ title: "微信提醒暂不可用，挑战仍可继续", icon: "none" });
+      return;
+    }
+    if (!config?.templateId || typeof wx.requestSubscribeMessage !== "function") {
+      wx.showToast({ title: "微信提醒暂不可用，挑战仍可继续", icon: "none" });
+      return;
+    }
+    wx.requestSubscribeMessage({
+      tmplIds: [config.templateId],
+      complete: result => saveSubscriptionResult(config.templateId, result?.[config.templateId]).catch(() => {})
+    });
+  },
+
   async finishChallenge() {
     if (this._finishing || this.data.finishing) return;
     this._finishing = true;
@@ -176,3 +235,5 @@ Page({
     }
   }
 });
+
+if (typeof module !== "undefined") module.exports = { buildCalendarEvent, saveSubscriptionResult };
