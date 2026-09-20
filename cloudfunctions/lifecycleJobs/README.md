@@ -13,8 +13,10 @@ due records before limiting; retries are ordered by due time and use one-minute
 retry intervals. Three failed attempts mark `manual_review`, emit a sanitized
 error event, and continue automatic attempts. `deleted` is recorded only after
 the exact file's SDK result reports status 0. No SDK error strings or URLs are
-logged. A one-minute deletion lease limits overlapping invocations; set the
-function timeout below that lease and verify the selected environment's limits.
+logged. One-minute per-photo, scheduler, and per-challenge leases limit overlapping
+invocations and protect scan cursors. Set the function timeout below these leases
+and verify the selected environment's limits; an interrupted run recovers after
+its lease expires.
 
 Create the compound indexes requested by CloudBase for these predicates before
 enabling the timer: deletion_jobs(state, dueAt); analysis_jobs(sourcePhotoStatus,

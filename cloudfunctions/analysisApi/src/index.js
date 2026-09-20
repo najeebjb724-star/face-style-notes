@@ -702,6 +702,13 @@ function createAnalysisApi({
         assertOwnedRecord(job, openid);
         const next = cleanupTransition(job);
         await reference.update({ status: next.status, sourcePhotoStatus: next.sourcePhotoStatus, errorCode: "CANCELLED" });
+        if (job.reservationId) {
+          const uploadReference = transaction.collection("analysis_uploads").doc(requireId(job.reservationId));
+          const upload = await readOptional(uploadReference);
+          if (upload && upload._openid === openid && upload.jobId === jobId && upload.tempFileId === job.tempFileId && upload.status === "assigned") {
+            await uploadReference.update({ status: "deleting", abandonedAt: database.serverDate() });
+          }
+        }
         return { jobId, ...minimalStatus(next) };
       });
       await photoCleanup?.deleteAnalysisPhoto(jobId);

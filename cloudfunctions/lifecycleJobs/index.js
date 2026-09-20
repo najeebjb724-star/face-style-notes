@@ -1,6 +1,7 @@
 const MAX_BATCH_SIZE = 50;
 const RETRY_LIMIT = 3;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const { randomUUID } = require("node:crypto");
 
 // Business handlers use flat records; wx-server-sdk requires { data } even in transactions.
 function adaptCloudDatabase(database) {
@@ -140,6 +141,18 @@ function createPhotoLifecycle({ database, cloud, now = () => new Date(), alert =
     const deleteAll = intent?.deleteAll === true;
     const deadline = challenge?.photoDeleteBy ? Date.parse(challenge.photoDeleteBy) : Date.parse(challenge?.completedAt) + WEEK_MS;
     if (!deleteAll && (challenge?.status !== "completed" || !Number.isFinite(deadline) || deadline > at.getTime())) throw codedError("NOT_DUE");
+    const cursorCollection = intent ? "deletion_jobs" : "challenges";
+    const cursorId = intent ? `challenge-${id}` : id;
+    const token = randomUUID();
+    const acquired = await database.runTransaction(async tx => {
+      const reference = tx.collection(cursorCollection).doc(cursorId);
+      const current = await read(reference);
+      if (current?.photoScanLeaseUntil > at.toISOString()) return false;
+      await reference.update({ photoScanLeaseToken: token, photoScanLeaseUntil: new Date(at.getTime() + 60000).toISOString() });
+      return true;
+    });
+    if (!acquired) return { processed: 0, scanned: 0 };
+    try {
     const filter = { challengeId: id, _openid: owner, deletionState: database.command.neq("deleted") };
     if (!deleteAll) filter.retentionPolicy = database.command.neq("keep");
     const initialCursor = (intent || challenge).photoScanAfter || "";
@@ -164,16 +177,22 @@ function createPhotoLifecycle({ database, cloud, now = () => new Date(), alert =
       }
       if (reachedStart || (wrapped && cursor >= initialCursor)) break;
     }
-    await database.runTransaction(tx => tx.collection(intent ? "deletion_jobs" : "challenges").doc(intent ? `challenge-${id}` : id).update({ photoScanAfter: cursor,
+    await database.runTransaction(tx => tx.collection(cursorCollection).doc(cursorId).update({ photoScanAfter: cursor,
       ...(intent ? { dueAt: new Date(at.getTime() + 60000).toISOString() } : {}) }));
     if ((await list("challenge_photos", filter, 1)).length === 0) {
       if (intent) await write("deletion_jobs", `challenge-${id}`, { state: "deleted" });
       if (challenge) await write("challenges", id, { photosCleaned: true });
     }
     return { processed, scanned };
+    } finally {
+      await database.runTransaction(async tx => {
+        const reference = tx.collection(cursorCollection).doc(cursorId);
+        if ((await read(reference))?.photoScanLeaseToken === token) await reference.update({ photoScanLeaseUntil: null, photoScanLeaseToken: null });
+      });
+    }
   }
 
-  async function deleteExpiredPhotos(at = now()) {
+  async function runExpiredPhotos(at) {
     const cutoff = at.toISOString(); const cmd = database.command;
     let processed = 0; let scanned = 0;
     const seen = new Set();
@@ -246,6 +265,25 @@ function createPhotoLifecycle({ database, cloud, now = () => new Date(), alert =
       scanned += result.scanned;
     }
     return { processed };
+  }
+  async function deleteExpiredPhotos(at = now()) {
+    const token = randomUUID();
+    const lockId = "lifecycle-scheduler";
+    const acquired = await database.runTransaction(async tx => {
+      const reference = tx.collection("deletion_jobs").doc(lockId);
+      const current = await read(reference);
+      if (current?.leaseUntil > at.toISOString()) return false;
+      await reference.set({ token, leaseUntil: new Date(at.getTime() + 60000).toISOString() });
+      return true;
+    });
+    if (!acquired) return { processed: 0 };
+    try { return await runExpiredPhotos(at); }
+    finally {
+      await database.runTransaction(async tx => {
+        const reference = tx.collection("deletion_jobs").doc(lockId);
+        if ((await read(reference))?.token === token) await reference.update({ leaseUntil: null });
+      });
+    }
   }
   return { deleteAnalysisPhoto, deleteUploadPhoto, deleteChallengePhotos, deleteExpiredPhotos };
 }

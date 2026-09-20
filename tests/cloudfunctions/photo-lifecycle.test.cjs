@@ -83,6 +83,16 @@ test("physical deletion is idempotent and cannot delete a live job early", async
   assert.equal(calls.length, 1);
 });
 
+test("cancelAnalysis marks its linked owned upload deleting before cleanup fails", async () => {
+  const seed = seedJob();
+  const { db } = setup(seed);
+  const api = analysis.createAnalysisApi({ database: db, getWXContext: () => ({ OPENID: "owner" }), now: () => NOW,
+    photoCleanup: { async deleteAnalysisPhoto() { assert.equal(db.records.analysis_uploads[0].status, "deleting"); throw new Error("offline"); } } });
+  await assert.rejects(api({ action: "cancelAnalysis", payload: { jobId: "job-A" } }), /offline/);
+  assert.equal(db.records.analysis_jobs[0].sourcePhotoStatus, "deleting");
+  assert.equal(db.records.analysis_uploads[0].status, "deleting");
+});
+
 test("per-file failures persist retries, sanitize errors and escalate without claiming deletion", async () => {
   const seed = seedJob(); seed.analysis_jobs[0].status = "failed";
   const { db, lifecycle } = setup(seed, { deleteFile: async () => ({ fileList: [{ status: -1, errMsg: "secret signed URL" }] }) });
@@ -219,6 +229,42 @@ test("retry-waiting uploads cannot permanently hide a later due reservation", as
   assert.equal(calls.length, 0);
   await lifecycle.deleteExpiredPhotos(new Date(NOW.getTime() + 60000));
   assert.deepEqual(calls, [["cloud://env/upload-50"]]);
+});
+
+test("overlapping timer invocations do not advance scan cursors concurrently", async () => {
+  const base = seedJob().analysis_jobs[0];
+  const db = database({ analysis_jobs: [0, 1].map(i => ({ ...base, _id: `job-${i}`, status: "failed", deleteBy: NOW.toISOString(), tempFileId: `cloud://env/job-${i}` })) });
+  let entered; const started = new Promise(resolve => { entered = resolve; });
+  let release; const blocked = new Promise(resolve => { release = resolve; });
+  const calls = [];
+  const cloud = { async deleteFile({ fileList }) { calls.push(fileList); entered(); if (calls.length === 1) await blocked; return { fileList: fileList.map(fileID => ({ fileID, status: 0 })) }; } };
+  const lifecycle = createPhotoLifecycle({ database: db, cloud, now: () => NOW, maxBatchSize: 1 });
+  const first = lifecycle.deleteExpiredPhotos(NOW);
+  await started;
+  const overlapping = await lifecycle.deleteExpiredPhotos(NOW);
+  assert.equal(overlapping.processed, 0);
+  assert.equal(calls.length, 1);
+  release(); await first;
+  await lifecycle.deleteExpiredPhotos(NOW);
+  assert.equal(calls.length, 2);
+});
+
+test("overlapping direct challenge cleanup does not race its photo cursor", async () => {
+  const db = database({ deletion_jobs: [{ _id: "challenge-c", kind: "challenge", sourceId: "c", _openid: "owner", state: "pending", dueAt: NOW.toISOString(), deleteAll: true }],
+    challenge_photos: [0, 1].map(i => ({ _id: `photo-${i}`, challengeId: "c", _openid: "owner", fileId: `cloud://env/photo-${i}` })) });
+  let entered; const started = new Promise(resolve => { entered = resolve; });
+  let release; const blocked = new Promise(resolve => { release = resolve; });
+  let calls = 0;
+  const cloud = { async deleteFile({ fileList }) { calls++; entered(); if (calls === 1) await blocked; return { fileList: fileList.map(fileID => ({ fileID, status: 0 })) }; } };
+  const lifecycle = createPhotoLifecycle({ database: db, cloud, now: () => NOW, maxBatchSize: 1 });
+  const first = lifecycle.deleteChallengePhotos("c", NOW);
+  await started;
+  const overlapping = await lifecycle.deleteChallengePhotos("c", NOW);
+  assert.equal(overlapping.processed, 0);
+  assert.equal(overlapping.scanned, 0);
+  release(); await first;
+  await lifecycle.deleteChallengePhotos("c", NOW);
+  assert.equal(calls, 2);
 });
 
 test("the existing choose-again abandon action cancels an assigned job and rejects other owners", async () => {

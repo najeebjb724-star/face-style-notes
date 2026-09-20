@@ -1,4 +1,4 @@
-// analysisApi-build-fingerprint:c7fe1dba4fff67a137c169e064c6b84c0b11d004db78784e3a639b470da1629e:0ca90b8f5b93182fd21b8636ea96c1ec21dff0beb0b978996ffa60219d384825
+// analysisApi-build-fingerprint:3d163fdc826dece69b90e4926bce93ae4e391d22336e0939e38a1f15e94192f8:cf9d21dac6c8619f43dd43f4fa938f66acc4158d0127c770377b13b287aded4c
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
@@ -24,6 +24,7 @@ var require_lifecycleJobs = __commonJS({
     var MAX_BATCH_SIZE = 50;
     var RETRY_LIMIT = 3;
     var WEEK_MS = 7 * 24 * 60 * 60 * 1e3;
+    var { randomUUID: randomUUID2 } = require("node:crypto");
     function adaptCloudDatabase2(database) {
       const collections = (source) => (name) => {
         const collection = source.collection(name);
@@ -188,55 +189,73 @@ var require_lifecycleJobs = __commonJS({
         const deleteAll = intent?.deleteAll === true;
         const deadline = challenge?.photoDeleteBy ? Date.parse(challenge.photoDeleteBy) : Date.parse(challenge?.completedAt) + WEEK_MS;
         if (!deleteAll && (challenge?.status !== "completed" || !Number.isFinite(deadline) || deadline > at.getTime())) throw codedError2("NOT_DUE");
-        const filter = { challengeId: id, _openid: owner, deletionState: database.command.neq("deleted") };
-        if (!deleteAll) filter.retentionPolicy = database.command.neq("keep");
-        const initialCursor = (intent || challenge).photoScanAfter || "";
-        let cursor = initialCursor;
-        let wrapped = false;
-        let processed = 0;
-        let scanned = 0;
-        while (processed < limit && scanned < batchSize) {
-          const page = await list("challenge_photos", { ...filter, ...cursor ? { _id: database.command.gt(cursor) } : {} }, Math.min(batchSize - scanned, limit - processed), "_id");
-          if (!page.length) {
-            if (wrapped || !initialCursor) break;
-            cursor = "";
-            wrapped = true;
-            continue;
-          }
-          let reachedStart = false;
-          for (const photo of page) {
-            if (wrapped && photo._id > initialCursor) {
-              reachedStart = true;
-              break;
+        const cursorCollection = intent ? "deletion_jobs" : "challenges";
+        const cursorId = intent ? `challenge-${id}` : id;
+        const token = randomUUID2();
+        const acquired = await database.runTransaction(async (tx) => {
+          const reference = tx.collection(cursorCollection).doc(cursorId);
+          const current = await read(reference);
+          if (current?.photoScanLeaseUntil > at.toISOString()) return false;
+          await reference.update({ photoScanLeaseToken: token, photoScanLeaseUntil: new Date(at.getTime() + 6e4).toISOString() });
+          return true;
+        });
+        if (!acquired) return { processed: 0, scanned: 0 };
+        try {
+          const filter = { challengeId: id, _openid: owner, deletionState: database.command.neq("deleted") };
+          if (!deleteAll) filter.retentionPolicy = database.command.neq("keep");
+          const initialCursor = (intent || challenge).photoScanAfter || "";
+          let cursor = initialCursor;
+          let wrapped = false;
+          let processed = 0;
+          let scanned = 0;
+          while (processed < limit && scanned < batchSize) {
+            const page = await list("challenge_photos", { ...filter, ...cursor ? { _id: database.command.gt(cursor) } : {} }, Math.min(batchSize - scanned, limit - processed), "_id");
+            if (!page.length) {
+              if (wrapped || !initialCursor) break;
+              cursor = "";
+              wrapped = true;
+              continue;
             }
-            cursor = photo._id;
-            scanned++;
-            const attempt = await read(database.collection("deletion_jobs").doc(`challenge-photo-${photo._id}`));
-            if (attempt?.dueAt > at.toISOString()) continue;
-            processed++;
-            await removePhoto(
-              "challenge-photo",
-              photo,
-              "challenge_photos",
-              photo.fileId,
-              { deletionState: "deleted", deletedAt: database.serverDate() },
-              at
-            );
-            if (processed >= limit) break;
+            let reachedStart = false;
+            for (const photo of page) {
+              if (wrapped && photo._id > initialCursor) {
+                reachedStart = true;
+                break;
+              }
+              cursor = photo._id;
+              scanned++;
+              const attempt = await read(database.collection("deletion_jobs").doc(`challenge-photo-${photo._id}`));
+              if (attempt?.dueAt > at.toISOString()) continue;
+              processed++;
+              await removePhoto(
+                "challenge-photo",
+                photo,
+                "challenge_photos",
+                photo.fileId,
+                { deletionState: "deleted", deletedAt: database.serverDate() },
+                at
+              );
+              if (processed >= limit) break;
+            }
+            if (reachedStart || wrapped && cursor >= initialCursor) break;
           }
-          if (reachedStart || wrapped && cursor >= initialCursor) break;
+          await database.runTransaction((tx) => tx.collection(cursorCollection).doc(cursorId).update({
+            photoScanAfter: cursor,
+            ...intent ? { dueAt: new Date(at.getTime() + 6e4).toISOString() } : {}
+          }));
+          if ((await list("challenge_photos", filter, 1)).length === 0) {
+            if (intent) await write("deletion_jobs", `challenge-${id}`, { state: "deleted" });
+            if (challenge) await write("challenges", id, { photosCleaned: true });
+          }
+          return { processed, scanned };
+        } finally {
+          await database.runTransaction(async (tx) => {
+            const reference = tx.collection(cursorCollection).doc(cursorId);
+            if ((await read(reference))?.photoScanLeaseToken === token) await reference.update({ photoScanLeaseUntil: null, photoScanLeaseToken: null });
+          });
         }
-        await database.runTransaction((tx) => tx.collection(intent ? "deletion_jobs" : "challenges").doc(intent ? `challenge-${id}` : id).update({
-          photoScanAfter: cursor,
-          ...intent ? { dueAt: new Date(at.getTime() + 6e4).toISOString() } : {}
-        }));
-        if ((await list("challenge_photos", filter, 1)).length === 0) {
-          if (intent) await write("deletion_jobs", `challenge-${id}`, { state: "deleted" });
-          if (challenge) await write("challenges", id, { photosCleaned: true });
-        }
-        return { processed, scanned };
       }
-      async function deleteExpiredPhotos(at = now()) {
+      async function runExpiredPhotos(at) {
         const cutoff = at.toISOString();
         const cmd = database.command;
         let processed = 0;
@@ -316,6 +335,26 @@ var require_lifecycleJobs = __commonJS({
           scanned += result.scanned;
         }
         return { processed };
+      }
+      async function deleteExpiredPhotos(at = now()) {
+        const token = randomUUID2();
+        const lockId = "lifecycle-scheduler";
+        const acquired = await database.runTransaction(async (tx) => {
+          const reference = tx.collection("deletion_jobs").doc(lockId);
+          const current = await read(reference);
+          if (current?.leaseUntil > at.toISOString()) return false;
+          await reference.set({ token, leaseUntil: new Date(at.getTime() + 6e4).toISOString() });
+          return true;
+        });
+        if (!acquired) return { processed: 0 };
+        try {
+          return await runExpiredPhotos(at);
+        } finally {
+          await database.runTransaction(async (tx) => {
+            const reference = tx.collection("deletion_jobs").doc(lockId);
+            if ((await read(reference))?.token === token) await reference.update({ leaseUntil: null });
+          });
+        }
       }
       return { deleteAnalysisPhoto, deleteUploadPhoto, deleteChallengePhotos, deleteExpiredPhotos };
     }
@@ -1009,6 +1048,13 @@ function createAnalysisApi({
         assertOwnedRecord(job, openid);
         const next = cleanupTransition(job);
         await reference.update({ status: next.status, sourcePhotoStatus: next.sourcePhotoStatus, errorCode: "CANCELLED" });
+        if (job.reservationId) {
+          const uploadReference = transaction.collection("analysis_uploads").doc(requireId(job.reservationId));
+          const upload = await readOptional(uploadReference);
+          if (upload && upload._openid === openid && upload.jobId === jobId && upload.tempFileId === job.tempFileId && upload.status === "assigned") {
+            await uploadReference.update({ status: "deleting", abandonedAt: database.serverDate() });
+          }
+        }
         return { jobId, ...minimalStatus(next) };
       });
       await photoCleanup?.deleteAnalysisPhoto(jobId);

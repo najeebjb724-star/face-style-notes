@@ -1,4 +1,4 @@
-// challengeApi-build-fingerprint:a2e2c53ff5a2ff18c5ffde6a444ec2676bbfd685cec6b5f3338f8d990457f0e5:9b10ac0b7b510d2d7788c4499074835412655ede1b31ed7c65eae38b272c68da
+// challengeApi-build-fingerprint:4b0cec3c292278f821c0356002c3c775c7921a7e19d04d49055d249c1698d352:0c0e7b52eb2494bae6427b703251618a7877c89f52568d10508b4d89852677e7
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
@@ -24,6 +24,7 @@ var require_lifecycleJobs = __commonJS({
     var MAX_BATCH_SIZE = 50;
     var RETRY_LIMIT = 3;
     var WEEK_MS = 7 * 24 * 60 * 60 * 1e3;
+    var { randomUUID: randomUUID2 } = require("node:crypto");
     function adaptCloudDatabase2(database) {
       const collections = (source) => (name) => {
         const collection = source.collection(name);
@@ -188,55 +189,73 @@ var require_lifecycleJobs = __commonJS({
         const deleteAll = intent?.deleteAll === true;
         const deadline = challenge?.photoDeleteBy ? Date.parse(challenge.photoDeleteBy) : Date.parse(challenge?.completedAt) + WEEK_MS;
         if (!deleteAll && (challenge?.status !== "completed" || !Number.isFinite(deadline) || deadline > at.getTime())) throw codedError2("NOT_DUE");
-        const filter = { challengeId: id, _openid: owner, deletionState: database.command.neq("deleted") };
-        if (!deleteAll) filter.retentionPolicy = database.command.neq("keep");
-        const initialCursor = (intent || challenge).photoScanAfter || "";
-        let cursor = initialCursor;
-        let wrapped = false;
-        let processed = 0;
-        let scanned = 0;
-        while (processed < limit && scanned < batchSize) {
-          const page = await list("challenge_photos", { ...filter, ...cursor ? { _id: database.command.gt(cursor) } : {} }, Math.min(batchSize - scanned, limit - processed), "_id");
-          if (!page.length) {
-            if (wrapped || !initialCursor) break;
-            cursor = "";
-            wrapped = true;
-            continue;
-          }
-          let reachedStart = false;
-          for (const photo of page) {
-            if (wrapped && photo._id > initialCursor) {
-              reachedStart = true;
-              break;
+        const cursorCollection = intent ? "deletion_jobs" : "challenges";
+        const cursorId = intent ? `challenge-${id}` : id;
+        const token = randomUUID2();
+        const acquired = await database.runTransaction(async (tx) => {
+          const reference = tx.collection(cursorCollection).doc(cursorId);
+          const current = await read(reference);
+          if (current?.photoScanLeaseUntil > at.toISOString()) return false;
+          await reference.update({ photoScanLeaseToken: token, photoScanLeaseUntil: new Date(at.getTime() + 6e4).toISOString() });
+          return true;
+        });
+        if (!acquired) return { processed: 0, scanned: 0 };
+        try {
+          const filter = { challengeId: id, _openid: owner, deletionState: database.command.neq("deleted") };
+          if (!deleteAll) filter.retentionPolicy = database.command.neq("keep");
+          const initialCursor = (intent || challenge).photoScanAfter || "";
+          let cursor = initialCursor;
+          let wrapped = false;
+          let processed = 0;
+          let scanned = 0;
+          while (processed < limit && scanned < batchSize) {
+            const page = await list("challenge_photos", { ...filter, ...cursor ? { _id: database.command.gt(cursor) } : {} }, Math.min(batchSize - scanned, limit - processed), "_id");
+            if (!page.length) {
+              if (wrapped || !initialCursor) break;
+              cursor = "";
+              wrapped = true;
+              continue;
             }
-            cursor = photo._id;
-            scanned++;
-            const attempt = await read(database.collection("deletion_jobs").doc(`challenge-photo-${photo._id}`));
-            if (attempt?.dueAt > at.toISOString()) continue;
-            processed++;
-            await removePhoto(
-              "challenge-photo",
-              photo,
-              "challenge_photos",
-              photo.fileId,
-              { deletionState: "deleted", deletedAt: database.serverDate() },
-              at
-            );
-            if (processed >= limit) break;
+            let reachedStart = false;
+            for (const photo of page) {
+              if (wrapped && photo._id > initialCursor) {
+                reachedStart = true;
+                break;
+              }
+              cursor = photo._id;
+              scanned++;
+              const attempt = await read(database.collection("deletion_jobs").doc(`challenge-photo-${photo._id}`));
+              if (attempt?.dueAt > at.toISOString()) continue;
+              processed++;
+              await removePhoto(
+                "challenge-photo",
+                photo,
+                "challenge_photos",
+                photo.fileId,
+                { deletionState: "deleted", deletedAt: database.serverDate() },
+                at
+              );
+              if (processed >= limit) break;
+            }
+            if (reachedStart || wrapped && cursor >= initialCursor) break;
           }
-          if (reachedStart || wrapped && cursor >= initialCursor) break;
+          await database.runTransaction((tx) => tx.collection(cursorCollection).doc(cursorId).update({
+            photoScanAfter: cursor,
+            ...intent ? { dueAt: new Date(at.getTime() + 6e4).toISOString() } : {}
+          }));
+          if ((await list("challenge_photos", filter, 1)).length === 0) {
+            if (intent) await write("deletion_jobs", `challenge-${id}`, { state: "deleted" });
+            if (challenge) await write("challenges", id, { photosCleaned: true });
+          }
+          return { processed, scanned };
+        } finally {
+          await database.runTransaction(async (tx) => {
+            const reference = tx.collection(cursorCollection).doc(cursorId);
+            if ((await read(reference))?.photoScanLeaseToken === token) await reference.update({ photoScanLeaseUntil: null, photoScanLeaseToken: null });
+          });
         }
-        await database.runTransaction((tx) => tx.collection(intent ? "deletion_jobs" : "challenges").doc(intent ? `challenge-${id}` : id).update({
-          photoScanAfter: cursor,
-          ...intent ? { dueAt: new Date(at.getTime() + 6e4).toISOString() } : {}
-        }));
-        if ((await list("challenge_photos", filter, 1)).length === 0) {
-          if (intent) await write("deletion_jobs", `challenge-${id}`, { state: "deleted" });
-          if (challenge) await write("challenges", id, { photosCleaned: true });
-        }
-        return { processed, scanned };
       }
-      async function deleteExpiredPhotos(at = now()) {
+      async function runExpiredPhotos(at) {
         const cutoff = at.toISOString();
         const cmd = database.command;
         let processed = 0;
@@ -316,6 +335,26 @@ var require_lifecycleJobs = __commonJS({
           scanned += result.scanned;
         }
         return { processed };
+      }
+      async function deleteExpiredPhotos(at = now()) {
+        const token = randomUUID2();
+        const lockId = "lifecycle-scheduler";
+        const acquired = await database.runTransaction(async (tx) => {
+          const reference = tx.collection("deletion_jobs").doc(lockId);
+          const current = await read(reference);
+          if (current?.leaseUntil > at.toISOString()) return false;
+          await reference.set({ token, leaseUntil: new Date(at.getTime() + 6e4).toISOString() });
+          return true;
+        });
+        if (!acquired) return { processed: 0 };
+        try {
+          return await runExpiredPhotos(at);
+        } finally {
+          await database.runTransaction(async (tx) => {
+            const reference = tx.collection("deletion_jobs").doc(lockId);
+            if ((await read(reference))?.token === token) await reference.update({ leaseUntil: null });
+          });
+        }
       }
       return { deleteAnalysisPhoto, deleteUploadPhoto, deleteChallengePhotos, deleteExpiredPhotos };
     }
