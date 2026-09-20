@@ -22,9 +22,56 @@ function saveCanvas(canvas) {
   }));
 }
 
+function previewText(value, fallback) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return (text || fallback).slice(0, 36);
+}
+
+function buildSharedReport(query = {}) {
+  return {
+    identity: { title: previewText(query.title, "我的美学身份卡"), subtitle: previewText(query.subtitle, "分享预览"), axes: [] },
+    memorySentence: previewText(query.memory, "找到适合自己的表达方式。"),
+    quality: { referenceOnly: true },
+    readableProfile: { threeCourts: { summary: "" }, fiveEyes: { summary: "" }, strengths: [], attention: [] },
+    coreTraits: [],
+    dataGroups: [],
+    styleAdvice: [],
+    limitations: ["这是不含照片和详细结构数据的分享预览。"],
+    sources: [],
+    actionCards: []
+  };
+}
+
+function loadCanvasImage(canvas, source) {
+  return new Promise((resolve, reject) => {
+    const image = canvas.createImage();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = source;
+  });
+}
+
+async function getMiniCode(canvas) {
+  try {
+    const response = await wx.cloud.callFunction({
+      name: "shareApi",
+      data: { scene: "preview", page: "pages/report/report" }
+    });
+    const fileId = response?.result?.fileId;
+    if (!fileId) return null;
+    const file = await wx.cloud.downloadFile({ fileID: fileId });
+    return loadCanvasImage(canvas, file.tempFilePath);
+  } catch (_) {
+    return null;
+  }
+}
+
 Page({
   data: { report: null, reportId: "", loading: true, errorText: "", posterSaving: false, posterError: "" },
   async onLoad(query) {
+    if (query?.share === "1" || query?.scene === "preview") {
+      return this.setData({ report: buildSharedReport(query), reportId: "", loading: false });
+    }
     const id = typeof query?.id === "string" ? query.id : "";
     if (!id) return this.setData({ loading: false, errorText: "未找到这份结构参考。" });
     try {
@@ -44,7 +91,8 @@ Page({
     this.setData({ posterSaving: true, posterError: "" });
     try {
       const { canvas, context } = await getCanvas(this, "#identityPoster");
-      require("../../lib/poster").drawIdentityPoster(context, this.data.report);
+      const miniCode = await getMiniCode(canvas);
+      require("../../lib/poster").drawIdentityPoster(context, this.data.report, { miniCode });
       await saveCanvas(canvas);
       wx.showToast({ title: "已保存到相册", icon: "success" });
     } catch (_) {
@@ -54,10 +102,21 @@ Page({
     }
   },
   retryIdentityPosterAuthorization() {
-    wx.openSetting({ complete: () => this.saveIdentityPoster() });
+    wx.openSetting({
+      success: ({ authSetting } = {}) => {
+        if (authSetting?.["scope.writePhotosAlbum"]) this.saveIdentityPoster();
+      }
+    });
   },
   onShareAppMessage() {
-    const id = this.data.reportId || this.data.report?.id || "";
-    return { title: "我的美学身份卡", path: `/pages/report/report?id=${id}` };
+    const report = this.data.report || {};
+    const identity = report.identity || {};
+    const title = previewText(identity.title, "我的美学身份卡");
+    const subtitle = previewText(identity.subtitle, "分享预览");
+    const memory = previewText(report.memorySentence, "找到适合自己的表达方式。");
+    return {
+      title,
+      path: `/pages/report/report?share=1&title=${encodeURIComponent(title)}&subtitle=${encodeURIComponent(subtitle)}&memory=${encodeURIComponent(memory)}`
+    };
   }
 });

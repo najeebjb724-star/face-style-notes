@@ -18,6 +18,12 @@
     <text class="muted">稍后可以从挑战中心开启新的练习。海报仅保存到你的本地相册。</text>
   </view>
   <canvas id="challengePoster" type="2d" style="width: 300px; height: 420px; position: fixed; left: -9999px;"></canvas>
+  <view wx:if="{{history}}" class="quiet-card">
+    <text class="section-title">可选对比照片</text>
+    <text class="muted">仅用于本次本地海报生成，不会上传或保存到挑战记录。</text>
+    <button class="tap-target" bindtap="choosePosterPhotos">选择本次海报图片</button>
+    <checkbox-group bindchange="setPosterPhotoConsent"><label><checkbox value="includePhotos" checked="{{includePosterPhotos}}" />我同意将这张图片放入本次海报</label></checkbox-group>
+  </view>
   <button wx:if="{{history}}" class="tap-target primary-button" bindtap="saveChallengePoster" loading="{{posterSaving}}">保存结营海报</button>
   <text wx:if="{{posterError}}" class="muted">{{posterError}}</text>
   <button wx:if="{{posterError}}" class="tap-target" bindtap="retryChallengePosterAuthorization">授权后重试</button>

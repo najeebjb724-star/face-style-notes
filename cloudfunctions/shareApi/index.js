@@ -26,10 +26,14 @@ function createMiniCodeService(cloud) {
   };
 }
 
+function getMiniCode(request, cloud) {
+  return createMiniCodeService(cloud)(request);
+}
+
 async function main(event) {
   const cloud = require("wx-server-sdk");
   cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
-  return { fileId: await createMiniCodeService(cloud)(event) };
+  return { fileId: await getMiniCode(event, cloud) };
 }
 
-module.exports = { main, createMiniCodeService, validateRequest };
+module.exports = { main, getMiniCode, createMiniCodeService, validateRequest };

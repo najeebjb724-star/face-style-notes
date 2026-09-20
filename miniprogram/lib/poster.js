@@ -47,6 +47,7 @@ function drawIdentityPoster(ctx, report, options = {}) {
   ctx.font = "15px sans-serif";
   ctx.fillText(model.subtitle, 42, 150);
   ctx.fillText(model.memorySentence, 42, 220);
+  if (options.miniCode && typeof ctx.drawImage === "function") ctx.drawImage(options.miniCode, 188, 270, 60, 60);
   return model;
 }
 
