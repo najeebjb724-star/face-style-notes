@@ -236,3 +236,18 @@ test("mini-code link failure deletes its exact uploaded file and reports rollbac
     error => error === rollbackFailure && error.rollbackFailed === true
   );
 });
+
+test("production share entry rejects arbitrary scenes without uploading a mini-code", async () => {
+  const { createMain } = require("../../cloudfunctions/shareApi");
+  let uploads = 0;
+  const cloud = {
+    database() { return { collection() { return { doc() { return { get: async () => ({ data: null }) }; } }; } }; },
+    getWXContext() { return { OPENID: "owner-1" }; },
+    openapi: { wxacode: { getUnlimited: async () => Buffer.from("code") } },
+    uploadFile: async () => { uploads += 1; return { fileID: "cloud://env.mini-codes/code.png" }; }
+  };
+  const entry = createMain(cloud);
+  await assert.rejects(() => entry({ scene: "preview", page: "pages/report/report" }), { code: "INVALID_ARGUMENT" });
+  await assert.rejects(() => entry({ action: "unknown", scene: "uNguessableToken1234567890123456", page: "pages/report/report" }), { code: "INVALID_ARGUMENT" });
+  assert.equal(uploads, 0);
+});

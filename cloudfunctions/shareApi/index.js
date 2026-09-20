@@ -129,15 +129,21 @@ async function getMiniCodeForPreview(event, cloud, api) {
   return fileId;
 }
 
+function createMain(cloud) {
+  return async function shareMain(event = {}) {
+    const api = createShareApi({ database: cloud.database(), getWXContext: () => cloud.getWXContext() });
+    if (event.action === "createPreview") return { token: await api.createPreview(event.payload) };
+    if (event.action === "getPreview") return api.getPreview(event.payload);
+    if (event.action) throw codedError("INVALID_ARGUMENT");
+    validToken(event.scene);
+    return { fileId: await getMiniCodeForPreview(event, cloud, api) };
+  };
+}
+
 async function main(event) {
   const cloud = require("wx-server-sdk");
   cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
-  const api = createShareApi({ database: cloud.database(), getWXContext: () => cloud.getWXContext() });
-  if (event?.action === "createPreview" || event?.action === "getPreview") {
-    if (event.action === "createPreview") return { token: await api.createPreview(event.payload) };
-    return api.getPreview(event.payload);
-  }
-  return { fileId: await getMiniCodeForPreview(event, cloud, api) };
+  return createMain(cloud)(event);
 }
 
-module.exports = { main, getMiniCode, getMiniCodeForPreview, createMiniCodeService, createShareApi, sanitizePreview, validateRequest };
+module.exports = { main, createMain, getMiniCode, getMiniCodeForPreview, createMiniCodeService, createShareApi, sanitizePreview, validateRequest };
