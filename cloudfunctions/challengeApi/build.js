@@ -5,6 +5,7 @@ const { createHash } = require("node:crypto");
 const output = path.join(__dirname, "index.js");
 const inputs = [
   "src/index.js",
+  "../lifecycleJobs/index.js",
   "../../shared/cloud-guards.js",
   "../../miniprogram/lib/face-style-core.js",
   "build.js",

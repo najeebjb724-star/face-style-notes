@@ -621,6 +621,7 @@ test("build check detects source changes without esbuild installed", () => {
     const isolatedRoot = path.join(temporaryRoot, "repo");
     const isolatedPackage = path.join(isolatedRoot, "cloudfunctions", "challengeApi");
     fs.cpSync(packageRoot, isolatedPackage, { recursive: true, filter: source => !source.includes("node_modules") });
+    fs.cpSync(path.join(packageRoot, "../lifecycleJobs"), path.join(isolatedRoot, "cloudfunctions/lifecycleJobs"), { recursive: true, filter: source => !source.includes("node_modules") });
     fs.mkdirSync(path.join(isolatedRoot, "shared"), { recursive: true });
     fs.mkdirSync(path.join(isolatedRoot, "miniprogram", "lib"), { recursive: true });
     fs.copyFileSync(path.join(packageRoot, "../../shared/cloud-guards.js"), path.join(isolatedRoot, "shared/cloud-guards.js"));
@@ -642,6 +643,7 @@ test("build check detects generated entry corruption without esbuild installed",
     const isolatedRoot = path.join(temporaryRoot, "repo");
     const isolatedPackage = path.join(isolatedRoot, "cloudfunctions", "challengeApi");
     fs.cpSync(packageRoot, isolatedPackage, { recursive: true, filter: source => !source.includes("node_modules") });
+    fs.cpSync(path.join(packageRoot, "../lifecycleJobs"), path.join(isolatedRoot, "cloudfunctions/lifecycleJobs"), { recursive: true, filter: source => !source.includes("node_modules") });
     fs.mkdirSync(path.join(isolatedRoot, "shared"), { recursive: true });
     fs.mkdirSync(path.join(isolatedRoot, "miniprogram", "lib"), { recursive: true });
     fs.copyFileSync(path.join(packageRoot, "../../shared/cloud-guards.js"), path.join(isolatedRoot, "shared/cloud-guards.js"));

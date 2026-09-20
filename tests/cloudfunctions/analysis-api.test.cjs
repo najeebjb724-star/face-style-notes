@@ -702,7 +702,7 @@ test("createAnalysis rejects an unattached, foreign, or mismatched reservation",
   }
 });
 
-test("create assignment wins atomically over a concurrent abandon request", async () => {
+test("an abandon request after atomic assignment cancels that same owned job", async () => {
   const database = serializeTransactions(createDatabase({
     consents: [activeConsent],
     analysis_uploads: [{
@@ -719,10 +719,11 @@ test("create assignment wins atomically over a concurrent abandon request", asyn
   const abandoning = api({ action: "abandonUpload", payload: { reservationId: "reservation-A" } });
   const [created, abandoned] = await Promise.allSettled([creating, abandoning]);
   assert.equal(created.status, "fulfilled");
-  assert.equal(abandoned.status, "rejected");
-  assert.match(abandoned.reason.message, /INVALID_STATUS/);
-  assert.equal(database.records.analysis_uploads[0].status, "assigned");
+  assert.equal(abandoned.status, "fulfilled");
+  assert.equal(database.records.analysis_uploads[0].status, "deleting");
   assert.equal(database.records.analysis_jobs.length, 1);
+  assert.equal(database.records.analysis_jobs[0].status, "failed");
+  assert.equal(database.records.analysis_jobs[0].errorCode, "CANCELLED");
 });
 
 test("attach and abandon transactions never revive a deleting reservation", async () => {

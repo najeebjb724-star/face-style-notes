@@ -1,5 +1,6 @@
 const { createHash, randomUUID } = require("node:crypto");
 const { assertOwnedRecord } = require("../../../shared/cloud-guards");
+const { createPhotoLifecycle, queueChallengeDeletion, adaptCloudDatabase } = require("../../lifecycleJobs");
 const {
   createChallenge,
   toggleChallengeCheckIn,
@@ -107,7 +108,7 @@ function hydrateCheckIns(challenge, records) {
   return { ...challenge, checkIns };
 }
 
-function createChallengeApi({ database, getWXContext, now = () => new Date(), createChallengeId = randomUUID }) {
+function createChallengeApi({ database, getWXContext, now = () => new Date(), createChallengeId = randomUUID, photoCleanup }) {
   if (!database || typeof getWXContext !== "function" || typeof createChallengeId !== "function") {
     throw codedError("INVALID_CONFIGURATION");
   }
@@ -211,6 +212,7 @@ function createChallengeApi({ database, getWXContext, now = () => new Date(), cr
         await challengeReference.update({
           status: "completed",
           completedAt,
+          photoDeleteBy: new Date(requestNow.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           history,
           updatedAt: database.serverDate()
         });
@@ -226,7 +228,7 @@ function createChallengeApi({ database, getWXContext, now = () => new Date(), cr
     if (event.action === "delete") {
       const challengeId = requireId(payload.challengeId);
 
-      return database.runTransaction(async transaction => {
+      const result = await database.runTransaction(async transaction => {
         const challengeReference = transaction.collection("challenges").doc(challengeId);
         const challenge = await readOptionalDocument(challengeReference);
         assertOwnedRecord(challenge, openid);
@@ -235,6 +237,7 @@ function createChallengeApi({ database, getWXContext, now = () => new Date(), cr
         await Promise.all(checkins.map(item => (
           transaction.collection("checkins").doc(item._id).remove()
         )));
+        await queueChallengeDeletion(transaction, database, challenge, requestNow);
         await challengeReference.remove();
 
         const ownerReference = transaction.collection("challengeOwners").doc(openid);
@@ -244,6 +247,8 @@ function createChallengeApi({ database, getWXContext, now = () => new Date(), cr
         }
         return { ok: true };
       });
+      await photoCleanup?.deleteChallengePhotos(challengeId);
+      return result;
     }
 
     throw codedError("INVALID_ACTION");
@@ -253,8 +258,10 @@ function createChallengeApi({ database, getWXContext, now = () => new Date(), cr
 async function challengeApi(event, context) {
   const cloud = require("wx-server-sdk");
   cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+  const database = adaptCloudDatabase(cloud.database());
   return createChallengeApi({
-    database: cloud.database(),
+    database,
+    photoCleanup: createPhotoLifecycle({ database, cloud, alert: event => console.error(JSON.stringify(event)) }),
     getWXContext: () => cloud.getWXContext()
   })(event, context);
 }

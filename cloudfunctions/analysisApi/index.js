@@ -1,12 +1,12 @@
-// analysisApi-build-fingerprint:a9d74a2eb33b1c693a4ac0162bf9089306f970d85c2ad481d5354fcd998b3589:84165b625a198401e0a41e8b0215161575480f9465e5cea055ed6704e893af16
+// analysisApi-build-fingerprint:e9f8efe221c476285e24a253ad7e687a432baa3cbec7eb5410b251ac5cf0b24d:35d7d7544e0dadd53f6aa578c2007e2c42ca3520ceed19755ac76a0eabdc93c2
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
 
-// ../../shared/cloud-guards.js
+// shared/cloud-guards.js
 var require_cloud_guards = __commonJS({
-  "../../shared/cloud-guards.js"(exports2, module2) {
+  "shared/cloud-guards.js"(exports2, module2) {
     function assertOwnedRecord2(record, openid) {
       if (!openid || !record || record._openid !== openid) {
         const error = new Error("FORBIDDEN");
@@ -18,9 +18,260 @@ var require_cloud_guards = __commonJS({
   }
 });
 
-// src/index.js
+// cloudfunctions/lifecycleJobs/index.js
+var require_lifecycleJobs = __commonJS({
+  "cloudfunctions/lifecycleJobs/index.js"(exports2, module2) {
+    var MAX_BATCH_SIZE = 50;
+    var RETRY_LIMIT = 3;
+    var WEEK_MS = 7 * 24 * 60 * 60 * 1e3;
+    function adaptCloudDatabase2(database) {
+      const collections = (source) => (name) => {
+        const collection = source.collection(name);
+        return {
+          where: (filter) => collection.where(filter),
+          doc: (id) => {
+            const reference = collection.doc(id);
+            return {
+              get: () => reference.get(),
+              remove: () => reference.remove(),
+              set: (data) => reference.set({ data }),
+              update: (data) => reference.update({ data })
+            };
+          }
+        };
+      };
+      return {
+        collection: collections(database),
+        command: database.command,
+        serverDate: () => database.serverDate(),
+        runTransaction: (callback) => database.runTransaction((tx) => callback({ collection: collections(tx) }))
+      };
+    }
+    function codedError2(code) {
+      return Object.assign(new Error(code), { code });
+    }
+    function requireId2(value) {
+      if (typeof value !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(value)) throw codedError2("INVALID_ARGUMENT");
+      return value;
+    }
+    async function read(reference) {
+      try {
+        return (await reference.get())?.data || null;
+      } catch (error) {
+        if (error?.code === "DATABASE_DOCUMENT_NOT_EXIST" || error?.errCode === -502005 || /not[ _-]?exist/i.test(error?.message || "")) return null;
+        throw error;
+      }
+    }
+    async function queueChallengeDeletion(transaction, database, challenge, at) {
+      await transaction.collection("deletion_jobs").doc(`challenge-${challenge._id}`).set({
+        kind: "challenge",
+        sourceId: challenge._id,
+        _openid: challenge._openid,
+        state: "pending",
+        attempts: 0,
+        dueAt: at.toISOString(),
+        deleteAll: true,
+        createdAt: database.serverDate()
+      });
+    }
+    function createPhotoLifecycle({ database, cloud, now = () => /* @__PURE__ */ new Date(), alert = () => {
+    }, maxBatchSize = MAX_BATCH_SIZE }) {
+      if (!database || typeof cloud?.deleteFile !== "function") throw codedError2("INVALID_CONFIGURATION");
+      const batchSize = Math.min(MAX_BATCH_SIZE, Math.max(1, maxBatchSize));
+      const list = async (name, filter, limit = batchSize, order) => {
+        if (limit <= 0) return [];
+        let query = database.collection(name).where(filter);
+        if (order) query = query.orderBy(order, "asc");
+        return (await query.limit(limit).get()).data || [];
+      };
+      const write = (name, id, data) => database.runTransaction((tx) => tx.collection(name).doc(id).update(data));
+      async function removePhoto(kind, source, collection, fileId, deletedChanges, at) {
+        const id = `${kind}-${source._id}`;
+        const existing = await read(database.collection("deletion_jobs").doc(id));
+        if (existing?.state === "deleted") return { deleted: true };
+        if (existing?.leaseUntil > at.toISOString()) return { deleted: false, state: existing.state };
+        const claimed = await database.runTransaction(async (tx) => {
+          const reference = tx.collection("deletion_jobs").doc(id);
+          const current = await read(reference);
+          if (current?.state === "deleted" || current?.leaseUntil > at.toISOString()) return null;
+          const intent = {
+            kind,
+            sourceId: source._id,
+            _openid: source._openid,
+            state: current?.state || "pending",
+            attempts: (current?.attempts || 0) + 1,
+            dueAt: new Date(at.getTime() + 6e4).toISOString(),
+            leaseUntil: new Date(at.getTime() + 6e4).toISOString(),
+            updatedAt: database.serverDate()
+          };
+          await reference.set(intent);
+          return intent;
+        });
+        if (!claimed) return { deleted: false };
+        let success = false;
+        try {
+          if (typeof fileId !== "string" || !fileId.startsWith("cloud://")) throw codedError2("FILE_ID_MISSING");
+          const result = await cloud.deleteFile({ fileList: [fileId] });
+          success = result?.fileList?.length === 1 && result.fileList[0].fileID === fileId && result.fileList[0].status === 0;
+        } catch (_) {
+        }
+        const state = success ? "deleted" : claimed.attempts >= RETRY_LIMIT ? "manual_review" : "retrying";
+        await database.runTransaction(async (tx) => {
+          await tx.collection("deletion_jobs").doc(id).update({
+            state,
+            leaseUntil: null,
+            lastError: success ? null : "PHOTO_DELETE_FAILED",
+            updatedAt: database.serverDate()
+          });
+          await tx.collection(collection).doc(source._id).update(success ? deletedChanges : {
+            ...kind === "analysis" ? { sourcePhotoStatus: state === "manual_review" ? state : "deleting" } : { deletionState: state }
+          });
+        });
+        if (!success) alert({ code: "PHOTO_DELETE_FAILED", kind, sourceId: source._id, state, attempts: claimed.attempts });
+        return { deleted: success, state };
+      }
+      async function deleteAnalysisPhoto(jobId, at = now()) {
+        const job = await database.runTransaction(async (tx) => {
+          const reference = tx.collection("analysis_jobs").doc(requireId2(jobId));
+          const current = await read(reference);
+          if (!current) throw codedError2("INVALID_STATUS");
+          if (current.sourcePhotoStatus === "deleted" || current.photoDeletedAt) return current;
+          const expired = Date.parse(current.deleteBy) <= at.getTime();
+          const leaseExpired = current.status === "processing" && Date.parse(current.leaseExpiresAt) <= at.getTime();
+          if (!["complete", "failed"].includes(current.status)) {
+            if (!expired && !leaseExpired) throw codedError2("NOT_DUE");
+            await reference.update({ status: "failed", errorCode: leaseExpired ? "LEASE_EXPIRED" : "PHOTO_EXPIRED", sourcePhotoStatus: "deleting" });
+          }
+          return current;
+        });
+        if (job.sourcePhotoStatus === "deleted" || job.photoDeletedAt) return { deleted: true };
+        const outcome = await removePhoto(
+          "analysis",
+          job,
+          "analysis_jobs",
+          job.tempFileId,
+          { sourcePhotoStatus: "deleted", photoDeletedAt: database.serverDate() },
+          at
+        );
+        if (outcome.deleted && job.reservationId) {
+          const upload = await read(database.collection("analysis_uploads").doc(job.reservationId));
+          if (upload && upload._openid === job._openid && upload.jobId === jobId && upload.tempFileId === job.tempFileId) {
+            await write("analysis_uploads", upload._id, { status: "deleted", photoDeletedAt: database.serverDate() });
+          }
+        }
+        return outcome;
+      }
+      async function deleteUploadPhoto(reservationId, at = now()) {
+        const upload = await read(database.collection("analysis_uploads").doc(requireId2(reservationId)));
+        if (!upload || upload.status === "deleted") return { deleted: true };
+        if (upload.jobId) {
+          const job = await read(database.collection("analysis_jobs").doc(requireId2(upload.jobId)));
+          if (!job || job._openid !== upload._openid || job.reservationId !== reservationId || job.tempFileId !== upload.tempFileId) throw codedError2("INVALID_STATUS");
+          return deleteAnalysisPhoto(upload.jobId, at);
+        }
+        if (upload.status !== "deleting" && !(Date.parse(upload.deleteBy) <= at.getTime())) throw codedError2("NOT_DUE");
+        return removePhoto(
+          "upload",
+          upload,
+          "analysis_uploads",
+          upload.tempFileId,
+          { status: "deleted", deletionState: "deleted", photoDeletedAt: database.serverDate() },
+          at
+        );
+      }
+      async function deleteChallengePhotos(challengeId, at = now(), limit = batchSize) {
+        const id = requireId2(challengeId);
+        const intent = await read(database.collection("deletion_jobs").doc(`challenge-${id}`));
+        const challenge = await read(database.collection("challenges").doc(id));
+        const owner = intent?._openid || challenge?._openid;
+        if (!owner) return { processed: 0 };
+        const deleteAll = intent?.deleteAll === true;
+        const deadline = challenge?.photoDeleteBy ? Date.parse(challenge.photoDeleteBy) : Date.parse(challenge?.completedAt) + WEEK_MS;
+        if (!deleteAll && (challenge?.status !== "completed" || !Number.isFinite(deadline) || deadline > at.getTime())) throw codedError2("NOT_DUE");
+        const filter = { challengeId: id, _openid: owner, deletionState: database.command.neq("deleted") };
+        if (!deleteAll) filter.retentionPolicy = database.command.neq("keep");
+        const photos = await list("challenge_photos", filter, limit);
+        for (const photo of photos) {
+          const attempt = await read(database.collection("deletion_jobs").doc(`challenge-photo-${photo._id}`));
+          if (attempt?.dueAt > at.toISOString()) continue;
+          await removePhoto(
+            "challenge-photo",
+            photo,
+            "challenge_photos",
+            photo.fileId,
+            { deletionState: "deleted", deletedAt: database.serverDate() },
+            at
+          );
+        }
+        if ((await list("challenge_photos", filter, 1)).length === 0) {
+          if (intent) await write("deletion_jobs", `challenge-${id}`, { state: "deleted" });
+          if (challenge) await write("challenges", id, { photosCleaned: true });
+        }
+        return { processed: photos.length };
+      }
+      async function deleteExpiredPhotos(at = now()) {
+        const cutoff = at.toISOString();
+        const cmd = database.command;
+        let processed = 0;
+        const seen = /* @__PURE__ */ new Set();
+        const run = async (kind, id, fn) => {
+          if (processed >= batchSize || seen.has(`${kind}-${id}`)) return;
+          const intent = await read(database.collection("deletion_jobs").doc(`${kind}-${id}`));
+          if (intent?.dueAt > cutoff) return;
+          seen.add(`${kind}-${id}`);
+          processed++;
+          try {
+            await fn();
+          } catch (_) {
+            alert({ code: "LIFECYCLE_JOB_FAILED", kind, sourceId: id });
+          }
+        };
+        for (const intent of await list("deletion_jobs", { state: cmd.in(["pending", "retrying", "manual_review"]), dueAt: cmd.lte(cutoff) }, Math.max(1, Math.floor(batchSize / 2)), "dueAt")) {
+          if (intent.kind === "analysis") await run("analysis", intent.sourceId, () => deleteAnalysisPhoto(intent.sourceId, at));
+          if (intent.kind === "upload") await run("upload", intent.sourceId, () => deleteUploadPhoto(intent.sourceId, at));
+          if (intent.kind === "challenge-photo") {
+            const photo = await read(database.collection("challenge_photos").doc(intent.sourceId));
+            if (photo) await run("challenge-photo", photo._id, () => removePhoto("challenge-photo", photo, "challenge_photos", photo.fileId, { deletionState: "deleted", deletedAt: database.serverDate() }, at));
+          }
+          if (intent.kind === "challenge" && processed < batchSize) {
+            const result = await deleteChallengePhotos(intent.sourceId, at, batchSize - processed);
+            processed += result.processed;
+          }
+        }
+        for (const filter of [
+          { sourcePhotoStatus: "deleting" },
+          { sourcePhotoStatus: "pending", status: "processing", leaseExpiresAt: cmd.lte(cutoff) },
+          { sourcePhotoStatus: "pending", deleteBy: cmd.lte(cutoff) }
+        ]) for (const job of await list("analysis_jobs", filter, batchSize - processed)) await run("analysis", job._id, () => deleteAnalysisPhoto(job._id, at));
+        for (const filter of [
+          { status: "deleting" },
+          { status: cmd.in(["pending", "attached"]), deleteBy: cmd.lte(cutoff) }
+        ]) for (const upload of await list("analysis_uploads", filter, batchSize - processed)) {
+          await run(upload.jobId ? "analysis" : "upload", upload.jobId || upload._id, () => deleteUploadPhoto(upload._id, at));
+        }
+        for (const challenge of await list("challenges", { status: "completed", photosCleaned: cmd.neq(true), completedAt: cmd.lte(new Date(at.getTime() - WEEK_MS).toISOString()) }, batchSize - processed)) {
+          if (processed >= batchSize) break;
+          if (challenge.photoDeleteBy && Date.parse(challenge.photoDeleteBy) > at.getTime()) continue;
+          const result = await deleteChallengePhotos(challenge._id, at, batchSize - processed);
+          processed += Math.max(1, result.processed);
+        }
+        return { processed };
+      }
+      return { deleteAnalysisPhoto, deleteUploadPhoto, deleteChallengePhotos, deleteExpiredPhotos };
+    }
+    async function main() {
+      const cloud = require("wx-server-sdk");
+      cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+      return createPhotoLifecycle({ database: adaptCloudDatabase2(cloud.database()), cloud, alert: (event) => console.error(JSON.stringify(event)) }).deleteExpiredPhotos();
+    }
+    module2.exports = { MAX_BATCH_SIZE, RETRY_LIMIT, adaptCloudDatabase: adaptCloudDatabase2, createPhotoLifecycle, queueChallengeDeletion, main };
+  }
+});
+
+// cloudfunctions/analysisApi/src/index.js
 var { createHash, randomBytes, randomUUID, timingSafeEqual } = require("node:crypto");
 var { assertOwnedRecord } = require_cloud_guards();
+var { createPhotoLifecycle: createPhotoCleanup, adaptCloudDatabase } = require_lifecycleJobs();
 function distance(a, b) {
   return Math.hypot(b.x - a.x, b.y - a.y);
 }
@@ -564,6 +815,7 @@ function createAnalysisApi({
   now = () => /* @__PURE__ */ new Date(),
   createId = (prefix) => `${prefix}-${randomUUID()}`,
   createCredential = () => randomBytes(32).toString("base64url"),
+  photoCleanup,
   dispatchAnalysis = async () => {
   }
 }) {
@@ -628,7 +880,11 @@ function createAnalysisApi({
         });
         return { reservationId, cloudPath };
       });
-      if (result.expired) throw codedError("UPLOAD_REQUIRED");
+      if (result.expired) {
+        await photoCleanup?.deleteUploadPhoto(reservationId);
+        throw codedError("UPLOAD_REQUIRED");
+      }
+      if (result.jobId && ["complete", "failed"].includes(result.status)) await photoCleanup?.deleteAnalysisPhoto(result.jobId);
       return result;
     }
     if (event.action === "attachUpload") {
@@ -649,20 +905,54 @@ function createAnalysisApi({
         await reference.update({ tempFileId, status: "attached", attachedAt: database.serverDate() });
         return { reservationId, status: "attached" };
       });
-      if (result.expired) throw codedError("UPLOAD_REQUIRED");
+      if (result.expired) {
+        await photoCleanup?.deleteUploadPhoto(reservationId);
+        throw codedError("UPLOAD_REQUIRED");
+      }
       return result;
     }
     if (event.action === "abandonUpload") {
       const reservationId = requireId(payload.reservationId);
-      return database.runTransaction(async (transaction) => {
+      const result = await database.runTransaction(async (transaction) => {
         const reference = transaction.collection("analysis_uploads").doc(reservationId);
         const upload = await readOptional(reference);
         assertOwnedRecord(upload, openid);
-        if (upload.status === "deleting") return { reservationId, status: "deleting" };
+        if (upload.status === "deleted") return { reservationId, status: "deleted" };
+        if (upload.status === "deleting") return { reservationId, status: "deleting", ...upload.jobId ? { jobId: upload.jobId } : {} };
+        if (upload.status === "assigned") {
+          const jobReference = transaction.collection("analysis_jobs").doc(requireId(upload.jobId));
+          const job = await readOptional(jobReference);
+          assertOwnedRecord(job, openid);
+          if (job.reservationId !== reservationId || job.tempFileId !== upload.tempFileId) throw codedError("INVALID_STATUS");
+          const next = cleanupTransition(job);
+          await jobReference.update({
+            status: next.status,
+            sourcePhotoStatus: next.sourcePhotoStatus,
+            ...["queued", "processing"].includes(job.status) ? { errorCode: "CANCELLED" } : {}
+          });
+          await reference.update({ status: "deleting", abandonedAt: database.serverDate() });
+          return { reservationId, status: "deleting", jobId: upload.jobId };
+        }
         if (!["pending", "attached"].includes(upload.status)) throw codedError("INVALID_STATUS");
         await reference.update({ status: "deleting", abandonedAt: database.serverDate() });
         return { reservationId, status: "deleting" };
       });
+      if (result.jobId) await photoCleanup?.deleteAnalysisPhoto(result.jobId);
+      else await photoCleanup?.deleteUploadPhoto(reservationId);
+      return result;
+    }
+    if (event.action === "cancelAnalysis") {
+      const jobId = requireId(payload.jobId);
+      const result = await database.runTransaction(async (transaction) => {
+        const reference = transaction.collection("analysis_jobs").doc(jobId);
+        const job = await readOptional(reference);
+        assertOwnedRecord(job, openid);
+        const next = cleanupTransition(job);
+        await reference.update({ status: next.status, sourcePhotoStatus: next.sourcePhotoStatus, errorCode: "CANCELLED" });
+        return { jobId, ...minimalStatus(next) };
+      });
+      await photoCleanup?.deleteAnalysisPhoto(jobId);
+      return result;
     }
     if (event.action === "createAnalysis") {
       const consentId = requireId(payload.consentId);
@@ -727,7 +1017,10 @@ function createAnalysisApi({
           dispatch: { jobId, reservationId, tempFileId, credential, credentialExpiresAt: record.credentialExpiresAt }
         };
       });
-      if (created.expired) throw codedError("UPLOAD_REQUIRED");
+      if (created.expired) {
+        await photoCleanup?.deleteUploadPhoto(reservationId);
+        throw codedError("UPLOAD_REQUIRED");
+      }
       if (created.dispatch) {
         try {
           await dispatchAnalysis(created.dispatch);
@@ -752,6 +1045,7 @@ function createAnalysisApi({
           });
         }
       }
+      if (["complete", "failed"].includes(created.view.status)) await photoCleanup?.deleteAnalysisPhoto(created.view.jobId);
       return created.view;
     }
     if (event.action === "getAnalysis") {
@@ -759,7 +1053,7 @@ function createAnalysisApi({
       let job = await readOptional(database.collection("analysis_jobs").doc(jobId));
       assertOwnedRecord(job, openid);
       if (job.status === "processing" && deadlineMillis(job.leaseExpiresAt) <= now().getTime()) {
-        await recoverExpiredContainerLease({ database, jobId, now: now() });
+        await recoverExpiredContainerLease({ database, jobId, now: now(), photoCleanup });
         job = await readOptional(database.collection("analysis_jobs").doc(jobId));
       }
       if (!ANALYSIS_STATUSES.has(job.status)) throw codedError("INVALID_STATUS");
@@ -816,8 +1110,8 @@ async function claimContainerJob({
     return { jobId, leaseId: lease.leaseId, leaseToken: lease.leaseToken, download };
   });
 }
-async function settleContainerJob({ database, jobId, leaseId, leaseToken, now, status, errorCode, result }) {
-  return database.runTransaction(async (transaction) => {
+async function settleContainerJob({ database, jobId, leaseId, leaseToken, now, status, errorCode, result, photoCleanup }) {
+  const settled = await database.runTransaction(async (transaction) => {
     const reference = transaction.collection("analysis_jobs").doc(requireId(jobId));
     const job = await readOptional(reference);
     assertLease(job, leaseId, leaseToken);
@@ -855,15 +1149,17 @@ async function settleContainerJob({ database, jobId, leaseId, leaseToken, now, s
     await uploadReference.update({ status: "deleting", abandonedAt: database.serverDate() });
     return { jobId, status };
   });
+  await photoCleanup?.deleteAnalysisPhoto(jobId);
+  return settled;
 }
-function completeContainerJob({ database, jobId, leaseId, leaseToken, result, now = /* @__PURE__ */ new Date() }) {
-  return settleContainerJob({ database, jobId, leaseId, leaseToken, result, now, status: "complete" });
+function completeContainerJob({ database, jobId, leaseId, leaseToken, result, now = /* @__PURE__ */ new Date(), photoCleanup }) {
+  return settleContainerJob({ database, jobId, leaseId, leaseToken, result, now, status: "complete", photoCleanup });
 }
-function failContainerJob({ database, jobId, leaseId, leaseToken, errorCode, now = /* @__PURE__ */ new Date() }) {
-  return settleContainerJob({ database, jobId, leaseId, leaseToken, errorCode, now, status: "failed" });
+function failContainerJob({ database, jobId, leaseId, leaseToken, errorCode, now = /* @__PURE__ */ new Date(), photoCleanup }) {
+  return settleContainerJob({ database, jobId, leaseId, leaseToken, errorCode, now, status: "failed", photoCleanup });
 }
-async function recoverExpiredContainerLease({ database, jobId, now = /* @__PURE__ */ new Date() }) {
-  return database.runTransaction(async (transaction) => {
+async function recoverExpiredContainerLease({ database, jobId, now = /* @__PURE__ */ new Date(), photoCleanup }) {
+  const result = await database.runTransaction(async (transaction) => {
     const reference = transaction.collection("analysis_jobs").doc(requireId(jobId));
     const job = await readOptional(reference);
     if (!job) throw codedError("INVALID_STATUS");
@@ -877,6 +1173,8 @@ async function recoverExpiredContainerLease({ database, jobId, now = /* @__PURE_
     }
     return { jobId, status: "failed" };
   });
+  if (["complete", "failed"].includes(result.status)) await photoCleanup?.deleteAnalysisPhoto(jobId);
+  return result;
 }
 function requireHttpsUrl(value, hosts) {
   let url;
@@ -960,7 +1258,7 @@ function createProductionDispatch({ endpoint, fetchImpl = globalThis.fetch }) {
     }
   };
 }
-function createContainerCoordinatorMain({ database, createDownloadDescriptor, now = () => /* @__PURE__ */ new Date() }) {
+function createContainerCoordinatorMain({ database, createDownloadDescriptor, now = () => /* @__PURE__ */ new Date(), photoCleanup }) {
   if (!database || typeof createDownloadDescriptor !== "function") throw codedError("INVALID_CONFIGURATION");
   return async (event) => {
     const reply = (statusCode, value) => ({ statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(value) });
@@ -979,8 +1277,8 @@ function createContainerCoordinatorMain({ database, createDownloadDescriptor, no
       const jobId = requireId(input.jobId);
       let result;
       if (input.action === "claim") result = await claimContainerJob({ database, jobId, credential: match[1], now: now(), createDownloadDescriptor });
-      else if (input.action === "complete") result = await completeContainerJob({ database, jobId, leaseId: input.leaseId, leaseToken: match[1], result: input.result, now: now() });
-      else if (input.action === "fail") result = await failContainerJob({ database, jobId, leaseId: input.leaseId, leaseToken: match[1], errorCode: input.errorCode, now: now() });
+      else if (input.action === "complete") result = await completeContainerJob({ database, jobId, leaseId: input.leaseId, leaseToken: match[1], result: input.result, now: now(), photoCleanup });
+      else if (input.action === "fail") result = await failContainerJob({ database, jobId, leaseId: input.leaseId, leaseToken: match[1], errorCode: input.errorCode, now: now(), photoCleanup });
       else return reply(400, { ok: false, code: "INVALID_ACTION" });
       return reply(200, { ok: true, ...result });
     } catch (error) {
@@ -994,15 +1292,17 @@ function createContainerCoordinatorMain({ database, createDownloadDescriptor, no
 async function analysisApi(event, context) {
   const cloud = require("wx-server-sdk");
   cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+  const database = adaptCloudDatabase(cloud.database());
+  const photoCleanup = createPhotoCleanup({ database, cloud, alert: (event2) => console.error(JSON.stringify(event2)) });
   if (event?.httpMethod) {
     const createDownloadDescriptor = createProductionDownloadDescriptor({
       cloud,
       allowedPhotoHosts: String(process.env.PHOTO_URL_HOSTS || "").split(",").map((host) => host.trim()).filter(Boolean)
     });
-    return createContainerCoordinatorMain({ database: cloud.database(), createDownloadDescriptor })(event);
+    return createContainerCoordinatorMain({ database, createDownloadDescriptor, photoCleanup })(event);
   }
   const dispatchAnalysis = (delivery) => createProductionDispatch({ endpoint: process.env.FACE_ANALYSIS_URL })(delivery);
-  return createAnalysisApi({ database: cloud.database(), getWXContext: () => cloud.getWXContext(), dispatchAnalysis })(event, context);
+  return createAnalysisApi({ database, getWXContext: () => cloud.getWXContext(), dispatchAnalysis, photoCleanup })(event, context);
 }
 module.exports = {
   main: createClientSafeMain(analysisApi),
@@ -1010,6 +1310,7 @@ module.exports = {
   claimContainerJob,
   completeContainerJob,
   createAnalysisApi,
+  createPhotoCleanup,
   createClientSafeMain,
   createContainerCoordinatorMain,
   createProductionDispatch,

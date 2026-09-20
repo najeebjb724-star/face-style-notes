@@ -1,5 +1,6 @@
 const { createHash, randomBytes, randomUUID, timingSafeEqual } = require("node:crypto");
 const { assertOwnedRecord } = require("../../../shared/cloud-guards");
+const { createPhotoLifecycle: createPhotoCleanup, adaptCloudDatabase } = require("../../lifecycleJobs");
 // Deterministic report functions are inlined for this self-contained CloudBase bundle.
 function distance(a, b) { return Math.hypot(b.x - a.x, b.y - a.y); }
 function safeDivide(numerator, denominator, fallback = 0) { return Number.isFinite(numerator) && Number.isFinite(denominator) && denominator !== 0 ? numerator / denominator : fallback; }
@@ -575,6 +576,7 @@ function createAnalysisApi({
   now = () => new Date(),
   createId = prefix => `${prefix}-${randomUUID()}`,
   createCredential = () => randomBytes(32).toString("base64url"),
+  photoCleanup,
   dispatchAnalysis = async () => {}
 }) {
   if (!database || typeof getWXContext !== "function") throw codedError("INVALID_CONFIGURATION");
@@ -637,7 +639,8 @@ function createAnalysisApi({
         });
         return { reservationId, cloudPath };
       });
-      if (result.expired) throw codedError("UPLOAD_REQUIRED");
+      if (result.expired) { await photoCleanup?.deleteUploadPhoto(reservationId); throw codedError("UPLOAD_REQUIRED"); }
+      if (result.jobId && ["complete", "failed"].includes(result.status)) await photoCleanup?.deleteAnalysisPhoto(result.jobId);
       return result;
     }
 
@@ -659,21 +662,50 @@ function createAnalysisApi({
         await reference.update({ tempFileId, status: "attached", attachedAt: database.serverDate() });
         return { reservationId, status: "attached" };
       });
-      if (result.expired) throw codedError("UPLOAD_REQUIRED");
+      if (result.expired) { await photoCleanup?.deleteUploadPhoto(reservationId); throw codedError("UPLOAD_REQUIRED"); }
       return result;
     }
 
     if (event.action === "abandonUpload") {
       const reservationId = requireId(payload.reservationId);
-      return database.runTransaction(async transaction => {
+      const result = await database.runTransaction(async transaction => {
         const reference = transaction.collection("analysis_uploads").doc(reservationId);
         const upload = await readOptional(reference);
         assertOwnedRecord(upload, openid);
-        if (upload.status === "deleting") return { reservationId, status: "deleting" };
+        if (upload.status === "deleted") return { reservationId, status: "deleted" };
+        if (upload.status === "deleting") return { reservationId, status: "deleting", ...(upload.jobId ? { jobId: upload.jobId } : {}) };
+        if (upload.status === "assigned") {
+          const jobReference = transaction.collection("analysis_jobs").doc(requireId(upload.jobId));
+          const job = await readOptional(jobReference);
+          assertOwnedRecord(job, openid);
+          if (job.reservationId !== reservationId || job.tempFileId !== upload.tempFileId) throw codedError("INVALID_STATUS");
+          const next = cleanupTransition(job);
+          await jobReference.update({ status: next.status, sourcePhotoStatus: next.sourcePhotoStatus,
+            ...(["queued", "processing"].includes(job.status) ? { errorCode: "CANCELLED" } : {}) });
+          await reference.update({ status: "deleting", abandonedAt: database.serverDate() });
+          return { reservationId, status: "deleting", jobId: upload.jobId };
+        }
         if (!["pending", "attached"].includes(upload.status)) throw codedError("INVALID_STATUS");
         await reference.update({ status: "deleting", abandonedAt: database.serverDate() });
         return { reservationId, status: "deleting" };
       });
+      if (result.jobId) await photoCleanup?.deleteAnalysisPhoto(result.jobId);
+      else await photoCleanup?.deleteUploadPhoto(reservationId);
+      return result;
+    }
+
+    if (event.action === "cancelAnalysis") {
+      const jobId = requireId(payload.jobId);
+      const result = await database.runTransaction(async transaction => {
+        const reference = transaction.collection("analysis_jobs").doc(jobId);
+        const job = await readOptional(reference);
+        assertOwnedRecord(job, openid);
+        const next = cleanupTransition(job);
+        await reference.update({ status: next.status, sourcePhotoStatus: next.sourcePhotoStatus, errorCode: "CANCELLED" });
+        return { jobId, ...minimalStatus(next) };
+      });
+      await photoCleanup?.deleteAnalysisPhoto(jobId);
+      return result;
     }
 
     if (event.action === "createAnalysis") {
@@ -738,7 +770,7 @@ function createAnalysisApi({
           dispatch: { jobId, reservationId, tempFileId, credential, credentialExpiresAt: record.credentialExpiresAt }
         };
       });
-      if (created.expired) throw codedError("UPLOAD_REQUIRED");
+      if (created.expired) { await photoCleanup?.deleteUploadPhoto(reservationId); throw codedError("UPLOAD_REQUIRED"); }
       if (created.dispatch) {
         try {
           await dispatchAnalysis(created.dispatch);
@@ -763,6 +795,7 @@ function createAnalysisApi({
           });
         }
       }
+      if (["complete", "failed"].includes(created.view.status)) await photoCleanup?.deleteAnalysisPhoto(created.view.jobId);
       return created.view;
     }
 
@@ -771,7 +804,7 @@ function createAnalysisApi({
       let job = await readOptional(database.collection("analysis_jobs").doc(jobId));
       assertOwnedRecord(job, openid);
       if (job.status === "processing" && deadlineMillis(job.leaseExpiresAt) <= now().getTime()) {
-        await recoverExpiredContainerLease({ database, jobId, now: now() });
+        await recoverExpiredContainerLease({ database, jobId, now: now(), photoCleanup });
         job = await readOptional(database.collection("analysis_jobs").doc(jobId));
       }
       if (!ANALYSIS_STATUSES.has(job.status)) throw codedError("INVALID_STATUS");
@@ -835,8 +868,8 @@ async function claimContainerJob({
   });
 }
 
-async function settleContainerJob({ database, jobId, leaseId, leaseToken, now, status, errorCode, result }) {
-  return database.runTransaction(async transaction => {
+async function settleContainerJob({ database, jobId, leaseId, leaseToken, now, status, errorCode, result, photoCleanup }) {
+  const settled = await database.runTransaction(async transaction => {
     const reference = transaction.collection("analysis_jobs").doc(requireId(jobId));
     const job = await readOptional(reference);
     assertLease(job, leaseId, leaseToken);
@@ -879,18 +912,20 @@ async function settleContainerJob({ database, jobId, leaseId, leaseToken, now, s
     await uploadReference.update({ status: "deleting", abandonedAt: database.serverDate() });
     return { jobId, status };
   });
+  await photoCleanup?.deleteAnalysisPhoto(jobId);
+  return settled;
 }
 
-function completeContainerJob({ database, jobId, leaseId, leaseToken, result, now = new Date() }) {
-  return settleContainerJob({ database, jobId, leaseId, leaseToken, result, now, status: "complete" });
+function completeContainerJob({ database, jobId, leaseId, leaseToken, result, now = new Date(), photoCleanup }) {
+  return settleContainerJob({ database, jobId, leaseId, leaseToken, result, now, status: "complete", photoCleanup });
 }
 
-function failContainerJob({ database, jobId, leaseId, leaseToken, errorCode, now = new Date() }) {
-  return settleContainerJob({ database, jobId, leaseId, leaseToken, errorCode, now, status: "failed" });
+function failContainerJob({ database, jobId, leaseId, leaseToken, errorCode, now = new Date(), photoCleanup }) {
+  return settleContainerJob({ database, jobId, leaseId, leaseToken, errorCode, now, status: "failed", photoCleanup });
 }
 
-async function recoverExpiredContainerLease({ database, jobId, now = new Date() }) {
-  return database.runTransaction(async transaction => {
+async function recoverExpiredContainerLease({ database, jobId, now = new Date(), photoCleanup }) {
+  const result = await database.runTransaction(async transaction => {
     const reference = transaction.collection("analysis_jobs").doc(requireId(jobId));
     const job = await readOptional(reference);
     if (!job) throw codedError("INVALID_STATUS");
@@ -904,6 +939,8 @@ async function recoverExpiredContainerLease({ database, jobId, now = new Date() 
     }
     return { jobId, status: "failed" };
   });
+  if (["complete", "failed"].includes(result.status)) await photoCleanup?.deleteAnalysisPhoto(jobId);
+  return result;
 }
 
 function requireHttpsUrl(value, hosts) {
@@ -970,7 +1007,7 @@ function createProductionDispatch({ endpoint, fetchImpl = globalThis.fetch }) {
   };
 }
 
-function createContainerCoordinatorMain({ database, createDownloadDescriptor, now = () => new Date() }) {
+function createContainerCoordinatorMain({ database, createDownloadDescriptor, now = () => new Date(), photoCleanup }) {
   if (!database || typeof createDownloadDescriptor !== "function") throw codedError("INVALID_CONFIGURATION");
   return async event => {
     const reply = (statusCode, value) => ({ statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(value) });
@@ -986,8 +1023,8 @@ function createContainerCoordinatorMain({ database, createDownloadDescriptor, no
       const jobId = requireId(input.jobId);
       let result;
       if (input.action === "claim") result = await claimContainerJob({ database, jobId, credential: match[1], now: now(), createDownloadDescriptor });
-      else if (input.action === "complete") result = await completeContainerJob({ database, jobId, leaseId: input.leaseId, leaseToken: match[1], result: input.result, now: now() });
-      else if (input.action === "fail") result = await failContainerJob({ database, jobId, leaseId: input.leaseId, leaseToken: match[1], errorCode: input.errorCode, now: now() });
+      else if (input.action === "complete") result = await completeContainerJob({ database, jobId, leaseId: input.leaseId, leaseToken: match[1], result: input.result, now: now(), photoCleanup });
+      else if (input.action === "fail") result = await failContainerJob({ database, jobId, leaseId: input.leaseId, leaseToken: match[1], errorCode: input.errorCode, now: now(), photoCleanup });
       else return reply(400, { ok: false, code: "INVALID_ACTION" });
       return reply(200, { ok: true, ...result });
     } catch (error) {
@@ -1002,13 +1039,15 @@ function createContainerCoordinatorMain({ database, createDownloadDescriptor, no
 async function analysisApi(event, context) {
   const cloud = require("wx-server-sdk");
   cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+  const database = adaptCloudDatabase(cloud.database());
+  const photoCleanup = createPhotoCleanup({ database, cloud, alert: event => console.error(JSON.stringify(event)) });
   if (event?.httpMethod) {
     const createDownloadDescriptor = createProductionDownloadDescriptor({ cloud,
       allowedPhotoHosts: String(process.env.PHOTO_URL_HOSTS || "").split(",").map(host => host.trim()).filter(Boolean) });
-    return createContainerCoordinatorMain({ database: cloud.database(), createDownloadDescriptor })(event);
+    return createContainerCoordinatorMain({ database, createDownloadDescriptor, photoCleanup })(event);
   }
   const dispatchAnalysis = delivery => createProductionDispatch({ endpoint: process.env.FACE_ANALYSIS_URL })(delivery);
-  return createAnalysisApi({ database: cloud.database(), getWXContext: () => cloud.getWXContext(), dispatchAnalysis })(event, context);
+  return createAnalysisApi({ database, getWXContext: () => cloud.getWXContext(), dispatchAnalysis, photoCleanup })(event, context);
 }
 
 module.exports = {
@@ -1017,6 +1056,7 @@ module.exports = {
   claimContainerJob,
   completeContainerJob,
   createAnalysisApi,
+  createPhotoCleanup,
   createClientSafeMain,
   createContainerCoordinatorMain,
   createProductionDispatch,

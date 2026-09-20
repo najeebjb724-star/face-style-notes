@@ -3,7 +3,7 @@ const path = require("node:path");
 const { createHash } = require("node:crypto");
 
 const output = path.join(__dirname, "index.js");
-const inputs = ["src/index.js", "../../shared/cloud-guards.js", "build.js", "package.json"];
+const inputs = ["src/index.js", "../lifecycleJobs/index.js", "../../shared/cloud-guards.js", "build.js", "package.json"];
 const hash = value => createHash("sha256").update(value).digest("hex");
 const fingerprint = () => {
   const digest = createHash("sha256");
