@@ -51,11 +51,37 @@ function loadCanvasImage(canvas, source) {
   });
 }
 
-async function getMiniCode(canvas) {
+async function createPreview(kind, preview) {
+  try {
+    const response = await wx.cloud.callFunction({ name: "shareApi", data: { action: "createPreview", payload: { kind, preview } } });
+    return response?.result?.token || "";
+  } catch (_) {
+    return "";
+  }
+}
+
+async function getPreview(token) {
+  const response = await wx.cloud.callFunction({ name: "shareApi", data: { action: "getPreview", payload: { token } } });
+  return response?.result;
+}
+
+function reportPreview(report = {}) {
+  return { title: report.identity?.title, subtitle: report.identity?.subtitle, memory: report.memorySentence };
+}
+
+async function ensureShareToken(page) {
+  if (page.data.shareToken) return page.data.shareToken;
+  const shareToken = await createPreview("report", reportPreview(page.data.report));
+  if (shareToken) page.setData({ shareToken });
+  return shareToken;
+}
+
+async function getMiniCode(canvas, scene) {
+  if (!scene) return null;
   try {
     const response = await wx.cloud.callFunction({
       name: "shareApi",
-      data: { scene: "preview", page: "pages/report/report" }
+      data: { scene, page: "pages/report/report" }
     });
     const fileId = response?.result?.fileId;
     if (!fileId) return null;
@@ -67,8 +93,17 @@ async function getMiniCode(canvas) {
 }
 
 Page({
-  data: { report: null, reportId: "", loading: true, errorText: "", posterSaving: false, posterError: "" },
+  data: { report: null, reportId: "", shareToken: "", loading: true, errorText: "", posterSaving: false, posterError: "" },
   async onLoad(query) {
+    if (query?.token) {
+      try {
+        const shared = await getPreview(query.token);
+        if (shared?.kind !== "report") throw new Error("PREVIEW_NOT_FOUND");
+        return this.setData({ report: buildSharedReport(shared.preview), reportId: "", loading: false });
+      } catch (_) {
+        return this.setData({ loading: false, errorText: "这份分享预览已失效或无法打开。" });
+      }
+    }
     if (query?.share === "1" || query?.scene === "preview") {
       return this.setData({ report: buildSharedReport(query), reportId: "", loading: false });
     }
@@ -77,6 +112,8 @@ Page({
     try {
       const report = await callCloud("analysisApi", { action: "getReport", payload: { reportId: id } });
       this.setData({ report, reportId: id, loading: false });
+      const shareToken = await createPreview("report", reportPreview(report));
+      if (shareToken) this.setData({ shareToken });
     } catch (_) {
       this.setData({ loading: false, errorText: "暂时无法读取这份结构参考，请稍后重试。" });
     }
@@ -91,7 +128,7 @@ Page({
     this.setData({ posterSaving: true, posterError: "" });
     try {
       const { canvas, context } = await getCanvas(this, "#identityPoster");
-      const miniCode = await getMiniCode(canvas);
+      const miniCode = await getMiniCode(canvas, await ensureShareToken(this));
       require("../../lib/poster").drawIdentityPoster(context, this.data.report, { miniCode });
       await saveCanvas(canvas);
       wx.showToast({ title: "已保存到相册", icon: "success" });
@@ -114,9 +151,9 @@ Page({
     const title = previewText(identity.title, "我的美学身份卡");
     const subtitle = previewText(identity.subtitle, "分享预览");
     const memory = previewText(report.memorySentence, "找到适合自己的表达方式。");
-    return {
-      title,
-      path: `/pages/report/report?share=1&title=${encodeURIComponent(title)}&subtitle=${encodeURIComponent(subtitle)}&memory=${encodeURIComponent(memory)}`
-    };
+    const token = this.data.shareToken;
+    return token
+      ? { title, path: `/pages/report/report?token=${token}` }
+      : { title, path: `/pages/report/report?share=1&title=${encodeURIComponent(title)}&subtitle=${encodeURIComponent(subtitle)}&memory=${encodeURIComponent(memory)}` };
   }
 });
