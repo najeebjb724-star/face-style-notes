@@ -64,10 +64,10 @@ function drawChallengePoster(ctx, challenge, photos = [], miniCode) {
   ctx.fillText(`完成率 ${model.completionRate}%`, 42, 205);
   ctx.fillText(`最长连续 ${model.streak} 次`, 42, 240);
   if (model.includePhotos && photos.length && typeof ctx.drawImage === "function") {
-    ctx.drawImage(photos[0], 42, 270, 100, 100);
-    if (photos[1]) ctx.drawImage(photos[1], 150, 270, 100, 100);
+    ctx.drawImage(photos[0], 42, 270, 80, 80);
+    if (photos[1]) ctx.drawImage(photos[1], 130, 270, 80, 80);
   }
-  if (miniCode && typeof ctx.drawImage === "function") ctx.drawImage(miniCode, 188, 270, 60, 60);
+  if (miniCode && typeof ctx.drawImage === "function") ctx.drawImage(miniCode, 218, 285, 50, 50);
   return model;
 }
 

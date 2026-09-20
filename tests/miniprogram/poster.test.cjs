@@ -89,6 +89,27 @@ test("opted-in challenge poster draws fresh start and end photos", () => {
   assert.deepEqual(images, [start, end]);
 });
 
+test("challenge poster keeps two photos and its mini-code in separate Canvas regions", () => {
+  const calls = [];
+  const context = {
+    fillRect() {},
+    fillText() {},
+    drawImage(...args) { calls.push(args); },
+    set fillStyle(_) {},
+    set font(_) {},
+    set textAlign(_) {}
+  };
+  const start = { id: "start" };
+  const end = { id: "end" };
+  const code = { id: "code" };
+  drawChallengePoster(context, { title: "七日练习", includePhotos: true }, [start, end], code);
+  assert.deepEqual(calls, [
+    [start, 42, 270, 80, 80],
+    [end, 130, 270, 80, 80],
+    [code, 218, 285, 50, 50]
+  ]);
+});
+
 test("report sharing sends a presentation-only preview that a recipient can render", async () => {
   let cloudCalls = 0;
   const page = loadPage("pages/report/report.js", {
@@ -193,4 +214,25 @@ test("server share previews are sanitized, unguessable, and expire before lookup
   await assert.rejects(() => api.getPreview({ token: "invalid" }), { code: "INVALID_ARGUMENT" });
   records.get(token).expiresAt = "2026-09-19T00:00:00.000Z";
   await assert.rejects(() => api.getPreview({ token }), { code: "PREVIEW_EXPIRED" });
+});
+
+test("mini-code link failure deletes its exact uploaded file and reports rollback failure", async () => {
+  const { getMiniCodeForPreview } = require("../../cloudfunctions/shareApi");
+  const deleted = [];
+  const cloud = {
+    openapi: { wxacode: { getUnlimited: async () => Buffer.from("code") } },
+    uploadFile: async () => ({ fileID: "cloud://env.mini-codes/code.png" }),
+    deleteFile: async ({ fileList }) => { deleted.push(fileList); return { fileList: [{ fileID: fileList[0], status: 0 }] }; }
+  };
+  const api = { getPreview: async () => ({}), linkMiniCode: async () => { throw new Error("LINK_FAILED"); } };
+  await assert.rejects(() => getMiniCodeForPreview({ scene: "uNguessableToken1234567890123456", page: "pages/report/report" }, cloud, api), /LINK_FAILED/);
+  assert.deepEqual(deleted, [["cloud://env.mini-codes/code.png"]]);
+
+  const rollbackFailure = new Error("LINK_FAILED");
+  const failedCloud = { ...cloud, deleteFile: async () => ({ fileList: [{ fileID: "cloud://env.mini-codes/code.png", status: -1 }] }) };
+  const failedApi = { getPreview: async () => ({}), linkMiniCode: async () => { throw rollbackFailure; } };
+  await assert.rejects(
+    () => getMiniCodeForPreview({ scene: "uNguessableToken1234567890123456", page: "pages/report/report" }, failedCloud, failedApi),
+    error => error === rollbackFailure && error.rollbackFailed === true
+  );
 });
