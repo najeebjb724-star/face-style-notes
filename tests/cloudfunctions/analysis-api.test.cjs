@@ -5,6 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const vm = require("node:vm");
 const { execFileSync } = require("node:child_process");
+const { makeFrontLandmarks } = require("../fixtures/landmarks.cjs");
 
 const {
   claimContainerJob,
@@ -13,6 +14,10 @@ const {
   createContainerCoordinatorMain,
   createProductionDispatch,
   createProductionDownloadDescriptor,
+  computeMeasurements,
+  inferQuestionnaire,
+  composeReport,
+  buildIdentityPresentation,
   failContainerJob,
   recoverExpiredContainerLease,
   transitionAnalysisJob
@@ -440,6 +445,34 @@ test("ordinary status query is owned and exposes only the minimum view", async (
   await assert.rejects(() => other({ action: "getAnalysis", payload: { jobId: "job-A" } }), /FORBIDDEN/);
 });
 
+test("saved reports are owner-scoped and never return raw landmarks", async () => {
+  const saved = { identity: { title: "结构参考" }, memorySentence: "照片内参考", coreTraits: [] };
+  const { api } = setup("openid-A", { reports: [{ _id: "report-job-A", _openid: "openid-A", report: saved }] });
+  assert.deepEqual(await api({ action: "getReport", payload: { reportId: "report-job-A" } }), saved);
+  const { api: foreign } = setup("openid-B", { reports: [{ _id: "report-job-A", _openid: "openid-A", report: saved }] });
+  await assert.rejects(foreign({ action: "getReport", payload: { reportId: "report-job-A" } }), /FORBIDDEN/);
+});
+
+test("server report functions remain byte-for-byte data equivalent to the web core", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../../index.html"), "utf8");
+  const source = html.match(/<script id="face-style-core">([\s\S]*?)<\/script>/)[1];
+  const context = { window: {}, URL };
+  vm.createContext(context);
+  vm.runInContext(source, context);
+  const web = context.window.FaceStyleCore;
+  const quality = { accepted: true, level: "high", issues: [], metrics: {} };
+  const answers = { postCleanse: "tzone", reactivity: "rarely", primaryGoal: "makeup", dailyMinutes: 15, hairMaintenance: "light", monthlyBudget: "moderate" };
+  const points = makeFrontLandmarks();
+  const serverMeasurements = computeMeasurements(points, "high");
+  const webMeasurements = web.computeMeasurements(points, "high");
+  const plain = value => JSON.parse(JSON.stringify(value));
+  assert.deepEqual(plain(serverMeasurements), plain(webMeasurements));
+  const serverProfile = inferQuestionnaire(answers);
+  const webProfile = web.inferQuestionnaire(answers);
+  assert.deepEqual(plain(composeReport({ quality, measurements: serverMeasurements, profile: serverProfile })), plain(web.composeReport({ quality, measurements: webMeasurements, profile: webProfile })));
+  assert.deepEqual(plain(buildIdentityPresentation(serverMeasurements, composeReport({ quality, measurements: serverMeasurements, profile: serverProfile }).readableProfile, new Date("2026-09-03T12:00:00.000Z"))), plain(web.buildIdentityPresentation(webMeasurements, web.composeReport({ quality, measurements: webMeasurements, profile: webProfile }).readableProfile, new Date("2026-09-03T12:00:00.000Z"))));
+});
+
 test("failed status never exposes an internal error message", async () => {
   const api = setup("openid-A", { analysis_jobs: [{
     _id: "job-A", _openid: "openid-A", status: "failed", sourcePhotoStatus: "manual_review",
@@ -554,7 +587,12 @@ test("container lease completion and failure are idempotent and always schedule 
     if (action === "complete") {
       assert.deepEqual(await completeContainerJob({ ...args, result }), { jobId: "job-A", status: "complete" });
       assert.deepEqual(await completeContainerJob({ ...args, result }), { jobId: "job-A", status: "complete" });
-      assert.equal(database.records.analysis_jobs[0].analysisResult.points.length, 68);
+      assert.equal(database.records.analysis_jobs[0].reportId, "report-job-A");
+      assert.equal("analysisResult" in database.records.analysis_jobs[0], false);
+      assert.equal(database.records.reports[0]._openid, "openid-A");
+      assert.equal(database.records.reports[0].modelVersion, "model-A");
+      assert.equal(database.records.reports[0].reportRulesVersion, "web-face-style-core-2026-09-03");
+      assert.equal("analysisResult" in database.records.analysis_jobs[0], false);
     } else {
       assert.deepEqual(await failContainerJob({ ...args, errorCode: "NO_FACE" }), { jobId: "job-A", status: "failed" });
       assert.deepEqual(await failContainerJob({ ...args, errorCode: "NO_FACE" }), { jobId: "job-A", status: "failed" });

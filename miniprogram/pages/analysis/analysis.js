@@ -156,6 +156,7 @@ Page({
     } else if (status === "complete" && result.reportId) {
       this.stopPolling();
       this.setData({ status, statusText: "结构参考已准备好", errorText: "", canRefresh: false, reportId: result.reportId });
+      if (typeof wx.redirectTo === "function") wx.redirectTo({ url: `/pages/report/report?id=${encodeURIComponent(result.reportId)}` });
     } else if (status === "failed") {
       this.stopPolling();
       this.setData({ status, errorText: "这次处理没有完成，你可以刷新状态或重新选择照片。", canRefresh: true });
@@ -174,6 +175,11 @@ Page({
       if (this._disposed || generation !== this._generation) return;
       this.setData({ errorText: "暂时无法获取进度，请稍后手动刷新。", canRefresh: true });
     }
+  },
+
+  viewReport() {
+    if (!this.data.reportId) return;
+    wx.navigateTo({ url: `/pages/report/report?id=${encodeURIComponent(this.data.reportId)}` });
   },
 
   schedulePoll() {

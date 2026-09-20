@@ -1,0 +1,6 @@
+.identity-card { background: #2c2420; border-radius: 24rpx; color: #fffdf9; padding: 40rpx; }
+.serial { color: #C9A87C; font-size: 24rpx; }
+.title { display: block; font-size: 40rpx; font-weight: 600; margin: 24rpx 0 16rpx; }
+.poem { display: block; color: #EDE5D8; line-height: 1.7; }
+.tags { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 28rpx; }
+.tag { border: 1rpx solid #D4C4B0; border-radius: 999rpx; font-size: 22rpx; padding: 8rpx 16rpx; }

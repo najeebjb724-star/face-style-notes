@@ -118,11 +118,16 @@ test("mini program exports the challenge and photo-quality interfaces with immut
   const mini = loadMiniCore();
   assert.deepEqual(Object.keys(mini).sort(), [
     "CHALLENGE_TEMPLATES",
+    "buildIdentityPresentation",
+    "composeReport",
+    "computeMeasurements",
     "createChallenge",
     "createChallengeHistoryEntry",
     "evaluatePhotoQuality",
+    "deriveReadableProfile",
     "getChallengeOccurrenceDays",
     "getChallengeProgress",
+    "inferQuestionnaire",
     "overridePhotoQuality",
     "toggleChallengeCheckIn"
   ].sort());

@@ -7,6 +7,6 @@
     <button wx:if="{{canRetryUpload}}" class="primary tap-target" bindtap="startAnalysis">重试本次处理</button>
     <button wx:if="{{canRefresh}}" class="secondary tap-target" bindtap="refreshStatus">手动刷新</button>
     <button wx:if="{{status === 'failed'}}" class="secondary tap-target" bindtap="chooseAgain">重新选择照片</button>
-    <text wx:if="{{status === 'complete' && reportId}}" class="body">报告入口将在身份卡页面接入后开放。</text>
+    <view wx:if="{{status === 'complete' && reportId}}"><text class="body">结构参考已准备好。</text><button class="secondary tap-target" bindtap="viewReport">查看结构参考</button></view>
   </view>
 </view>

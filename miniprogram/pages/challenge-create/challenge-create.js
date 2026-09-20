@@ -18,6 +18,7 @@ Page({
 
   onLoad(options = {}) {
     if (options.active === "1") this.setData({ activeChallenge: { id: "active" } });
+    if (CHALLENGE_TEMPLATES.some(item => item.id === options.template)) this.setData({ selectedTemplateId: options.template });
   },
 
   async onShow() {
