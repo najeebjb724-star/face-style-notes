@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-**本地工程状态：已完成本地实现与自动化验证。**
+**本地文档与自动验证状态：发布文档包和本地自动化验证已完成。** 这不代表挑战照片云端桥已完成，也不代表任何外部或线上能力（微信后台、CloudBase、云存储、CloudRun、体验版、真机权限或审核）已经可用。
 
 **发布状态：BLOCKED，不可上传提审，也不可称为“审核就绪”。** 当前没有注册的小程序 AppID、生产 EnvId、获批的服务类目/备案/隐私配置、订阅消息模板、已部署的云托管版本和回滚版本，也没有微信开发者工具或真机验证记录。`project.config.json` 仍使用 `touristappid`，`miniprogram/config/env.js` 的三个环境值仍为空。
 
@@ -13,9 +13,9 @@
 ## 最短的下一步
 
 1. 在微信公众平台注册小程序，完成主体、服务类目、备案和隐私指引；只记录 AppID，**绝不要发送、粘贴或提交 AppSecret**。
-2. 创建生产 CloudBase 环境，按 [云端配置](docs/wechat/cloud-setup.md) 配置 EnvId、集合权限、索引、函数、定时器、订阅模板、监控、云托管和回滚版本。
-3. 先关闭 [发布检查清单](docs/wechat/release-checklist.md) 中所有 `BLOCKED` 项，再按 [关键旅程](tests/e2e/critical-journeys.md) 和 [真机矩阵](docs/wechat/device-matrix.md) 留存真实证据。
-4. 全部发布门槛通过后，再把 [审核员指引](docs/wechat/reviewer-guide.md) 中的占位信息换成真实可用信息并上传体验版。
+2. 按 [云端配置](docs/wechat/cloud-setup.md) 关闭 [发布检查清单](docs/wechat/release-checklist.md) 的阶段 1：目标环境、权限、索引、函数、定时器、订阅模板、监控、云托管、回滚和运行时环境选择。
+3. **阶段 2：**阶段 1 全部通过后，上传体验版并填写 [审核员指引](docs/wechat/reviewer-guide.md) 的版本、账号和日期。
+4. **阶段 3–4：**在该体验版上按 [关键旅程](tests/e2e/critical-journeys.md)、[真机矩阵](docs/wechat/device-matrix.md) 和审核员指引留存真实证据；全部通过后才签字并提交审核。
 
 ## 本地验证
 
@@ -39,6 +39,7 @@ npm run test:face-analysis-release
 - 分析照片上传成功但尚未执行 `attachUpload` 时，尚无生产环境证据证明服务端能取得并清理该对象的精确云文件 ID。必须在真实环境验证“上传前由服务端掌握精确 ID”或经验证的存储清单/到期策略，才能采用异常上传不超过 30 分钟的清理承诺。
 - 照片生命周期定时器、50 条处理上限、函数超时、容量、告警、人工处置与存储回执尚未在生产环境验证；不能把一分钟配置等同于 30 分钟物理删除保证。
 - 挑战照片仍只有本地预览，没有按用户隔离的云上传/持久化桥；需要服务端保存精确 `fileId`、`challengeId`、`_openid` 和可选保留策略。
+- `miniprogram/app.js` 与 `miniprogram/pages/home/home.js` 目前固定调用 `getCloudEnv("develop")`；必须实现并验证运行时按开发/体验/发布渠道选择环境，才可把 trial/release EnvId 用于体验版或发布版。
 - 真实 68 点模型镜像、照片域名白名单、一次性凭证网络链路和 CloudRun/云托管部署尚未在目标环境重新验证；固定依赖的安全风险也需升级验证或书面接受。
 - CloudBase 权限、复合索引、事务冲突、真实原子性、存储删除回执、分享预览/小程序码到期清理和大账户分批删除尚未实测。
 - 订阅消息缺少正式模板字段映射和受权限保护的调度器；发送采用“最多尝试一次”，不确定结果进入 `manual_review`，不得自动重发。
