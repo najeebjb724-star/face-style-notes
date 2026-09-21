@@ -1,4 +1,4 @@
-// challengeApi-build-fingerprint:9cd53fc4eff7330e6f685cbe6597b47e97dfe96687774fc3f3f092dbcfb529d2:7873871eeed764699ca1c796e509c1019dba822d028dc7c5b5ccf5efb9f5338d
+// challengeApi-build-fingerprint:0a68253bc15efe388fc206fa25e1839e2d77db8d03c1100eed5076a79f6923da:a884d3830e245ec6aca0d6d5bdbe4dd669604c798d3239646d85be038619efcc
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
@@ -364,7 +364,7 @@ var require_lifecycleJobs = __commonJS({
             if (photo) await run("challenge-photo", photo._id, () => removePhoto("challenge-photo", photo, "challenge_photos", photo.fileId, { deletionState: "deleted", deletedAt: database.serverDate() }, at));
             else {
               processed++;
-              await write("deletion_jobs", intent._id, { state: "deleted", lastError: "SOURCE_MISSING", updatedAt: cutoff });
+              await write("deletion_jobs", intent._id, { state: "manual_review", lastError: "SOURCE_MISSING", updatedAt: cutoff });
             }
           }
           if (intent.kind === "challenge" && scanned < batchSize) {
@@ -1079,6 +1079,13 @@ function chinaBusinessDate(value) {
 function checkinId(openid, challengeId, date) {
   return `checkin-${createHash("sha256").update(JSON.stringify([openid, challengeId, date])).digest("hex")}`;
 }
+function challengeDeletionId(openid, challengeId) {
+  return `account-challenge-${createHash("sha256").update(JSON.stringify([openid, challengeId])).digest("hex")}`;
+}
+async function assertChallengeWritable(transaction, openid, challengeId) {
+  const deletion = await readOptionalDocument(transaction.collection("deletion_jobs").doc(challengeDeletionId(openid, challengeId)));
+  if (deletion?.state === "deleting" || deletion?.state === "deleted") throw codedError("CHALLENGE_NOT_ACTIVE");
+}
 function isMissingDocument(error) {
   return error?.code === "DATABASE_DOCUMENT_NOT_EXIST" || error?.errCode === -502005 || /not[ _-]?exist/i.test(error?.message || "");
 }
@@ -1155,6 +1162,7 @@ function createChallengeApi({ database, getWXContext, now = () => /* @__PURE__ *
       if (date > trustedDate) throw codedError("INVALID_ARGUMENT");
       const completed = event.action === "checkIn";
       return database.runTransaction(async (transaction) => {
+        await assertChallengeWritable(transaction, openid, challengeId);
         const challenge = await readOptionalDocument(
           transaction.collection("challenges").doc(challengeId)
         );
@@ -1189,6 +1197,7 @@ function createChallengeApi({ database, getWXContext, now = () => /* @__PURE__ *
         throw codedError("INVALID_ARGUMENT");
       }
       return database.runTransaction(async (transaction) => {
+        await assertChallengeWritable(transaction, openid, challengeId);
         const challengeReference = transaction.collection("challenges").doc(challengeId);
         const challenge = await readOptionalDocument(challengeReference);
         assertOwnedRecord(challenge, openid);

@@ -1,4 +1,4 @@
-// analysisApi-build-fingerprint:7686f29f34c32dc178e803ae5f1c04a4132f41b1a2dc578e096f1e4f24beefb4:29d706a05e710a775c2faf4736690726733879231eddf22314b9019b9284018b
+// analysisApi-build-fingerprint:06619a4cfd03fd9ff9550e05d66ee560d93e22e8d7f918c8d89e5ec0c699c951:3d793f5db6195f0cc7d4c2a333ddf790a4ca0bc565931ff1bff769c307eac08d
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
@@ -364,7 +364,7 @@ var require_lifecycleJobs = __commonJS({
             if (photo) await run("challenge-photo", photo._id, () => removePhoto("challenge-photo", photo, "challenge_photos", photo.fileId, { deletionState: "deleted", deletedAt: database.serverDate() }, at));
             else {
               processed++;
-              await write("deletion_jobs", intent._id, { state: "deleted", lastError: "SOURCE_MISSING", updatedAt: cutoff });
+              await write("deletion_jobs", intent._id, { state: "manual_review", lastError: "SOURCE_MISSING", updatedAt: cutoff });
             }
           }
           if (intent.kind === "challenge" && scanned < batchSize) {

@@ -98,7 +98,7 @@ function createShareApi({ database, getWXContext, now = () => new Date(), create
       if (!preview) throw codedError("PREVIEW_NOT_FOUND");
       const marker = (await transaction.collection("deletion_jobs").doc(accountDeletionId(preview._openid)).get())?.data;
       if (marker?.state === "deleting") throw codedError("PREVIEW_NOT_FOUND");
-      await transaction.collection("deletion_jobs").doc(jobId).set({ data: { kind: "share-upload", _openid: preview._openid, token, state: "uploading", auditIds: [], createdAt: now().toISOString() } });
+      await transaction.collection("deletion_jobs").doc(jobId).set({ data: { kind: "share-upload", accountCleanup: true, _openid: preview._openid, token, state: "uploading", auditIds: [], createdAt: now().toISOString() } });
     });
     return jobId;
   }

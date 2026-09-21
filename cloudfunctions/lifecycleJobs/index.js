@@ -295,7 +295,7 @@ function createPhotoLifecycle({ database, cloud, now = () => new Date(), alert =
         if (photo) await run("challenge-photo", photo._id, () => removePhoto("challenge-photo", photo, "challenge_photos", photo.fileId, { deletionState: "deleted", deletedAt: database.serverDate() }, at));
         else {
           processed++;
-          await write("deletion_jobs", intent._id, { state: "deleted", lastError: "SOURCE_MISSING", updatedAt: cutoff });
+          await write("deletion_jobs", intent._id, { state: "manual_review", lastError: "SOURCE_MISSING", updatedAt: cutoff });
         }
       }
       if (intent.kind === "challenge" && scanned < batchSize) {

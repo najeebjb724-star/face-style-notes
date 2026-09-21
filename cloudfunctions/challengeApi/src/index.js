@@ -69,6 +69,15 @@ function checkinId(openid, challengeId, date) {
   return `checkin-${createHash("sha256").update(JSON.stringify([openid, challengeId, date])).digest("hex")}`;
 }
 
+function challengeDeletionId(openid, challengeId) {
+  return `account-challenge-${createHash("sha256").update(JSON.stringify([openid, challengeId])).digest("hex")}`;
+}
+
+async function assertChallengeWritable(transaction, openid, challengeId) {
+  const deletion = await readOptionalDocument(transaction.collection("deletion_jobs").doc(challengeDeletionId(openid, challengeId)));
+  if (deletion?.state === "deleting" || deletion?.state === "deleted") throw codedError("CHALLENGE_NOT_ACTIVE");
+}
+
 function isMissingDocument(error) {
   return error?.code === "DATABASE_DOCUMENT_NOT_EXIST"
     || error?.errCode === -502005
@@ -160,6 +169,7 @@ function createChallengeApi({ database, getWXContext, now = () => new Date(), cr
       const completed = event.action === "checkIn";
 
       return database.runTransaction(async transaction => {
+        await assertChallengeWritable(transaction, openid, challengeId);
         const challenge = await readOptionalDocument(
           transaction.collection("challenges").doc(challengeId)
         );
@@ -197,6 +207,7 @@ function createChallengeApi({ database, getWXContext, now = () => new Date(), cr
       }
 
       return database.runTransaction(async transaction => {
+        await assertChallengeWritable(transaction, openid, challengeId);
         const challengeReference = transaction.collection("challenges").doc(challengeId);
         const challenge = await readOptionalDocument(challengeReference);
         assertOwnedRecord(challenge, openid);

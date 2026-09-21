@@ -42,7 +42,7 @@ function createAccountApi({ database, getWXContext, now = () => new Date() }) {
     const files = alreadyDeleted ? [] : [...new Set([record.tempFileId, record.fileId, ...(record.miniCodeFileIds || [])].filter(value => typeof value === 'string'))];
     const photoExpected = name === 'challenge_photos' || record.sourcePhotoStatus || (name === 'analysis_uploads' && record.status);
     if (!alreadyDeleted && !files.length && photoExpected) {
-      await tx.collection('deletion_jobs').doc(`missing-${name}-${record._id}`).set({ data: { kind: 'account-file', _openid: record._openid, sourceId: record._id, auditIds: [auditId], state: 'manual_review', attempts: 0, lastError: 'FILE_ID_MISSING', dueAt: at, createdAt: at } });
+      await tx.collection('deletion_jobs').doc(`missing-${name}-${record._id}`).set({ data: { kind: 'account-file', accountCleanup: true, _openid: record._openid, sourceId: record._id, auditIds: [auditId], state: 'manual_review', attempts: 0, lastError: 'FILE_ID_MISSING', dueAt: at, createdAt: at } });
     }
     for (const fileId of files) {
       const id = `account-file-${createHash('sha256').update(JSON.stringify([record._openid, fileId])).digest('hex')}`;
@@ -50,10 +50,10 @@ function createAccountApi({ database, getWXContext, now = () => new Date() }) {
       const existing = await read(reference);
       if (existing) {
         const auditIds = [...new Set([...(existing.auditIds || []), auditId])];
-        await reference.update({ data: { auditIds } });
+        await reference.update({ data: { accountCleanup: true, auditIds } });
         continue;
       }
-      await reference.set({ data: { kind: 'account-file', _openid: record._openid, fileId, auditIds: [auditId], state: 'pending', attempts: 0, dueAt: at, createdAt: at } });
+      await reference.set({ data: { kind: 'account-file', accountCleanup: true, _openid: record._openid, fileId, auditIds: [auditId], state: 'pending', attempts: 0, dueAt: at, createdAt: at } });
     }
     const legacyKind = { analysis_jobs: 'analysis', analysis_uploads: 'upload', challenge_photos: 'challenge-photo', challenges: 'challenge' }[name];
     if (legacyKind) {
@@ -67,7 +67,7 @@ function createAccountApi({ database, getWXContext, now = () => new Date() }) {
     const audit = await read(reference);
     assertOwner(audit, openid);
     if (audit.kind !== 'account-summary') throw error('INVALID_ARGUMENT');
-    const files = [...await all('deletion_jobs', { _openid: openid, kind: 'account-file' }), ...await all('deletion_jobs', { _openid: openid, kind: 'share-upload' })].filter(item => item.auditIds?.includes(auditId));
+    const files = (await all('deletion_jobs', { _openid: openid })).filter(item => (item.accountCleanup || item.kind === 'account-file' || item.kind === 'share-upload') && item.auditIds?.includes(auditId));
     const pending = files.filter(item => item.state !== 'deleted').length;
     const summary = { ...audit.summary, auditId, photos: { queued: files.length, deleted: files.length - pending, pending }, completedAt: audit.finished && !pending ? audit.summary.completedAt || now().toISOString() : null };
     await reference.update({ data: { summary } });
@@ -105,7 +105,8 @@ function createAccountApi({ database, getWXContext, now = () => new Date() }) {
     if (!existingAudit) await auditReference.set({ data: { kind: 'account-summary', _openid: openid, action: event.action, finished: false, summary } });
     if (event.action === 'deleteAccountData') {
       await database.collection('deletion_jobs').doc(accountDeletionId(openid)).set({ data: { kind: 'account-delete', _openid: openid, auditId, state: 'deleting', updatedAt: at } });
-      for (const upload of await all('deletion_jobs', { _openid: openid, kind: 'share-upload' })) {
+      for (const upload of await all('deletion_jobs', { _openid: openid })) {
+        if (!upload.accountCleanup && upload.kind !== 'share-upload') continue;
         if (upload.state !== 'uploading') continue;
         await database.collection('deletion_jobs').doc(upload._id).update({ data: { auditIds: [...new Set([...(upload.auditIds || []), auditId])] } });
       }

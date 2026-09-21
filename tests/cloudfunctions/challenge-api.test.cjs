@@ -38,7 +38,7 @@ test("cloud entry returns only trusted business errors in a client-safe envelope
   await assert.rejects(unexpected({}), /database host leaked/);
 });
 
-function createDatabase(seed = {}) {
+function createDatabase(seed = {}, options = {}) {
   const collections = Object.fromEntries(
     Object.entries(seed).map(([name, records]) => [name, records.map(record => ({ ...record }))])
   );
@@ -112,7 +112,7 @@ function createDatabase(seed = {}) {
     },
     collection,
     runTransaction(work) {
-      const result = transactionTail.then(() => work({ collection }));
+      const result = transactionTail.then(async () => { if (options.beforeTransaction) await options.beforeTransaction(collections); return work({ collection }); });
       transactionTail = result.catch(() => undefined);
       return result;
     },
@@ -121,6 +121,20 @@ function createDatabase(seed = {}) {
     }
   };
 }
+
+test("check-in rejects a challenge deletion marker committed before its transaction", async () => {
+  let first = true;
+  const markerId = `account-challenge-${createHash("sha256").update(JSON.stringify(["openid-A", "c1"])).digest("hex")}`;
+  const database = createDatabase({ challenges: [challenge()], checkins: [], deletion_jobs: [] }, {
+    beforeTransaction(collections) {
+      if (!first) return;
+      first = false;
+      collections.deletion_jobs.push({ _id: markerId, _openid: "openid-A", kind: "account-challenge", challengeId: "c1", state: "deleting" });
+    }
+  });
+  await assert.rejects(createApi(database)({ action: "checkIn", payload: { id: "race", challengeId: "c1", date: "2026-09-03" } }), error => error.code === "CHALLENGE_NOT_ACTIVE");
+  assert.deepEqual(database.snapshot("checkins"), []);
+});
 
 function challenge(overrides = {}) {
   return {

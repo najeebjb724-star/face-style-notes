@@ -238,7 +238,9 @@ test("missing-parent intents cannot starve a later exact account file beyond the
   await lifecycle.deleteExpiredPhotos(NOW);
   assert.deepEqual(calls, [["cloud://env/later"]]);
   assert.equal(db.records.deletion_jobs.find(item => item._id === exact._id).state, "deleted");
-  assert.ok(db.records.deletion_jobs.filter(item => item.kind === "challenge-photo" && item.state === "deleted").length > 0);
+  const unresolved = db.records.deletion_jobs.filter(item => item.kind === "challenge-photo" && item.state === "manual_review");
+  assert.ok(unresolved.length > 0);
+  assert.ok(unresolved.every(item => item.lastError === "SOURCE_MISSING"));
   assert.ok(calls.length <= 50);
 });
 

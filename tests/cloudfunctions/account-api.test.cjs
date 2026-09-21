@@ -117,6 +117,37 @@ test('account deletion audit waits for a mini-code upload already in flight', as
   assert.ok(records.deletion_jobs.find(item => item._id === 'share-upload-1').auditIds.includes(summary.auditId));
 });
 
+test('status cannot miss an upload job while it converts to exact-file cleanup', async () => {
+  const auditId = 'account-audit';
+  const { api, records, database } = setup({ deletion_jobs: [
+    row(auditId, { kind: 'account-summary', finished: true, summary: { reports: 0, challenges: 0, subscriptions: 0, acceptedAt: NOW.toISOString(), completedAt: null } }),
+    row('upload', { kind: 'share-upload', accountCleanup: true, auditIds: [auditId], state: 'uploading' })
+  ] });
+  const originalCollection = database.collection;
+  let deletionQueries = 0;
+  database.collection = name => {
+    const collection = originalCollection(name);
+    if (name !== 'deletion_jobs') return collection;
+    const originalWhere = collection.where;
+    collection.where = filter => {
+      const query = originalWhere(filter);
+      const originalGet = query.get;
+      query.get = async () => {
+        const result = await originalGet();
+        deletionQueries++;
+        if (deletionQueries === 1) records.deletion_jobs.find(item => item._id === 'upload').kind = 'account-file';
+        return result;
+      };
+      return query;
+    };
+    return collection;
+  };
+  const summary = await api({ action: 'getDeletionStatus', payload: { auditId } });
+  assert.equal(summary.photos.pending, 1);
+  assert.equal(summary.completedAt, null);
+  assert.equal(deletionQueries, 1);
+});
+
 test('expiry removes share previews and retains mini-code deletion intent after SDK failure', async () => {
   const { records, database } = setup({ share_previews: [row('expired', { expiresAt: NOW.toISOString(), miniCodeFileIds: ['cloud://mini'] }), row('live', { expiresAt: '2026-10-01T00:00:00Z' })] });
   const lifecycle = createPhotoLifecycle({ database: adaptCloudDatabase(database), cloud: { deleteFile: async () => { throw new Error('offline'); } } });
