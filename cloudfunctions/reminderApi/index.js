@@ -54,25 +54,53 @@ function createReminderApi({ database, getWXContext, getConfig: config = getConf
       status,
       dueAt: status === "accept" ? nextDueAt(challenge.reminderTime, now()) : null,
       usedAt: null,
+      sendState: status === "accept" ? "pending" : "unavailable",
       updatedAt: now().toISOString()
     } });
     return { ok: true };
   }
 
   async function sendDueReminders(at = now()) {
-    const result = await database.collection("reminder_subscriptions").where({ status: "accept", usedAt: null }).limit(100).get();
-    const due = result.data.filter(item => item.dueAt && Date.parse(item.dueAt) <= at.getTime());
+    const timestamp = at.toISOString();
+    const result = await database.collection("reminder_subscriptions").where({
+      status: "accept",
+      usedAt: null,
+      sendState: "pending",
+      dueAt: database.command.lte(timestamp)
+    }).orderBy("dueAt", "asc").limit(100).get();
+    const due = result.data;
     if (!templateData || typeof sendSubscription !== "function") return { sent: 0, skipped: due.length };
     let sent = 0;
     for (const subscription of due) {
-      await sendSubscription({
-        touser: subscription._openid,
-        templateId: subscription.templateId,
-        page: "pages/challenge-detail/challenge-detail",
-        data: templateData
+      const claimed = await database.runTransaction(async transaction => {
+        const reference = transaction.collection("reminder_subscriptions").doc(subscription._id);
+        const current = (await reference.get())?.data;
+        if (!current || current.status !== "accept" || current.usedAt || current.sendState !== "pending" || current.dueAt > timestamp) return null;
+        await reference.update({ data: { sendState: "sending", attemptedAt: timestamp, updatedAt: timestamp } });
+        return current;
       });
-      await database.collection("reminder_subscriptions").doc(subscription._id).update({ usedAt: at.toISOString(), updatedAt: at.toISOString() });
-      sent += 1;
+      if (!claimed) continue;
+      try {
+        await sendSubscription({
+          touser: claimed._openid,
+          templateId: claimed.templateId,
+          page: "pages/challenge-detail/challenge-detail",
+          data: templateData
+        });
+      } catch (_) {
+        try {
+          await database.collection("reminder_subscriptions").doc(claimed._id).update({ data: { sendState: "manual_review", sendError: "SEND_FAILED", updatedAt: timestamp } });
+        } catch (_) {}
+        continue;
+      }
+      try {
+        await database.collection("reminder_subscriptions").doc(claimed._id).update({ data: { usedAt: timestamp, sendState: "sent", updatedAt: timestamp } });
+        sent += 1;
+      } catch (_) {
+        try {
+          await database.collection("reminder_subscriptions").doc(claimed._id).update({ data: { sendState: "manual_review", sendError: "POST_SEND_PERSIST_FAILED", updatedAt: timestamp } });
+        } catch (_) {}
+      }
     }
     return { sent, skipped: 0 };
   }

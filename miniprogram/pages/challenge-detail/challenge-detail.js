@@ -1,6 +1,6 @@
 const { callCloud } = require("../../services/cloud-client");
 const { enqueueCheckIn, flushCheckIns } = require("../../services/offline-checkins");
-const { toggleChallengeCheckIn, getChallengeProgress } = require("../../lib/face-style-core");
+const { toggleChallengeCheckIn, getChallengeProgress, getChallengeOccurrenceDays } = require("../../lib/face-style-core");
 
 function localDate(offsetDays = 0) {
   const date = new Date();
@@ -49,10 +49,34 @@ function buildCalendarEvent(challenge, occurrence) {
   };
 }
 
-function calendarOccurrence(challenge, date) {
+function calendarOccurrence(challenge, date, day) {
   const [hour, minute] = (challenge.reminderTime || "21:30").split(":").map(Number);
   const startsAt = Math.floor(new Date(`${date}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`).getTime() / 1000);
-  return { day: getChallengeProgress(challenge, date).day, startsAt };
+  return { day: day || getChallengeProgress(challenge, date).day, startsAt };
+}
+
+function challengeDate(challenge, day) {
+  const startedAt = new Date(`${challenge.startedAt}T00:00:00.000Z`);
+  startedAt.setUTCDate(startedAt.getUTCDate() + day - 1);
+  return startedAt.toISOString().slice(0, 10);
+}
+
+function buildCalendarEvents(challenge, firstDate = localDate()) {
+  return getChallengeOccurrenceDays(challenge).map(day => ({ day, date: challengeDate(challenge, day) }))
+    .filter(occurrence => occurrence.date >= firstDate)
+    .map(occurrence => buildCalendarEvent(
+      challenge,
+      calendarOccurrence(challenge, occurrence.date, occurrence.day)
+    ));
+}
+
+function addCalendarEvents(events, index = 0) {
+  if (!events[index]) return;
+  wx.addPhoneCalendar({
+    ...events[index],
+    success: () => addCalendarEvents(events, index + 1),
+    fail: () => wx.showToast({ title: "未添加到手机日历，挑战仍可继续", icon: "none" })
+  });
 }
 
 function saveSubscriptionResult(templateId, status) {
@@ -158,10 +182,7 @@ Page({
       return;
     }
     try {
-      wx.addPhoneCalendar({
-        ...buildCalendarEvent(challenge, calendarOccurrence(challenge, this.data.today || localDate())),
-        fail: () => wx.showToast({ title: "未添加到手机日历，挑战仍可继续", icon: "none" })
-      });
+      addCalendarEvents(buildCalendarEvents(challenge, this.data.today || localDate()));
     } catch (_) {
       wx.showToast({ title: "未添加到手机日历，挑战仍可继续", icon: "none" });
     }
@@ -236,4 +257,4 @@ Page({
   }
 });
 
-if (typeof module !== "undefined") module.exports = { buildCalendarEvent, saveSubscriptionResult };
+if (typeof module !== "undefined") module.exports = { buildCalendarEvent, buildCalendarEvents, saveSubscriptionResult };

@@ -24,8 +24,8 @@ function loadDetail(dependencies = {}, wxOverrides = {}) {
   return { definition, helpers: module.exports, wx };
 }
 
-const challenge = { id: "challenge-1", title: "七日护肤", taskLabel: "晚间基础护理", reminderTime: "21:30", checkIns: {} };
-const core = { toggleChallengeCheckIn: value => value, getChallengeProgress: () => ({}) };
+const challenge = { id: "challenge-1", title: "七日护肤", taskLabel: "晚间基础护理", reminderTime: "21:30", startedAt: "2026-09-03", durationDays: 3, frequency: "daily", checkIns: {} };
+const core = { toggleChallengeCheckIn: value => value, getChallengeProgress: () => ({}), getChallengeOccurrenceDays: () => [1, 2, 3] };
 const offline = { enqueueCheckIn() {}, flushCheckIns: async () => {} };
 
 test("calendar event contains task and mini program return hint", () => {
@@ -59,6 +59,38 @@ test("calendar rejection preserves the current challenge data", () => {
   calendarOptions.fail();
   assert.equal(page.data.challenge, challenge);
   assert.equal(page.data.checkedIn, false);
+});
+
+test("calendar setup adds one standard event for every scheduled challenge occurrence", () => {
+  const options = [];
+  const { definition } = loadDetail({
+    "../../services/cloud-client": { callCloud: async () => ({}) },
+    "../../services/offline-checkins": offline,
+    "../../lib/face-style-core": core
+  }, { addPhoneCalendar(option) { options.push(option); option.success(); } });
+  const page = { ...definition, data: { ...definition.data, challenge, today: "2026-09-03" }, setData() {} };
+  definition.addToPhoneCalendar.call(page);
+  assert.equal(options.length, 3);
+  assert.deepEqual(options.map(option => option.title), ["挑战第 1 天：晚间基础护理", "挑战第 2 天：晚间基础护理", "挑战第 3 天：晚间基础护理"]);
+});
+
+test("calendar setup omits challenge days that already passed", () => {
+  const { helpers } = loadDetail({
+    "../../services/cloud-client": { callCloud: async () => ({}) },
+    "../../services/offline-checkins": offline,
+    "../../lib/face-style-core": core
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(helpers.buildCalendarEvents(challenge, "2026-09-04").map(event => event.title))), [
+    "挑战第 2 天：晚间基础护理",
+    "挑战第 3 天：晚间基础护理"
+  ]);
+});
+
+test("calendar fallback explains that each remaining day needs confirmation", () => {
+  const wxml = fs.readFileSync(path.join(__dirname, "../../miniprogram/pages/challenge-detail/challenge-detail.wxml"), "utf8");
+  assert.match(wxml, /添加剩余挑战日到手机日历/);
+  assert.match(wxml, /逐条确认/);
+  assert.match(wxml, /取消后将停止/);
 });
 
 test("subscription is requested only from its button and a rejection does not alter the challenge", async () => {
