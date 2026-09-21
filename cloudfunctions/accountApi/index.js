@@ -16,6 +16,12 @@ async function read(reference) {
 function assertOwner(record, openid) {
   if (!record || record._openid !== openid) throw error('FORBIDDEN');
 }
+function challengeIntentId(openid, challengeId) {
+  return `account-challenge-${createHash('sha256').update(JSON.stringify([openid, challengeId])).digest('hex')}`;
+}
+function accountDeletionId(openid) {
+  return `account-delete-${createHash('sha256').update(openid).digest('hex')}`;
+}
 
 // This handler uses the SDK's native { data } envelope, including transactions.
 function createAccountApi({ database, getWXContext, now = () => new Date() }) {
@@ -61,7 +67,7 @@ function createAccountApi({ database, getWXContext, now = () => new Date() }) {
     const audit = await read(reference);
     assertOwner(audit, openid);
     if (audit.kind !== 'account-summary') throw error('INVALID_ARGUMENT');
-    const files = (await all('deletion_jobs', { _openid: openid, kind: 'account-file' })).filter(item => item.auditIds?.includes(auditId));
+    const files = [...await all('deletion_jobs', { _openid: openid, kind: 'account-file' }), ...await all('deletion_jobs', { _openid: openid, kind: 'share-upload' })].filter(item => item.auditIds?.includes(auditId));
     const pending = files.filter(item => item.state !== 'deleted').length;
     const summary = { ...audit.summary, auditId, photos: { queued: files.length, deleted: files.length - pending, pending }, completedAt: audit.finished && !pending ? audit.summary.completedAt || now().toISOString() : null };
     await reference.update({ data: { summary } });
@@ -80,32 +86,56 @@ function createAccountApi({ database, getWXContext, now = () => new Date() }) {
     }
     if (!['deleteReport', 'deleteChallenge', 'withdrawFaceConsent', 'deleteAccountData'].includes(event.action)) throw error('INVALID_ARGUMENT');
     const at = now().toISOString();
-    let root;
+    let root; let cascadeIntent; let challengeId;
     if (event.action === 'deleteReport' || event.action === 'deleteChallenge') {
       const name = event.action === 'deleteReport' ? 'reports' : 'challenges';
-      root = await read(database.collection(name).doc(requireId(payload[name === 'reports' ? 'reportId' : 'challengeId'])));
-      assertOwner(root, openid);
+      const targetId = requireId(payload[name === 'reports' ? 'reportId' : 'challengeId']);
+      root = await read(database.collection(name).doc(targetId));
+      if (event.action === 'deleteChallenge') {
+        challengeId = targetId;
+        cascadeIntent = await read(database.collection('deletion_jobs').doc(challengeIntentId(openid, challengeId)));
+        if (root) assertOwner(root, openid);
+        else if (!cascadeIntent || cascadeIntent._openid !== openid || cascadeIntent.challengeId !== challengeId) throw error('FORBIDDEN');
+      } else assertOwner(root, openid);
     }
-    const auditId = `account-${randomUUID()}`;
+    const auditId = cascadeIntent?.auditId || `account-${randomUUID()}`;
     const auditReference = database.collection('deletion_jobs').doc(auditId);
-    const summary = { reports: 0, challenges: 0, subscriptions: 0, acceptedAt: at, completedAt: null };
-    await auditReference.set({ data: { kind: 'account-summary', _openid: openid, action: event.action, finished: false, summary } });
+    const existingAudit = cascadeIntent ? await read(auditReference) : null;
+    const summary = existingAudit?.summary || { reports: 0, challenges: 0, subscriptions: 0, acceptedAt: at, completedAt: null };
+    if (!existingAudit) await auditReference.set({ data: { kind: 'account-summary', _openid: openid, action: event.action, finished: false, summary } });
+    if (event.action === 'deleteAccountData') {
+      await database.collection('deletion_jobs').doc(accountDeletionId(openid)).set({ data: { kind: 'account-delete', _openid: openid, auditId, state: 'deleting', updatedAt: at } });
+      for (const upload of await all('deletion_jobs', { _openid: openid, kind: 'share-upload' })) {
+        if (upload.state !== 'uploading') continue;
+        await database.collection('deletion_jobs').doc(upload._id).update({ data: { auditIds: [...new Set([...(upload.auditIds || []), auditId])] } });
+      }
+    }
+    if (event.action === 'deleteChallenge' && !cascadeIntent) {
+      const intentId = challengeIntentId(openid, challengeId);
+      await database.runTransaction(async tx => {
+        const challenge = await read(tx.collection('challenges').doc(challengeId));
+        assertOwner(challenge, openid);
+        await tx.collection('deletion_jobs').doc(intentId).set({ data: { kind: 'account-challenge', _openid: openid, challengeId, auditId, state: 'deleting', createdAt: at } });
+      });
+      cascadeIntent = { challengeId, auditId };
+    }
     async function removeRows(name, filter) {
       for (;;) {
         const rows = await list(name, { _openid: openid, ...filter });
         if (!rows.length) return;
         for (const candidate of rows) {
-          await database.runTransaction(async tx => {
+          const removed = await database.runTransaction(async tx => {
             const reference = tx.collection(name).doc(candidate._id);
             const current = await read(reference);
-            if (!current) return;
+            if (!current) return false;
             assertOwner(current, openid);
             await queueFiles(tx, name, current, at, auditId);
             await reference.remove();
+            return true;
           });
-          if (name === 'reports') summary.reports++;
-          if (name === 'challenges') summary.challenges++;
-          if (name === 'reminder_subscriptions') summary.subscriptions++;
+          if (removed && name === 'reports') summary.reports++;
+          if (removed && name === 'challenges') summary.challenges++;
+          if (removed && name === 'reminder_subscriptions') summary.subscriptions++;
         }
         await auditReference.update({ data: { summary } });
       }
@@ -130,16 +160,18 @@ function createAccountApi({ database, getWXContext, now = () => new Date() }) {
       // Previews have no source ID, so invalidate this owner's report previews.
       await removeRows('share_previews', { kind: 'report' });
     } else if (event.action === 'deleteChallenge') {
-      await removeRows('challenges', { _id: root._id });
-      for (const name of ['reminder_subscriptions', 'checkins', 'challenge_photos']) await removeRows(name, { challengeId: root._id });
+      for (const name of ['reminder_subscriptions', 'checkins', 'challenge_photos']) await removeRows(name, { challengeId });
       await removeRows('share_previews', { kind: 'challenge' });
       await database.runTransaction(async tx => {
         const reference = tx.collection('challengeOwners').doc(openid);
         const owner = await read(reference);
-        if (owner?._openid === openid && owner.activeChallengeId === root._id) await reference.update({ data: { activeChallengeId: null } });
+        if (owner?._openid === openid && owner.activeChallengeId === challengeId) await reference.update({ data: { activeChallengeId: null } });
       });
+      await removeRows('challenges', { _id: challengeId });
+      await database.collection('deletion_jobs').doc(challengeIntentId(openid, challengeId)).update({ data: { state: 'deleted', completedAt: at } });
     } else {
       for (const name of PRIVATE_COLLECTIONS) await removeRows(name, {});
+      await database.collection('deletion_jobs').doc(accountDeletionId(openid)).update({ data: { state: 'completed', completedAt: at } });
     }
     await auditReference.update({ data: { finished: true, summary } });
     return status(openid, auditId);

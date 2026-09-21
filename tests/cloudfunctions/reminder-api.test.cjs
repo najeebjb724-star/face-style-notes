@@ -43,7 +43,7 @@ function createDatabase(records = {}, options = {}) {
   return {
     collection,
     command: { lte: value => ({ kind: "lte", value }) },
-    runTransaction: callback => callback({ collection }),
+    runTransaction: async callback => { if (options.beforeTransaction) await options.beforeTransaction(collections); return callback({ collection }); },
     serverDate: () => "server-date",
     snapshot: name => [...(collections.get(name)?.values() || [])],
     queries
@@ -74,6 +74,30 @@ test("an accepted subscription is saved for the caller active challenge", async 
   }, { _openid: "user-1", challengeId: "challenge-1", templateId: "template-1", status: "accept", usedAt: null });
 });
 
+test("subscription creation loses the race when challenge deletion starts", async () => {
+  let first = true;
+  const database = createDatabase({ challenges: [{ _id: "challenge-1", _openid: "user-1", status: "active", reminderTime: "21:30" }] }, {
+    beforeTransaction(collections) {
+      if (!first) return;
+      first = false;
+      collections.get("challenges").delete("challenge-1");
+    }
+  });
+  const api = createReminderApi({ database, getWXContext: () => ({ OPENID: "user-1" }), getConfig: () => ({ templateId: "template-1" }) });
+  await assert.rejects(api.saveSubscriptionResult({ templateId: "template-1", status: "accept" }), error => error.code === "CHALLENGE_NOT_ACTIVE");
+  assert.deepEqual(database.snapshot("reminder_subscriptions"), []);
+});
+
+test("sender settles an orphaned subscription without sending it", async () => {
+  const database = createDatabase({ reminder_subscriptions: [{ _id: "subscription-1", _openid: "user-1", challengeId: "deleted", templateId: "template-1", status: "accept", sendState: "pending", dueAt: "2026-09-03T12:00:00.000Z", usedAt: null }] });
+  let sent = 0;
+  const api = createReminderApi({ database, getWXContext: () => ({ OPENID: "user-1" }), getConfig: () => ({ templateId: "template-1" }), sendSubscription: async () => { sent += 1; }, templateData: { thing1: { value: "打卡" } } });
+  const result = await api.sendDueReminders(new Date("2026-09-03T12:01:00Z"));
+  assert.equal(result.sent, 0);
+  assert.equal(sent, 0);
+  assert.equal(database.snapshot("reminder_subscriptions")[0].sendState, "unavailable");
+});
+
 test("due accepted subscriptions stay unused when no template data mapping is configured", async () => {
   const database = createDatabase({ reminder_subscriptions: [{ _id: "subscription-1", _openid: "user-1", templateId: "template-1", status: "accept", sendState: "pending", dueAt: "2026-09-03T12:00:00.000Z", usedAt: null }] });
   const api = createReminderApi({ database, getWXContext: () => ({ OPENID: "user-1" }), getConfig: () => ({ templateId: "template-1" }), now: () => new Date("2026-09-03T12:01:00Z") });
@@ -83,7 +107,7 @@ test("due accepted subscriptions stay unused when no template data mapping is co
 });
 
 test("a successful due send marks an accepted subscription used once", async () => {
-  const database = createDatabase({ reminder_subscriptions: [{ _id: "subscription-1", _openid: "user-1", templateId: "template-1", status: "accept", sendState: "pending", dueAt: "2026-09-03T12:00:00.000Z", usedAt: null }] });
+  const database = createDatabase({ challenges: [{ _id: "challenge-1", _openid: "user-1", status: "active" }], reminder_subscriptions: [{ _id: "subscription-1", _openid: "user-1", challengeId: "challenge-1", templateId: "template-1", status: "accept", sendState: "pending", dueAt: "2026-09-03T12:00:00.000Z", usedAt: null }] });
   let sent = 0;
   const api = createReminderApi({ database, getWXContext: () => ({ OPENID: "user-1" }), getConfig: () => ({ templateId: "template-1" }), now: () => new Date("2026-09-03T12:01:00Z"), sendSubscription: async () => { sent += 1; }, templateData: { thing1: { value: "打卡" } } });
   const result = await api.sendDueReminders(new Date("2026-09-03T12:01:00Z"));
@@ -93,9 +117,9 @@ test("a successful due send marks an accepted subscription used once", async () 
 });
 
 test("due reminders use a bounded due-time ordered query", async () => {
-  const database = createDatabase({ reminder_subscriptions: [
-    { _id: "late", _openid: "user-1", templateId: "template-1", status: "accept", sendState: "pending", dueAt: "2026-09-03T12:00:00.000Z", usedAt: null },
-    { _id: "early", _openid: "user-2", templateId: "template-1", status: "accept", sendState: "pending", dueAt: "2026-09-03T11:00:00.000Z", usedAt: null }
+  const database = createDatabase({ challenges: [{ _id: "c1", _openid: "user-1", status: "active" }, { _id: "c2", _openid: "user-2", status: "active" }], reminder_subscriptions: [
+    { _id: "late", _openid: "user-1", challengeId: "c1", templateId: "template-1", status: "accept", sendState: "pending", dueAt: "2026-09-03T12:00:00.000Z", usedAt: null },
+    { _id: "early", _openid: "user-2", challengeId: "c2", templateId: "template-1", status: "accept", sendState: "pending", dueAt: "2026-09-03T11:00:00.000Z", usedAt: null }
   ] });
   const sent = [];
   const api = createReminderApi({ database, getWXContext: () => ({ OPENID: "user-1" }), getConfig: () => ({ templateId: "template-1" }), sendSubscription: async request => sent.push(request.touser), templateData: { thing1: { value: "打卡" } } });
@@ -108,7 +132,7 @@ test("due reminders use a bounded due-time ordered query", async () => {
 });
 
 test("a claimed reminder is not sent again after post-send persistence fails", async () => {
-  const database = createDatabase({ reminder_subscriptions: [{ _id: "subscription-1", _openid: "user-1", templateId: "template-1", status: "accept", sendState: "pending", dueAt: "2026-09-03T12:00:00.000Z", usedAt: null }] }, { failUpdate: data => Boolean(data.usedAt) });
+  const database = createDatabase({ challenges: [{ _id: "challenge-1", _openid: "user-1", status: "active" }], reminder_subscriptions: [{ _id: "subscription-1", _openid: "user-1", challengeId: "challenge-1", templateId: "template-1", status: "accept", sendState: "pending", dueAt: "2026-09-03T12:00:00.000Z", usedAt: null }] }, { failUpdate: data => Boolean(data.usedAt) });
   let sent = 0;
   const api = createReminderApi({ database, getWXContext: () => ({ OPENID: "user-1" }), getConfig: () => ({ templateId: "template-1" }), sendSubscription: async () => { sent += 1; }, templateData: { thing1: { value: "打卡" } } });
   await api.sendDueReminders(new Date("2026-09-03T12:01:00Z"));

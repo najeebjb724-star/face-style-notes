@@ -231,6 +231,17 @@ test("retry-waiting uploads cannot permanently hide a later due reservation", as
   assert.deepEqual(calls, [["cloud://env/upload-50"]]);
 });
 
+test("missing-parent intents cannot starve a later exact account file beyond the first page", async () => {
+  const stale = Array.from({ length: 30 }, (_, i) => ({ _id: `challenge-photo-missing-${String(i).padStart(2, "0")}`, kind: "challenge-photo", sourceId: `missing-${i}`, _openid: "owner", state: "pending", dueAt: "2026-09-01T00:00:00.000Z" }));
+  const exact = { _id: "account-file-later", kind: "account-file", fileId: "cloud://env/later", _openid: "owner", state: "pending", attempts: 0, dueAt: "2026-09-02T00:00:00.000Z" };
+  const { db, lifecycle, calls } = setup({ deletion_jobs: [...stale, exact] });
+  await lifecycle.deleteExpiredPhotos(NOW);
+  assert.deepEqual(calls, [["cloud://env/later"]]);
+  assert.equal(db.records.deletion_jobs.find(item => item._id === exact._id).state, "deleted");
+  assert.ok(db.records.deletion_jobs.filter(item => item.kind === "challenge-photo" && item.state === "deleted").length > 0);
+  assert.ok(calls.length <= 50);
+});
+
 test("overlapping timer invocations do not advance scan cursors concurrently", async () => {
   const base = seedJob().analysis_jobs[0];
   const db = database({ analysis_jobs: [0, 1].map(i => ({ ...base, _id: `job-${i}`, status: "failed", deleteBy: NOW.toISOString(), tempFileId: `cloud://env/job-${i}` })) });

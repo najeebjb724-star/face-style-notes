@@ -22,6 +22,10 @@ function subscriptionId(openid, challengeId, templateId) {
   return `reminder-${createHash("sha256").update(`${openid}:${challengeId}:${templateId}`).digest("hex")}`;
 }
 
+function challengeDeletionId(openid, challengeId) {
+  return `account-challenge-${createHash("sha256").update(JSON.stringify([openid, challengeId])).digest("hex")}`;
+}
+
 function nextDueAt(reminderTime, now) {
   const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(reminderTime || "");
   if (!match) return now.toISOString();
@@ -47,16 +51,21 @@ function createReminderApi({ database, getWXContext, getConfig: config = getConf
     const challenge = await getActiveChallenge(database, openid);
     if (!challenge) throw codedError("CHALLENGE_NOT_ACTIVE");
     const id = subscriptionId(openid, challenge._id, templateId);
-    await database.collection("reminder_subscriptions").doc(id).set({ data: {
-      _openid: openid,
-      challengeId: challenge._id,
-      templateId,
-      status,
-      dueAt: status === "accept" ? nextDueAt(challenge.reminderTime, now()) : null,
-      usedAt: null,
-      sendState: status === "accept" ? "pending" : "unavailable",
-      updatedAt: now().toISOString()
-    } });
+    await database.runTransaction(async transaction => {
+      const current = (await transaction.collection("challenges").doc(challenge._id).get())?.data;
+      const deletion = (await transaction.collection("deletion_jobs").doc(challengeDeletionId(openid, challenge._id)).get())?.data;
+      if (!current || current._openid !== openid || current.status !== "active" || deletion?.state === "deleting" || deletion?.state === "deleted") throw codedError("CHALLENGE_NOT_ACTIVE");
+      await transaction.collection("reminder_subscriptions").doc(id).set({ data: {
+        _openid: openid,
+        challengeId: challenge._id,
+        templateId,
+        status,
+        dueAt: status === "accept" ? nextDueAt(current.reminderTime, now()) : null,
+        usedAt: null,
+        sendState: status === "accept" ? "pending" : "unavailable",
+        updatedAt: now().toISOString()
+      } });
+    });
     return { ok: true };
   }
 
@@ -76,6 +85,12 @@ function createReminderApi({ database, getWXContext, getConfig: config = getConf
         const reference = transaction.collection("reminder_subscriptions").doc(subscription._id);
         const current = (await reference.get())?.data;
         if (!current || current.status !== "accept" || current.usedAt || current.sendState !== "pending" || current.dueAt > timestamp) return null;
+        const challenge = (await transaction.collection("challenges").doc(current.challengeId).get())?.data;
+        const deletion = (await transaction.collection("deletion_jobs").doc(challengeDeletionId(current._openid, current.challengeId)).get())?.data;
+        if (!challenge || challenge._openid !== current._openid || challenge.status !== "active" || deletion?.state === "deleting" || deletion?.state === "deleted") {
+          await reference.update({ data: { sendState: "unavailable", sendError: "CHALLENGE_NOT_ACTIVE", updatedAt: timestamp } });
+          return null;
+        }
         await reference.update({ data: { sendState: "sending", attemptedAt: timestamp, updatedAt: timestamp } });
         return current;
       });

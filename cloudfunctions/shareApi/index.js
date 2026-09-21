@@ -1,4 +1,4 @@
-const { randomUUID } = require("node:crypto");
+const { randomUUID, createHash } = require("node:crypto");
 
 const PREVIEW_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{16,32}$/;
@@ -50,6 +50,10 @@ function validToken(token) {
   return token;
 }
 
+function accountDeletionId(openid) {
+  return `account-delete-${createHash("sha256").update(openid).digest("hex")}`;
+}
+
 function createShareApi({ database, getWXContext, now = () => new Date(), createToken = () => randomUUID().replace(/-/g, "") }) {
   async function createPreview({ kind, preview } = {}) {
     const { OPENID: openid } = getWXContext();
@@ -87,7 +91,29 @@ function createShareApi({ database, getWXContext, now = () => new Date(), create
     return update(database);
   }
 
-  return { createPreview, getPreview, linkMiniCode };
+  async function beginMiniCodeUpload({ token } = {}) {
+    const jobId = `share-upload-${randomUUID()}`;
+    await database.runTransaction(async transaction => {
+      const preview = (await transaction.collection("share_previews").doc(validToken(token)).get())?.data;
+      if (!preview) throw codedError("PREVIEW_NOT_FOUND");
+      const marker = (await transaction.collection("deletion_jobs").doc(accountDeletionId(preview._openid)).get())?.data;
+      if (marker?.state === "deleting") throw codedError("PREVIEW_NOT_FOUND");
+      await transaction.collection("deletion_jobs").doc(jobId).set({ data: { kind: "share-upload", _openid: preview._openid, token, state: "uploading", auditIds: [], createdAt: now().toISOString() } });
+    });
+    return jobId;
+  }
+
+  async function finishMiniCodeUpload({ jobId, fileId, rollbackFailed = false } = {}) {
+    await database.runTransaction(async transaction => {
+      const reference = transaction.collection("deletion_jobs").doc(jobId);
+      const current = (await reference.get())?.data;
+      if (!current || current.kind !== "share-upload") return;
+      if (rollbackFailed) await reference.update({ data: { kind: "account-file", fileId, state: "pending", attempts: 0, dueAt: now().toISOString(), updatedAt: now().toISOString() } });
+      else await reference.update({ data: { state: "deleted", updatedAt: now().toISOString() } });
+    });
+  }
+
+  return { createPreview, getPreview, linkMiniCode, beginMiniCodeUpload, finishMiniCodeUpload };
 }
 
 function createMiniCodeService(cloud) {
@@ -111,10 +137,17 @@ function getMiniCode(request, cloud) {
 async function getMiniCodeForPreview(event, cloud, api) {
   const isPreviewToken = TOKEN_PATTERN.test(event?.scene || "");
   if (isPreviewToken) await api.getPreview({ token: event.scene });
-  const fileId = await getMiniCode(event, cloud);
+  const uploadJobId = isPreviewToken && api.beginMiniCodeUpload ? await api.beginMiniCodeUpload({ token: event.scene }) : null;
+  let fileId;
+  try { fileId = await getMiniCode(event, cloud); }
+  catch (error) {
+    if (uploadJobId) await api.finishMiniCodeUpload({ jobId: uploadJobId });
+    throw error;
+  }
   if (!isPreviewToken) return fileId;
   try {
     await api.linkMiniCode({ token: event.scene, fileId });
+    if (uploadJobId) await api.finishMiniCodeUpload({ jobId: uploadJobId, fileId });
   } catch (error) {
     let rolledBack = false;
     try {
@@ -124,6 +157,7 @@ async function getMiniCodeForPreview(event, cloud, api) {
       error.rollbackError = rollbackError;
     }
     if (!rolledBack) error.rollbackFailed = true;
+    if (uploadJobId) await api.finishMiniCodeUpload({ jobId: uploadJobId, fileId, rollbackFailed: !rolledBack });
     throw error;
   }
   return fileId;

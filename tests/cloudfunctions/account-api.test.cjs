@@ -62,6 +62,25 @@ test('single deletion rejects a foreign record and cascades only owned challenge
   assert.equal(records.challengeOwners[0].activeChallengeId, null);
 });
 
+test('challenge cascade resumes from its owner-bound intent after the root is already gone', async () => {
+  const { createHash } = require('node:crypto');
+  const challengeId = 'c';
+  const intentId = `account-challenge-${createHash('sha256').update(JSON.stringify(['A', challengeId])).digest('hex')}`;
+  const { api, records } = setup({
+    deletion_jobs: [row(intentId, { kind: 'account-challenge', challengeId, auditId: 'account-existing', state: 'deleting' })],
+    checkins: [row('checkin', { challengeId })],
+    reminder_subscriptions: [row('subscription', { challengeId })],
+    challengeOwners: [row('A', { activeChallengeId: challengeId })]
+  });
+  records.deletion_jobs.push(row('account-existing', { kind: 'account-summary', action: 'deleteChallenge', finished: false, summary: { reports: 0, challenges: 0, subscriptions: 0, acceptedAt: NOW.toISOString(), completedAt: null } }));
+  const summary = await api({ action: 'deleteChallenge', payload: { challengeId } });
+  assert.equal(summary.auditId, 'account-existing');
+  assert.deepEqual(records.checkins, []);
+  assert.deepEqual(records.reminder_subscriptions, []);
+  assert.equal(records.challengeOwners[0].activeChallengeId, null);
+  assert.equal(records.deletion_jobs.find(item => item._id === intentId).state, 'deleted');
+});
+
 test('withdrawal revokes consent and removes in-flight source data while preserving saved reports and challenges', async () => {
   const { api, records } = setup({ consents: [row('consent', { type: 'face-analysis', revokedAt: null })], analysis_jobs: [row('job', { status: 'processing', tempFileId: 'cloud://source' })], analysis_uploads: [row('upload', { tempFileId: 'cloud://source' })], reports: [row('saved')], challenges: [row('c')] });
   const summary = await api({ action: 'withdrawFaceConsent' });
@@ -88,6 +107,14 @@ test('durable exact-file intent survives parent deletion and failed SDK replies 
   const status = await api({ action: 'getDeletionStatus', payload: { auditId: result.auditId } });
   assert.equal(status.photos.pending, 0);
   assert.ok(status.completedAt);
+});
+
+test('account deletion audit waits for a mini-code upload already in flight', async () => {
+  const { api, records } = setup({ deletion_jobs: [row('share-upload-1', { kind: 'share-upload', state: 'uploading', dueAt: NOW.toISOString() })] });
+  const summary = await api({ action: 'deleteAccountData' });
+  assert.equal(summary.photos.pending, 1);
+  assert.equal(summary.completedAt, null);
+  assert.ok(records.deletion_jobs.find(item => item._id === 'share-upload-1').auditIds.includes(summary.auditId));
 });
 
 test('expiry removes share previews and retains mini-code deletion intent after SDK failure', async () => {

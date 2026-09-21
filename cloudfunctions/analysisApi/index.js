@@ -1,4 +1,4 @@
-// analysisApi-build-fingerprint:4191537bacbfb97c50d4ecee10fa034d7db33dca3ae7617390b0eb04510ac42d:7c658501d6df0d34c82c08a5226dc0d5d92d128d556a7d0e0583b744a3d02f59
+// analysisApi-build-fingerprint:7686f29f34c32dc178e803ae5f1c04a4132f41b1a2dc578e096f1e4f24beefb4:29d706a05e710a775c2faf4736690726733879231eddf22314b9019b9284018b
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
@@ -298,9 +298,19 @@ var require_lifecycleJobs = __commonJS({
             alert({ code: "LIFECYCLE_JOB_FAILED", kind, sourceId: id });
           }
         };
-        const intents = await list("deletion_jobs", { state: cmd.in(["pending", "retrying", "manual_review"]), dueAt: cmd.lte(cutoff) }, Math.max(1, Math.floor(batchSize / 2)), "dueAt");
+        const intentFilter = { state: cmd.in(["pending", "retrying", "manual_review"]), dueAt: cmd.lte(cutoff) };
+        const accountIntents = await list("deletion_jobs", { ...intentFilter, kind: "account-file" }, Math.max(1, Math.floor(batchSize / 4)), "dueAt");
+        const challengeIntents = await list("deletion_jobs", { ...intentFilter, kind: "challenge" }, Math.max(1, Math.floor(batchSize / 4)), "dueAt");
+        const intentCursor = await read(database.collection("deletion_jobs").doc("scan-deletion-intents"));
+        const afterIntent = intentCursor?.after || "";
+        const otherFilter = { ...intentFilter, kind: cmd.neq("account-file"), ...afterIntent ? { _id: cmd.gt(afterIntent) } : {} };
+        let otherIntents = await list("deletion_jobs", otherFilter, Math.max(1, Math.floor(batchSize / 2)), "_id");
+        if (!otherIntents.length && afterIntent) otherIntents = await list("deletion_jobs", { ...intentFilter, kind: cmd.neq("account-file") }, Math.max(1, Math.floor(batchSize / 2)), "_id");
+        if (otherIntents.length) await database.collection("deletion_jobs").doc("scan-deletion-intents").set({ after: otherIntents.at(-1)._id });
+        const intents = [...new Map([...accountIntents, ...challengeIntents, ...otherIntents].map((intent) => [intent._id, intent])).values()];
         for (const intent of intents) {
           if (intent.kind === "account-file") {
+            if (processed >= batchSize) break;
             processed++;
             const claimed = await database.runTransaction(async (tx) => {
               const reference = tx.collection("deletion_jobs").doc(intent._id);
@@ -352,6 +362,10 @@ var require_lifecycleJobs = __commonJS({
           if (intent.kind === "challenge-photo") {
             const photo = await read(database.collection("challenge_photos").doc(intent.sourceId));
             if (photo) await run("challenge-photo", photo._id, () => removePhoto("challenge-photo", photo, "challenge_photos", photo.fileId, { deletionState: "deleted", deletedAt: database.serverDate() }, at));
+            else {
+              processed++;
+              await write("deletion_jobs", intent._id, { state: "deleted", lastError: "SOURCE_MISSING", updatedAt: cutoff });
+            }
           }
           if (intent.kind === "challenge" && scanned < batchSize) {
             const result = await deleteChallengePhotos(intent.sourceId, at, Math.min(batchSize - processed, batchSize - scanned));

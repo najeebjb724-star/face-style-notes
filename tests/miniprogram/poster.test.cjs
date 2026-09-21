@@ -237,6 +237,37 @@ test("mini-code link failure deletes its exact uploaded file and reports rollbac
   );
 });
 
+test("preview deletion during mini-code upload leaves durable exact-file cleanup when rollback fails", async () => {
+  const { createShareApi, getMiniCodeForPreview } = require("../../cloudfunctions/shareApi");
+  const token = "uNguessableToken1234567890123456";
+  const stores = { share_previews: new Map([[token, { _id: token, _openid: "owner-1", kind: "report", preview: {}, expiresAt: "2026-09-27T00:00:00.000Z" }]]), deletion_jobs: new Map() };
+  const collection = name => ({ doc: id => ({
+    get: async () => ({ data: stores[name]?.get(id) || null }),
+    set: async ({ data }) => { (stores[name] ||= new Map()).set(id, { ...data, _id: id }); },
+    update: async ({ data }) => stores[name].set(id, { ...stores[name].get(id), ...data })
+  }) });
+  const database = { collection, runTransaction: callback => callback({ collection }) };
+  const api = createShareApi({ database, getWXContext: () => ({ OPENID: "owner-1" }), now: () => new Date("2026-09-20T00:00:00.000Z") });
+  const cloud = {
+    openapi: { wxacode: { getUnlimited: async () => Buffer.from("code") } },
+    uploadFile: async () => { stores.share_previews.delete(token); return { fileID: "cloud://env.mini-codes/raced.png" }; },
+    deleteFile: async () => ({ fileList: [{ fileID: "cloud://env.mini-codes/raced.png", status: -1 }] })
+  };
+  await assert.rejects(() => getMiniCodeForPreview({ scene: token, page: "pages/report/report" }, cloud, api), error => error.code === "PREVIEW_NOT_FOUND" && error.rollbackFailed === true);
+  const exact = [...stores.deletion_jobs.values()].find(item => item.fileId === "cloud://env.mini-codes/raced.png");
+  assert.equal(exact.kind, "account-file");
+  assert.equal(exact.state, "pending");
+});
+
+test("failed mini-code generation closes its upload lease", async () => {
+  const { getMiniCodeForPreview } = require("../../cloudfunctions/shareApi");
+  const finished = [];
+  const api = { getPreview: async () => ({}), beginMiniCodeUpload: async () => "upload-job", finishMiniCodeUpload: async value => finished.push(value) };
+  const cloud = { openapi: { wxacode: { getUnlimited: async () => { throw new Error("generation failed"); } } } };
+  await assert.rejects(() => getMiniCodeForPreview({ scene: "uNguessableToken1234567890123456", page: "pages/report/report" }, cloud, api), /generation failed/);
+  assert.deepEqual(finished, [{ jobId: "upload-job" }]);
+});
+
 test("production share entry rejects arbitrary scenes without uploading a mini-code", async () => {
   const { createMain } = require("../../cloudfunctions/shareApi");
   let uploads = 0;
