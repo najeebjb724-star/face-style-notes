@@ -1,4 +1,4 @@
-// challengeApi-build-fingerprint:4b0cec3c292278f821c0356002c3c775c7921a7e19d04d49055d249c1698d352:0c0e7b52eb2494bae6427b703251618a7877c89f52568d10508b4d89852677e7
+// challengeApi-build-fingerprint:b62edb36ca105b6cb81834b20d846ef33b8c54e50111872721a6cbc483ca1382:d02301272544aa0caa72d9aed7dfada3a6b6d88a481dc87cefb1d83209614729
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
@@ -24,7 +24,7 @@ var require_lifecycleJobs = __commonJS({
     var MAX_BATCH_SIZE = 50;
     var RETRY_LIMIT = 3;
     var WEEK_MS = 7 * 24 * 60 * 60 * 1e3;
-    var { randomUUID: randomUUID2 } = require("node:crypto");
+    var { randomUUID: randomUUID2, createHash: createHash2 } = require("node:crypto");
     function adaptCloudDatabase2(database) {
       const collections = (source) => (name) => {
         const collection = source.collection(name);
@@ -261,6 +261,20 @@ var require_lifecycleJobs = __commonJS({
         let processed = 0;
         let scanned = 0;
         const seen = /* @__PURE__ */ new Set();
+        for (const preview of await list("share_previews", { expiresAt: cmd.lte(cutoff) }, Math.max(1, Math.floor(batchSize / 4)), "expiresAt")) {
+          await database.runTransaction(async (tx) => {
+            const reference = tx.collection("share_previews").doc(preview._id);
+            const current = await read(reference);
+            if (!current || current.expiresAt > cutoff) return;
+            for (const fileId of [...new Set(current.miniCodeFileIds || [])]) {
+              const id = `account-file-${createHash2("sha256").update(JSON.stringify([current._openid, fileId])).digest("hex")}`;
+              const intent = tx.collection("deletion_jobs").doc(id);
+              if (!await read(intent)) await intent.set({ kind: "account-file", _openid: current._openid, fileId, state: "pending", attempts: 0, dueAt: cutoff, createdAt: cutoff });
+            }
+            await reference.remove();
+          });
+          scanned++;
+        }
         const scan = async (name, filter, key) => {
           if (scanned >= batchSize) return [];
           const cursorId = `scan-${key}`;
@@ -286,6 +300,29 @@ var require_lifecycleJobs = __commonJS({
         };
         const intents = await list("deletion_jobs", { state: cmd.in(["pending", "retrying", "manual_review"]), dueAt: cmd.lte(cutoff) }, Math.max(1, Math.floor(batchSize / 2)), "dueAt");
         for (const intent of intents) {
+          if (intent.kind === "account-file") {
+            processed++;
+            const claimed = await database.runTransaction(async (tx) => {
+              const reference = tx.collection("deletion_jobs").doc(intent._id);
+              const current = await read(reference);
+              if (!current || current.state === "deleted" || current.leaseUntil > cutoff) return null;
+              const changes = { attempts: (current.attempts || 0) + 1, leaseUntil: new Date(at.getTime() + 6e4).toISOString(), dueAt: new Date(at.getTime() + 6e4).toISOString() };
+              await reference.update(changes);
+              return { ...current, ...changes };
+            });
+            if (!claimed) continue;
+            let deleted = false;
+            try {
+              if (typeof claimed.fileId === "string" && claimed.fileId.startsWith("cloud://")) {
+                const result = await cloud.deleteFile({ fileList: [claimed.fileId] });
+                deleted = result?.fileList?.length === 1 && result.fileList[0].fileID === claimed.fileId && result.fileList[0].status === 0;
+              }
+            } catch (_) {
+            }
+            const state = deleted ? "deleted" : claimed.attempts >= RETRY_LIMIT ? "manual_review" : "retrying";
+            await write("deletion_jobs", intent._id, { state, leaseUntil: null, lastError: deleted ? null : "PHOTO_DELETE_FAILED", updatedAt: cutoff });
+            if (!deleted) alert({ code: "PHOTO_DELETE_FAILED", kind: "account-file", sourceId: intent._id, state, attempts: claimed.attempts });
+          }
           if (intent.kind === "analysis") await run("analysis", intent.sourceId, () => deleteAnalysisPhoto(intent.sourceId, at));
           if (intent.kind === "upload") await run("upload", intent.sourceId, () => deleteUploadPhoto(intent.sourceId, at));
         }

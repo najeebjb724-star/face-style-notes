@@ -1,5 +1,20 @@
 <view class="page">
   <text class="eyebrow">美学身份卡</text>
   <text class="title">我的风格记录</text>
-  <text class="copy">你的美学身份卡和风格记录会在这里逐渐完善。</text>
+  <text class="copy">管理自己的记录与授权。云端文件清理失败会保留任务重试，完成前会显示待清理。</text>
+  <view wx:for="{{reports}}" wx:key="id">
+    <text>{{item.title}} · {{item.createdAt}}</text>
+    <button disabled="{{busy}}" data-id="{{item.id}}" bindtap="confirmDeleteReport">删除这份身份卡</button>
+  </view>
+  <button wx:if="{{reportNext}}" data-kind="reports" bindtap="loadMore">更多身份卡</button>
+  <view wx:for="{{challenges}}" wx:key="id">
+    <text>{{item.title}} · {{item.createdAt}}</text>
+    <button disabled="{{busy}}" data-id="{{item.id}}" bindtap="confirmDeleteChallenge">删除这组挑战</button>
+  </view>
+  <button wx:if="{{challengeNext}}" data-kind="challenges" bindtap="loadMore">更多挑战</button>
+  <button disabled="{{busy}}" bindtap="confirmWithdrawConsent">撤回人脸分析同意</button>
+  <button class="danger-secondary" disabled="{{busy}}" bindtap="confirmDeleteAll">清空我的全部数据</button>
+  <text class="copy">这会删除身份卡、挑战和打卡，并安排云端照片清理，已删除的记录无法恢复。为完成清理与核查，必要的删除任务和数量摘要会保留。</text>
+  <text class="copy">{{deletionMessage}}</text>
+  <button wx:if="{{auditId}}" disabled="{{busy}}" bindtap="refreshDeletionStatus">刷新清理状态</button>
 </view>

@@ -888,6 +888,12 @@ async function settleContainerJob({ database, jobId, leaseId, leaseToken, now, s
     const next = transitionAnalysisJob(job, { status, sourcePhotoStatus: "deleting" });
     const changes = { status: next.status, sourcePhotoStatus: next.sourcePhotoStatus, settledAt: database.serverDate() };
     if (status === "complete") {
+      // Read in the report transaction so a winning consent revocation conflicts
+      // with completion instead of allowing a late report to be recreated.
+      if (job.consentId) {
+        const consent = await readOptional(transaction.collection("consents").doc(requireId(job.consentId)));
+        if (!consent || consent._openid !== job._openid || consent.revokedAt) throw codedError("CONSENT_REQUIRED");
+      }
       const analysisResult = validateAnalysisResult(result, jobId);
       const measurements = computeMeasurements(analysisResult.points, job.quality?.level || "high");
       const profile = inferQuestionnaire(job.questionnaire || {});
