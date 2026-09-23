@@ -1,3 +1,5 @@
+const { assertAccountWritable } = require("./cloud-guards");
+
 function unauthenticatedError() {
   const error = new Error("UNAUTHENTICATED");
   error.code = "UNAUTHENTICATED";
@@ -14,18 +16,16 @@ async function findOne(database, collectionName, filters, orderBy) {
 }
 
 async function ensureUser(database, openid) {
-  const existingUser = await findOne(database, "users", { _openid: openid });
-  if (existingUser) {
-    return existingUser._id;
-  }
-
-  await database.collection("users").doc(openid).set({
-    data: {
+  return database.runTransaction(async transaction => {
+    await assertAccountWritable(transaction, openid);
+    const existingUser = await findOne(transaction, "users", { _openid: openid });
+    if (existingUser) return existingUser._id;
+    await transaction.collection("users").doc(openid).set({ data: {
       _openid: openid,
       createdAt: database.serverDate()
-    }
+    } });
+    return openid;
   });
-  return openid;
 }
 
 function createBootstrapUser({ database, getWXContext }) {

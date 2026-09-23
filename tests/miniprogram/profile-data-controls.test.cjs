@@ -3,15 +3,26 @@ const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const fs = require('node:fs');
 function setup(answers, fails = false) {
-  let page; const calls = []; const modals = []; const storage = { 'offline-checkins': [{ challengeId: 'c' }], 'face-analysis-consent': { acceptedAt: 'old' }, 'face-analysis-preflight': { path: 'photo' }, 'challenge-completion:c': { private: true }, unrelated: 'keep' };
+  let page; const calls = []; const modals = []; const navigations = []; const storage = { 'offline-checkins': [{ challengeId: 'c' }], 'face-analysis-consent': { acceptedAt: 'old' }, 'face-analysis-preflight': { path: 'photo' }, 'challenge-completion:c': { private: true }, unrelated: 'keep' };
   const wx = {
     showModal(options) { modals.push(options); options.success({ confirm: answers.shift() }); },
+    navigateTo(options) { navigations.push(options.url); },
     getStorageInfoSync: () => ({ keys: Object.keys(storage) }), getStorageSync: key => storage[key], setStorageSync: (key, value) => { storage[key] = value; }, removeStorageSync: key => { delete storage[key]; }
   };
   vm.runInNewContext(fs.readFileSync('miniprogram/pages/profile/profile.js', 'utf8'), { Page: value => { page = value; }, wx, require: path => path.includes('photo-preflight') ? require('../../miniprogram/lib/photo-preflight') : ({ callCloud: async (name, event) => { calls.push({ name, ...event }); if (fails) throw new Error('offline'); return event.action === 'listData' ? { items: [], next: null } : { auditId: 'audit', reports: 2, challenges: 1, photos: { pending: 1 }, subscriptions: 1, completedAt: null }; } }) });
   page.data = { ...page.data }; page.setData = changes => Object.assign(page.data, changes);
-  return { page, calls, modals, storage };
+  return { page, calls, modals, navigations, storage };
 }
+
+test('profile records open their owner-scoped native detail routes', () => {
+  const { page, navigations } = setup([]);
+  page.openReport({ currentTarget: { dataset: { id: 'report-1' } } });
+  page.openChallengeHistory({ currentTarget: { dataset: { id: 'challenge-1' } } });
+  assert.deepEqual(navigations, [
+    '/pages/report/report?id=report-1',
+    '/pages/challenge-complete/challenge-complete?id=challenge-1'
+  ]);
+});
 test('all-data deletion requires both confirmations, then reports pending cleanup and clears only relevant local data', async () => {
   const { page, calls, modals, storage } = setup([true, true]);
   assert.equal(typeof page.confirmDeleteAll, 'function');

@@ -1,4 +1,10 @@
 const STORAGE_KEY = "offline-checkins";
+const PERMANENT_BUSINESS_ERRORS = new Set([
+  "ACCOUNT_DELETION_IN_PROGRESS",
+  "CHALLENGE_NOT_ACTIVE",
+  "FORBIDDEN",
+  "INVALID_ARGUMENT"
+]);
 
 function invalidArgument() {
   const error = new Error("INVALID_ARGUMENT");
@@ -43,7 +49,13 @@ function createOfflineCheckIns(storage) {
         const current = readQueue()[0];
         if (!current) return;
 
-        const acknowledgement = await send({ ...current });
+        let acknowledgement;
+        try {
+          acknowledgement = await send({ ...current });
+        } catch (error) {
+          if (!PERMANENT_BUSINESS_ERRORS.has(error?.code)) throw error;
+          acknowledgement = { ok: true };
+        }
         if (!acknowledgement || acknowledgement.ok !== true) {
           const error = new Error("CHECKIN_NOT_ACKNOWLEDGED");
           error.code = "CHECKIN_NOT_ACKNOWLEDGED";

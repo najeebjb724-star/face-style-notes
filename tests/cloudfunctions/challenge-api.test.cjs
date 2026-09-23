@@ -182,6 +182,9 @@ function createOptimisticCreateDatabase() {
     let nextChallenge;
     const transaction = {
       collection(name) {
+        if (name === "deletion_jobs") {
+          return { doc() { return { async get() { return { data: null }; } }; } };
+        }
         if (name === "challengeOwners") {
           return {
             doc(id) {
@@ -565,7 +568,7 @@ test("finish derives its date from trusted China time and ends active state", as
   assert.equal(database.snapshot("challengeOwners")[0].activeChallengeId, null);
 });
 
-test("delete removes only the owned challenge and its check-ins", async () => {
+test("delete removes only the owned challenge, its check-ins and reminder subscriptions", async () => {
   const database = createDatabase({
     challenges: [challenge(), challenge({ _id: "c2", id: "c2", _openid: "openid-B" })],
     checkins: [
@@ -574,7 +577,10 @@ test("delete removes only the owned challenge and its check-ins", async () => {
     ],
     challengeOwners: [{ _id: "openid-A", activeChallengeId: "c1" }],
     photos: [{ _id: "photo-1", challengeId: "c1" }],
-    reminders: [{ _id: "reminder-1", challengeId: "c1" }]
+    reminder_subscriptions: [
+      { _id: "reminder-1", _openid: "openid-A", challengeId: "c1" },
+      { _id: "reminder-2", _openid: "openid-B", challengeId: "c2" }
+    ]
   });
 
   await createApi(database)({ action: "delete", payload: { challengeId: "c1" } });
@@ -583,7 +589,36 @@ test("delete removes only the owned challenge and its check-ins", async () => {
   assert.deepEqual(database.snapshot("checkins").map(item => item._id), ["b"]);
   assert.equal(database.snapshot("challengeOwners")[0].activeChallengeId, null);
   assert.equal(database.snapshot("photos").length, 1);
-  assert.equal(database.snapshot("reminders").length, 1);
+  assert.deepEqual(database.snapshot("reminder_subscriptions").map(item => item._id), ["reminder-2"]);
+});
+
+test("completed challenge history is owner-scoped and available without local cache", async () => {
+  const saved = challenge({ status: "completed", history: { id: "c1", title: "云端复盘" } });
+  const database = createDatabase({ challenges: [saved], checkins: [] });
+
+  assert.deepEqual(await createApi(database)({ action: "getHistory", payload: { challengeId: "c1" } }), saved.history);
+  await assert.rejects(
+    createApi(database, "openid-B")({ action: "getHistory", payload: { challengeId: "c1" } }),
+    error => error.code === "FORBIDDEN"
+  );
+});
+
+test("account deletion marker blocks challenge mutations but completed marker permits reuse", async () => {
+  const markerId = `account-delete-${createHash("sha256").update("openid-A").digest("hex")}`;
+  const database = createDatabase({
+    challenges: [], checkins: [], challengeOwners: [],
+    deletion_jobs: [{ _id: markerId, _openid: "openid-A", state: "deleting" }]
+  });
+  const payload = { templateId: "custom", title: "每天喝水", taskLabel: "喝水", durationDays: 7 };
+
+  await assert.rejects(createApi(database)({ action: "create", payload }), error => error.code === "ACCOUNT_DELETION_IN_PROGRESS");
+  assert.deepEqual(database.snapshot("challenges"), []);
+
+  const reusable = createDatabase({
+    challenges: [], checkins: [], challengeOwners: [],
+    deletion_jobs: [{ _id: markerId, _openid: "openid-A", state: "completed" }]
+  });
+  assert.equal((await createApi(reusable, "openid-A", { createChallengeId: () => "new-challenge" })({ action: "create", payload }))._id, "new-challenge");
 });
 
 test("challenge API rejects missing runtime identity and unknown actions", async () => {

@@ -3,12 +3,14 @@
   <text class="title">我的风格记录</text>
   <text class="copy">管理自己的记录与授权。云端文件清理失败会保留任务重试，完成前会显示待清理。</text>
   <view wx:for="{{reports}}" wx:key="id">
-    <text>{{item.title}} · {{item.createdAt}}</text>
+    <text data-id="{{item.id}}" bindtap="openReport">{{item.title}} · {{item.createdAt}}</text>
+    <button disabled="{{busy}}" data-id="{{item.id}}" bindtap="openReport">打开这份身份卡</button>
     <button disabled="{{busy}}" data-id="{{item.id}}" bindtap="confirmDeleteReport">删除这份身份卡</button>
   </view>
   <button wx:if="{{reportNext}}" data-kind="reports" bindtap="loadMore">更多身份卡</button>
   <view wx:for="{{challenges}}" wx:key="id">
-    <text>{{item.title}} · {{item.createdAt}}</text>
+    <text data-id="{{item.id}}" bindtap="openChallengeHistory">{{item.title}} · {{item.createdAt}}</text>
+    <button disabled="{{busy}}" data-id="{{item.id}}" bindtap="openChallengeHistory">打开挑战复盘</button>
     <button disabled="{{busy}}" data-id="{{item.id}}" bindtap="confirmDeleteChallenge">删除这组挑战</button>
   </view>
   <button wx:if="{{challengeNext}}" data-kind="challenges" bindtap="loadMore">更多挑战</button>

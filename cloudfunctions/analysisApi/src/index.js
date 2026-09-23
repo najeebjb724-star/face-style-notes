@@ -1,5 +1,5 @@
 const { createHash, randomBytes, randomUUID, timingSafeEqual } = require("node:crypto");
-const { assertOwnedRecord } = require("../../../shared/cloud-guards");
+const { assertAccountWritable, assertOwnedRecord } = require("../../../shared/cloud-guards");
 const { createPhotoLifecycle: createPhotoCleanup, adaptCloudDatabase } = require("../../lifecycleJobs");
 // Deterministic report functions are inlined for this self-contained CloudBase bundle.
 function distance(a, b) { return Math.hypot(b.x - a.x, b.y - a.y); }
@@ -401,7 +401,7 @@ function composeReport({ quality, measurements, profile }) {
 
 const ANALYSIS_STATUSES = new Set(["queued", "processing", "complete", "failed"]);
 const SOURCE_PHOTO_STATUSES = new Set(["pending", "deleting", "deleted", "manual_review"]);
-const SAFE_ERRORS = new Set(["CONSENT_REQUIRED", "FORBIDDEN", "INVALID_ACTION", "INVALID_ARGUMENT", "UNAUTHENTICATED"]);
+const SAFE_ERRORS = new Set(["ACCOUNT_DELETION_IN_PROGRESS", "CONSENT_REQUIRED", "FORBIDDEN", "INVALID_ACTION", "INVALID_ARGUMENT", "UNAUTHENTICATED"]);
 const CONSENT_TYPE = "face-analysis";
 const CONSENT_VERSION = "2026-09-03";
 const REPORT_RULES_VERSION = "web-face-style-core-2026-09-03";
@@ -593,13 +593,16 @@ function createAnalysisApi({
         throw codedError("INVALID_ARGUMENT");
       }
       const consentId = requireId(createId("consent"));
-      await database.collection("consents").doc(consentId).set({
-        _openid: openid,
-        type: CONSENT_TYPE,
-        version: CONSENT_VERSION,
-        acceptedAt: new Date(acceptedAt).toISOString(),
-        revokedAt: null,
-        createdAt: database.serverDate()
+      await database.runTransaction(async transaction => {
+        await assertAccountWritable(transaction, openid);
+        await transaction.collection("consents").doc(consentId).set({
+          _openid: openid,
+          type: CONSENT_TYPE,
+          version: CONSENT_VERSION,
+          acceptedAt: new Date(acceptedAt).toISOString(),
+          revokedAt: null,
+          createdAt: database.serverDate()
+        });
       });
       return { consentId };
     }
@@ -611,6 +614,7 @@ function createAnalysisApi({
       const requestTime = now();
       const reservationId = stableReservationId(openid, uploadRequestId);
       const result = await database.runTransaction(async transaction => {
+        await assertAccountWritable(transaction, openid);
         const consent = await readOptional(transaction.collection("consents").doc(consentId));
         const acceptedAt = typeof consent?.acceptedAt === "string" ? Date.parse(consent.acceptedAt) : NaN;
         if (!consent || consent._openid !== openid || consent.type !== CONSENT_TYPE || consent.version !== CONSENT_VERSION
@@ -649,6 +653,7 @@ function createAnalysisApi({
       const tempFileId = requireTempFileId(payload.tempFileId);
       const requestTime = now();
       const result = await database.runTransaction(async transaction => {
+        await assertAccountWritable(transaction, openid);
         const reference = transaction.collection("analysis_uploads").doc(reservationId);
         const upload = await readOptional(reference);
         assertOwnedRecord(upload, openid);
@@ -669,6 +674,7 @@ function createAnalysisApi({
     if (event.action === "abandonUpload") {
       const reservationId = requireId(payload.reservationId);
       const result = await database.runTransaction(async transaction => {
+        await assertAccountWritable(transaction, openid);
         const reference = transaction.collection("analysis_uploads").doc(reservationId);
         const upload = await readOptional(reference);
         assertOwnedRecord(upload, openid);
@@ -697,6 +703,7 @@ function createAnalysisApi({
     if (event.action === "cancelAnalysis") {
       const jobId = requireId(payload.jobId);
       const result = await database.runTransaction(async transaction => {
+        await assertAccountWritable(transaction, openid);
         const reference = transaction.collection("analysis_jobs").doc(jobId);
         const job = await readOptional(reference);
         assertOwnedRecord(job, openid);
@@ -725,6 +732,7 @@ function createAnalysisApi({
       const jobId = stableJobId(openid, clientRequestId);
 
       const created = await database.runTransaction(async transaction => {
+        await assertAccountWritable(transaction, openid);
         const existing = await readOptional(transaction.collection("analysis_jobs").doc(jobId));
         if (existing) {
           assertOwnedRecord(existing, openid);
@@ -783,6 +791,7 @@ function createAnalysisApi({
           await dispatchAnalysis(created.dispatch);
         } catch (_) {
           created.view = await database.runTransaction(async transaction => {
+            await assertAccountWritable(transaction, openid);
             const jobReference = transaction.collection("analysis_jobs").doc(created.view.jobId);
             const uploadReference = transaction.collection("analysis_uploads").doc(created.dispatch.reservationId);
             const job = await readOptional(jobReference);
@@ -842,6 +851,7 @@ async function claimContainerJob({
   return database.runTransaction(async transaction => {
     const reference = transaction.collection("analysis_jobs").doc(requireId(jobId));
     const job = await readOptional(reference);
+    if (job?._openid) await assertAccountWritable(transaction, job._openid);
     if (!job || typeof credential !== "string" || typeof job.credentialHash !== "string") throw codedError("CREDENTIAL_INVALID");
     if (job.credentialUsedAt) throw codedError("CREDENTIAL_USED");
     if (job.status !== "queued" || job.sourcePhotoStatus !== "pending") throw codedError("CREDENTIAL_INVALID");
@@ -879,6 +889,7 @@ async function settleContainerJob({ database, jobId, leaseId, leaseToken, now, s
   const settled = await database.runTransaction(async transaction => {
     const reference = transaction.collection("analysis_jobs").doc(requireId(jobId));
     const job = await readOptional(reference);
+    if (job?._openid) await assertAccountWritable(transaction, job._openid);
     assertLease(job, leaseId, leaseToken);
     if (job.status === "complete" || job.status === "failed") return { jobId, status: job.status };
     if (job.status !== "processing" || deadlineMillis(job.leaseExpiresAt) <= now.getTime()) throw codedError("LEASE_EXPIRED");
@@ -941,6 +952,7 @@ async function recoverExpiredContainerLease({ database, jobId, now = new Date(),
   const result = await database.runTransaction(async transaction => {
     const reference = transaction.collection("analysis_jobs").doc(requireId(jobId));
     const job = await readOptional(reference);
+    if (job?._openid) await assertAccountWritable(transaction, job._openid);
     if (!job) throw codedError("INVALID_STATUS");
     if (job.status !== "processing" || deadlineMillis(job.leaseExpiresAt) > now.getTime()) return { jobId, status: job.status };
     const next = transitionAnalysisJob(job, { status: "failed", sourcePhotoStatus: "deleting" });

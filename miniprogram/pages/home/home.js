@@ -39,6 +39,6 @@ Page({
   openLatestReport() {
     const { latestReport } = this.data;
     if (!latestReport) return;
-    wx.navigateTo({ url: `/pages/report/report?id=${latestReport.id}` });
+    wx.navigateTo({ url: `/pages/report/report?id=${latestReport._id}` });
   }
 });

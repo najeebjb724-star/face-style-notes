@@ -63,6 +63,15 @@ async function getPreview(token) {
   return response?.result;
 }
 
+async function getChallengeHistory(challengeId) {
+  const response = await wx.cloud.callFunction({
+    name: "challengeApi",
+    data: { action: "getHistory", payload: { challengeId } }
+  });
+  if (response?.result?.error || !response?.result) throw new Error("HISTORY_UNAVAILABLE");
+  return response.result;
+}
+
 function challengePreview(history = {}) {
   return { title: history.title, completed: history.completed, total: history.total, rate: history.completionRate, streak: history.streak };
 }
@@ -125,6 +134,12 @@ Page({
       history = challengeId ? wx.getStorageSync(`challenge-completion:${challengeId}`) : null;
     } catch (_) {}
     this.setData({ challengeId, history: history || null });
+    if (!history && challengeId) {
+      try {
+        history = await getChallengeHistory(challengeId);
+        this.setData({ history });
+      } catch (_) {}
+    }
     if (history) await ensureShareToken(this);
   },
 

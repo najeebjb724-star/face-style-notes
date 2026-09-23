@@ -1,4 +1,5 @@
-const { randomUUID, createHash } = require("node:crypto");
+const { randomUUID } = require("node:crypto");
+const { assertAccountWritable } = require("./cloud-guards");
 
 const PREVIEW_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{16,32}$/;
@@ -50,10 +51,6 @@ function validToken(token) {
   return token;
 }
 
-function accountDeletionId(openid) {
-  return `account-delete-${createHash("sha256").update(openid).digest("hex")}`;
-}
-
 function createShareApi({ database, getWXContext, now = () => new Date(), createToken = () => randomUUID().replace(/-/g, "") }) {
   async function createPreview({ kind, preview } = {}) {
     const { OPENID: openid } = getWXContext();
@@ -67,7 +64,10 @@ function createShareApi({ database, getWXContext, now = () => new Date(), create
       createdAt: createdAt.toISOString(),
       expiresAt: new Date(createdAt.getTime() + PREVIEW_TTL_MS).toISOString()
     };
-    await database.collection("share_previews").doc(token).set({ data: record });
+    await database.runTransaction(async transaction => {
+      await assertAccountWritable(transaction, openid);
+      await transaction.collection("share_previews").doc(token).set({ data: record });
+    });
     return token;
   }
 
@@ -84,6 +84,7 @@ function createShareApi({ database, getWXContext, now = () => new Date(), create
       const reference = source.collection("share_previews").doc(validToken(token));
       const record = (await reference.get())?.data;
       if (!record) throw codedError("PREVIEW_NOT_FOUND");
+      await assertAccountWritable(source, record._openid);
       const miniCodeFileIds = [...new Set([...(record.miniCodeFileIds || []), fileId])];
       await reference.set({ data: { ...record, miniCodeFileIds } });
     };
@@ -96,8 +97,7 @@ function createShareApi({ database, getWXContext, now = () => new Date(), create
     await database.runTransaction(async transaction => {
       const preview = (await transaction.collection("share_previews").doc(validToken(token)).get())?.data;
       if (!preview) throw codedError("PREVIEW_NOT_FOUND");
-      const marker = (await transaction.collection("deletion_jobs").doc(accountDeletionId(preview._openid)).get())?.data;
-      if (marker?.state === "deleting") throw codedError("PREVIEW_NOT_FOUND");
+      await assertAccountWritable(transaction, preview._openid);
       await transaction.collection("deletion_jobs").doc(jobId).set({ data: { kind: "share-upload", accountCleanup: true, _openid: preview._openid, token, state: "uploading", auditIds: [], createdAt: now().toISOString() } });
     });
     return jobId;

@@ -58,7 +58,7 @@ test("home provides visitor-safe state and the three stable entry actions", () =
   assert.doesNotThrow(() => definition.onShow.call({ setData() {} }));
   definition.startAnalysis();
   definition.openChallenge();
-  definition.openLatestReport.call({ data: { latestReport: { id: "report-1" } } });
+  definition.openLatestReport.call({ data: { latestReport: { _id: "report-1" } } });
   assert.deepEqual(navigations, [
     "/pages/consent/consent",
     "/pages/challenges/challenges",

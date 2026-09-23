@@ -1,5 +1,5 @@
 const { createHash, randomUUID } = require("node:crypto");
-const { assertOwnedRecord } = require("../../../shared/cloud-guards");
+const { assertAccountWritable, assertOwnedRecord } = require("../../../shared/cloud-guards");
 const { createPhotoLifecycle, queueChallengeDeletion, adaptCloudDatabase } = require("../../lifecycleJobs");
 const {
   createChallenge,
@@ -15,6 +15,7 @@ function codedError(code) {
 }
 
 const CLIENT_SAFE_ERROR_CODES = new Set([
+  "ACCOUNT_DELETION_IN_PROGRESS",
   "ACTIVE_CHALLENGE_EXISTS",
   "CHALLENGE_NOT_COMPLETE",
   "CHALLENGE_NOT_ACTIVE",
@@ -135,6 +136,7 @@ function createChallengeApi({ database, getWXContext, now = () => new Date(), cr
       challenge.id = requireId(createChallengeId());
 
       return database.runTransaction(async transaction => {
+        await assertAccountWritable(transaction, openid);
         const ownerReference = transaction.collection("challengeOwners").doc(openid);
         const [owner, existing] = await Promise.all([
           readOptionalDocument(ownerReference),
@@ -161,6 +163,15 @@ function createChallengeApi({ database, getWXContext, now = () => new Date(), cr
       return hydrateCheckIns(active, await findCheckIns(database, openid, active._id));
     }
 
+    if (event.action === "getHistory") {
+      const challenge = await readOptionalDocument(
+        database.collection("challenges").doc(requireId(payload.challengeId))
+      );
+      assertOwnedRecord(challenge, openid);
+      if (challenge.status !== "completed" || !challenge.history) throw codedError("CHALLENGE_NOT_COMPLETE");
+      return challenge.history;
+    }
+
     if (event.action === "checkIn" || event.action === "undoCheckIn") {
       const challengeId = requireId(payload.challengeId);
       const commandId = requireId(payload.id);
@@ -169,6 +180,7 @@ function createChallengeApi({ database, getWXContext, now = () => new Date(), cr
       const completed = event.action === "checkIn";
 
       return database.runTransaction(async transaction => {
+        await assertAccountWritable(transaction, openid);
         await assertChallengeWritable(transaction, openid, challengeId);
         const challenge = await readOptionalDocument(
           transaction.collection("challenges").doc(challengeId)
@@ -207,6 +219,7 @@ function createChallengeApi({ database, getWXContext, now = () => new Date(), cr
       }
 
       return database.runTransaction(async transaction => {
+        await assertAccountWritable(transaction, openid);
         await assertChallengeWritable(transaction, openid, challengeId);
         const challengeReference = transaction.collection("challenges").doc(challengeId);
         const challenge = await readOptionalDocument(challengeReference);
@@ -240,13 +253,21 @@ function createChallengeApi({ database, getWXContext, now = () => new Date(), cr
       const challengeId = requireId(payload.challengeId);
 
       const result = await database.runTransaction(async transaction => {
+        await assertAccountWritable(transaction, openid);
         const challengeReference = transaction.collection("challenges").doc(challengeId);
         const challenge = await readOptionalDocument(challengeReference);
         assertOwnedRecord(challenge, openid);
 
         const checkins = await findCheckIns(transaction, openid, challengeId);
+        const subscriptions = (await transaction.collection("reminder_subscriptions").where({
+          _openid: openid,
+          challengeId
+        }).get()).data;
         await Promise.all(checkins.map(item => (
           transaction.collection("checkins").doc(item._id).remove()
+        )));
+        await Promise.all(subscriptions.map(item => (
+          transaction.collection("reminder_subscriptions").doc(item._id).remove()
         )));
         await queueChallengeDeletion(transaction, database, challenge, requestNow);
         await challengeReference.remove();

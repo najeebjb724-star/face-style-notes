@@ -40,6 +40,12 @@ function validPreflight(value) {
     && typeof value.quality.scope === "string";
 }
 
+function clearTerminalPhotoState() {
+  for (const key of [FACE_PREFLIGHT_STORAGE_KEY, ANALYSIS_STATE_STORAGE_KEY]) {
+    try { wx.removeStorageSync(key); } catch (_) {}
+  }
+}
+
 Page({
   data: {
     status: "idle",
@@ -155,10 +161,12 @@ Page({
       this.setData({ status, statusText: "正在准备你的结构参考", errorText: "", canRefresh: true, reportId: null });
     } else if (status === "complete" && result.reportId) {
       this.stopPolling();
+      clearTerminalPhotoState();
       this.setData({ status, statusText: "结构参考已准备好", errorText: "", canRefresh: false, reportId: result.reportId });
       if (typeof wx.redirectTo === "function") wx.redirectTo({ url: `/pages/report/report?id=${encodeURIComponent(result.reportId)}` });
     } else if (status === "failed") {
       this.stopPolling();
+      clearTerminalPhotoState();
       this.setData({ status, errorText: "这次处理没有完成，你可以刷新状态或重新选择照片。", canRefresh: true });
     }
   },

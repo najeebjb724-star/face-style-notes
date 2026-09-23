@@ -483,3 +483,22 @@ test("completion page accepts fresh server history through the opener event chan
   assert.equal(updates.at(-1).history.id, "c1");
   assert.equal(updates.at(-1).history.title, "真实复盘");
 });
+
+test("completion page loads owner-scoped cloud history when local cache is empty", async () => {
+  const history = { id: "c1", title: "云端复盘" };
+  const calls = [];
+  const { definition } = loadPage("pages/challenge-complete/challenge-complete.js", {}, {
+    getStorageSync() { return null; },
+    cloud: { async callFunction(request) { calls.push(request); return { result: history }; } }
+  });
+  const page = {
+    data: { ...definition.data },
+    setData(value) { Object.assign(this.data, value); },
+    getOpenerEventChannel() { return null; }
+  };
+
+  await definition.onLoad.call(page, { id: "c1" });
+
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[0])), { name: "challengeApi", data: { action: "getHistory", payload: { challengeId: "c1" } } });
+  assert.equal(page.data.history.title, "云端复盘");
+});

@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { createHash } = require("node:crypto");
 
 const {
   createBootstrapUser
@@ -55,6 +56,9 @@ function createDatabase(seed) {
         },
         doc(id) {
           return {
+            async get() {
+              return { data: records.find(item => item._id === id) || null };
+            },
             async set({ data }) {
               const record = { _id: id, ...data };
               const index = records.findIndex(item => item._id === id);
@@ -70,6 +74,9 @@ function createDatabase(seed) {
       };
 
       return query;
+    },
+    runTransaction(callback) {
+      return callback({ collection: this.collection.bind(this) });
     },
     snapshot(name) {
       return collections[name].map(record => ({ ...record }));
@@ -133,6 +140,19 @@ test("bootstrapUser creates a missing user from the trusted runtime identity", a
     _openid: "trusted-user",
     createdAt: "SERVER_DATE"
   }]);
+});
+
+test("bootstrapUser does not recreate private state while account deletion is running", async () => {
+  const openid = "deleting-user";
+  const markerId = `account-delete-${createHash("sha256").update(openid).digest("hex")}`;
+  const database = createDatabase({
+    users: [], reports: [], challenges: [],
+    deletion_jobs: [{ _id: markerId, _openid: openid, state: "deleting" }]
+  });
+  const bootstrapUser = createBootstrapUser({ database, getWXContext: () => ({ OPENID: openid }) });
+
+  await assert.rejects(bootstrapUser(), error => error.code === "ACCOUNT_DELETION_IN_PROGRESS");
+  assert.deepEqual(database.snapshot("users"), []);
 });
 
 test("concurrent first bootstraps converge on one stable user record", async () => {

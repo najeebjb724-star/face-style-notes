@@ -4,6 +4,18 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
+test("unbundled cloud entries keep runtime dependencies inside their function directory", () => {
+  for (const name of ["bootstrapUser", "reminderApi", "shareApi"]) {
+    const directory = path.join(__dirname, "../../cloudfunctions", name);
+    const source = fs.readFileSync(path.join(directory, "index.js"), "utf8");
+    for (const match of source.matchAll(/require\(["'](\.[^"']+)["']\)/g)) {
+      const resolved = path.resolve(directory, match[1]);
+      assert.ok(resolved.startsWith(`${directory}${path.sep}`), `${name} imports outside its deployable directory`);
+      assert.ok(fs.existsSync(`${resolved}.js`) || fs.existsSync(resolved), `${name} dependency is missing: ${match[1]}`);
+    }
+  }
+});
+
 test("mini program declares the approved three tabs", () => {
   const app = JSON.parse(fs.readFileSync(path.join(__dirname, "../../miniprogram/app.json"), "utf8"));
   assert.deepEqual(app.tabBar.list.map(item => item.pagePath), [

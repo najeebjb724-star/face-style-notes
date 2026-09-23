@@ -1,6 +1,7 @@
 const { createConnectionError } = require("../lib/contracts");
 
 const TRUSTED_BUSINESS_ERRORS = new Set([
+  "ACCOUNT_DELETION_IN_PROGRESS",
   "ACTIVE_CHALLENGE_EXISTS",
   "CHALLENGE_NOT_COMPLETE",
   "CHALLENGE_NOT_ACTIVE",
@@ -19,10 +20,12 @@ async function callCloud(name, data = {}) {
     throw createConnectionError();
   }
 
-  const result = response && response.result;
-  if (!result || typeof result !== "object" || Array.isArray(result)) {
+  if (!response || !("result" in response)) {
     throw createConnectionError();
   }
+  const result = response.result;
+  if (result === null) return null;
+  if (typeof result !== "object" || Array.isArray(result)) throw createConnectionError();
   if (result.error) {
     if (result.error
       && typeof result.error === "object"

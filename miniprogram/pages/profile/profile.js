@@ -27,6 +27,8 @@ Page({
       this.setData({ [kind]: [...this.data[kind], ...result.items], [key]: result.next });
     } catch (_) { this.setData({ deletionMessage: '记录暂时无法加载，请稍后重试。' }); }
   },
+  openReport(event) { wx.navigateTo({ url: `/pages/report/report?id=${event.currentTarget.dataset.id}` }); },
+  openChallengeHistory(event) { wx.navigateTo({ url: `/pages/challenge-complete/challenge-complete?id=${event.currentTarget.dataset.id}` }); },
   showSummary(summary) {
     const pending = summary.photos.pending;
     this.setData({ auditId: summary.auditId, deletionMessage: `已移除身份卡 ${summary.reports} 份、挑战 ${summary.challenges} 组、提醒记录 ${summary.subscriptions} 条。${pending ? `还有 ${pending} 个云端文件待清理，系统将重试；这不代表物理删除完成。` : summary.completedAt ? '云端文件清理已完成。' : '请求尚未确认完成，请重试。'}` });

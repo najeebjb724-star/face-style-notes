@@ -15,8 +15,6 @@ Page({
       const activeChallenge = await callCloud("challengeApi", { action: "getActive", payload: {} });
       this.setData({ activeChallenge, isVisitor: false, loading: false });
     } catch (_) {
-      // callCloud currently treats an empty getActive result like a connection failure.
-      // Keeping templates visible makes both that case and visitor mode useful.
       this.setData({ activeChallenge: null, isVisitor: true, loading: false });
     }
   },

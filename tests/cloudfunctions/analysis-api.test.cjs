@@ -202,6 +202,19 @@ test("upload reservation is owned, server-named, attached, and retention-bounded
   }}), attached);
 });
 
+test("account deletion marker blocks new face consent but a completed marker permits reuse", async () => {
+  const { createHash } = require("node:crypto");
+  const markerId = `account-delete-${createHash("sha256").update("openid-A").digest("hex")}`;
+  const consent = { type: "face-analysis", version: "2026-09-03", acceptedAt: "2026-09-07T07:55:00.000Z" };
+  const deleting = setup("openid-A", { deletion_jobs: [{ _id: markerId, _openid: "openid-A", state: "deleting" }] });
+
+  await assert.rejects(deleting.api({ action: "recordConsent", payload: consent }), error => error.code === "ACCOUNT_DELETION_IN_PROGRESS");
+  assert.deepEqual(deleting.database.records.consents || [], []);
+
+  const completed = setup("openid-A", { deletion_jobs: [{ _id: markerId, _openid: "openid-A", state: "completed" }] });
+  assert.match((await completed.api({ action: "recordConsent", payload: consent })).consentId, /^consent-/);
+});
+
 test("concurrent retries of one upload reservation always return one stable cloud path", async () => {
   const database = serializeTransactions(createDatabase({ consents: [activeConsent] }));
   let clockCalls = 0;
@@ -775,6 +788,19 @@ function loadPage(relativePath, dependencies, wx) {
   });
   return definition;
 }
+
+test("terminal analysis status clears local photo and upload markers", () => {
+  const removed = [];
+  const wx = { removeStorageSync: key => removed.push(key), redirectTo() {}, setTimeout, clearTimeout };
+  const definition = loadPage("pages/analysis/analysis.js", {
+    "../../lib/photo-preflight": { FACE_PREFLIGHT_STORAGE_KEY: "preflight", assertFaceConsent: value => value },
+    "../../services/cloud-client": { callCloud: async () => ({}) }
+  }, wx);
+  for (const result of [{ status: "complete", reportId: "report-A" }, { status: "failed" }]) {
+    definition.applyStatus.call({ stopPolling() {}, setData() {} }, result);
+  }
+  assert.deepEqual(removed, ["preflight", "face-analysis-upload-state", "preflight", "face-analysis-upload-state"]);
+});
 
 test("analysis page never uploads without valid JPEG consent and quality", async () => {
   let uploads = 0;

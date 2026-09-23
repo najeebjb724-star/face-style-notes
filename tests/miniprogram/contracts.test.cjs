@@ -39,6 +39,13 @@ test("callCloud returns a successful cloud result", async t => {
   assert.deepEqual(result, { userId: "user-1" });
 });
 
+test("callCloud preserves a successful null result", async t => {
+  t.after(() => delete global.wx);
+  global.wx = { cloud: { callFunction: async () => ({ result: null }) } };
+
+  assert.equal(await callCloud("challengeApi", { action: "getActive" }), null);
+});
+
 test("callCloud propagates a structured cloud error", async t => {
   t.after(() => delete global.wx);
   const cloudError = { code: "FORBIDDEN", message: "FORBIDDEN" };
@@ -113,7 +120,6 @@ test("challenge completion receives the trusted incomplete code through callClou
 
 for (const [name, response] of [
   ["a missing result", {}],
-  ["a null result", { result: null }],
   ["a primitive result", { result: "unexpected" }],
   ["an array result", { result: [] }]
 ]) {

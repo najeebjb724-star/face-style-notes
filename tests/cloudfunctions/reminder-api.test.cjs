@@ -29,7 +29,14 @@ function createDatabase(records = {}, options = {}) {
       },
       doc(id) {
         return {
-          get: async () => ({ data: rows.get(id) || null }),
+          get: async () => {
+            if (options.missingGet?.(name, id)) {
+              const error = new Error("document not exist");
+              error.code = "DATABASE_DOCUMENT_NOT_EXIST";
+              throw error;
+            }
+            return { data: rows.get(id) || null };
+          },
           set: async ({ data }) => rows.set(id, { ...data, _id: id }),
           update: async ({ data }) => {
             if (!data) throw new Error("update requires a data envelope");
@@ -96,6 +103,37 @@ test("sender settles an orphaned subscription without sending it", async () => {
   assert.equal(result.sent, 0);
   assert.equal(sent, 0);
   assert.equal(database.snapshot("reminder_subscriptions")[0].sendState, "unavailable");
+});
+
+test("one missing orphan challenge does not block later due reminders", async () => {
+  const database = createDatabase({
+    challenges: [{ _id: "live", _openid: "user-2", status: "active" }],
+    reminder_subscriptions: [
+      { _id: "orphan", _openid: "user-1", challengeId: "missing", templateId: "template-1", status: "accept", sendState: "pending", dueAt: "2026-09-03T11:00:00.000Z", usedAt: null },
+      { _id: "valid", _openid: "user-2", challengeId: "live", templateId: "template-1", status: "accept", sendState: "pending", dueAt: "2026-09-03T12:00:00.000Z", usedAt: null }
+    ]
+  }, { missingGet: (name, id) => name === "challenges" && id === "missing" });
+  const sent = [];
+  const api = createReminderApi({ database, getWXContext: () => ({ OPENID: "user-1" }), getConfig: () => ({ templateId: "template-1" }), sendSubscription: async request => sent.push(request.touser), templateData: { thing1: { value: "打卡" } } });
+
+  const result = await api.sendDueReminders(new Date("2026-09-03T12:01:00Z"));
+
+  assert.equal(result.sent, 1);
+  assert.deepEqual(sent, ["user-2"]);
+  assert.equal(database.snapshot("reminder_subscriptions").find(item => item._id === "orphan").sendState, "unavailable");
+});
+
+test("account deletion marker blocks new reminder subscriptions", async () => {
+  const { createHash } = require("node:crypto");
+  const markerId = `account-delete-${createHash("sha256").update("user-1").digest("hex")}`;
+  const database = createDatabase({
+    challenges: [{ _id: "challenge-1", _openid: "user-1", status: "active", reminderTime: "21:30" }],
+    deletion_jobs: [{ _id: markerId, _openid: "user-1", state: "deleting" }]
+  });
+  const api = createReminderApi({ database, getWXContext: () => ({ OPENID: "user-1" }), getConfig: () => ({ templateId: "template-1" }) });
+
+  await assert.rejects(api.saveSubscriptionResult({ templateId: "template-1", status: "accept" }), error => error.code === "ACCOUNT_DELETION_IN_PROGRESS");
+  assert.deepEqual(database.snapshot("reminder_subscriptions"), []);
 });
 
 test("due accepted subscriptions stay unused when no template data mapping is configured", async () => {

@@ -197,7 +197,8 @@ test("server share previews are sanitized, unguessable, and expire before lookup
         async set({ data }) { records.set(token, data); },
         async get() { return { data: records.get(token) }; }
       }; } };
-    }
+    },
+    runTransaction(callback) { return callback({ collection: this.collection.bind(this) }); }
   };
   const api = createShareApi({
     database,
@@ -214,6 +215,30 @@ test("server share previews are sanitized, unguessable, and expire before lookup
   await assert.rejects(() => api.getPreview({ token: "invalid" }), { code: "INVALID_ARGUMENT" });
   records.get(token).expiresAt = "2026-09-19T00:00:00.000Z";
   await assert.rejects(() => api.getPreview({ token }), { code: "PREVIEW_EXPIRED" });
+});
+
+test("account deletion marker blocks creation of new share previews", async () => {
+  const { createHash } = require("node:crypto");
+  const { createShareApi } = require("../../cloudfunctions/shareApi");
+  const stores = { share_previews: new Map(), deletion_jobs: new Map() };
+  const markerId = `account-delete-${createHash("sha256").update("owner-1").digest("hex")}`;
+  stores.deletion_jobs.set(markerId, { _id: markerId, _openid: "owner-1", state: "deleting" });
+  const collection = name => ({ doc: id => ({
+    get: async () => ({ data: stores[name].get(id) || null }),
+    set: async ({ data }) => stores[name].set(id, { _id: id, ...data })
+  }) });
+  const database = { collection, runTransaction: callback => callback({ collection }) };
+  const api = createShareApi({
+    database,
+    getWXContext: () => ({ OPENID: "owner-1" }),
+    createToken: () => "uNguessableToken1234567890123456"
+  });
+
+  await assert.rejects(
+    api.createPreview({ kind: "report", preview: {} }),
+    error => error.code === "ACCOUNT_DELETION_IN_PROGRESS"
+  );
+  assert.equal(stores.share_previews.size, 0);
 });
 
 test("mini-code link failure deletes its exact uploaded file and reports rollback failure", async () => {

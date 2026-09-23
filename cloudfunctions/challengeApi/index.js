@@ -1,4 +1,4 @@
-// challengeApi-build-fingerprint:0a68253bc15efe388fc206fa25e1839e2d77db8d03c1100eed5076a79f6923da:a884d3830e245ec6aca0d6d5bdbe4dd669604c798d3239646d85be038619efcc
+// challengeApi-build-fingerprint:d33198997fb944e040d5f63d50188922a71a82b9b059eb56e273ee6b97d48279:9a93e1dd89cededb710bd154bd74ed71c964bd488607fc41b29d9b690a3b6ae4
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
@@ -14,7 +14,24 @@ var require_cloud_guards = __commonJS({
         throw error;
       }
     }
-    module2.exports = { assertOwnedRecord: assertOwnedRecord2 };
+    var { createHash: createHash2 } = require("node:crypto");
+    function accountDeletionId(openid) {
+      return `account-delete-${createHash2("sha256").update(openid).digest("hex")}`;
+    }
+    async function assertAccountWritable2(source, openid) {
+      let marker;
+      try {
+        marker = (await source.collection("deletion_jobs").doc(accountDeletionId(openid)).get())?.data || null;
+      } catch (error) {
+        if (error?.code !== "DATABASE_DOCUMENT_NOT_EXIST" && error?.errCode !== -502005 && !/not[ _-]?exist/i.test(error?.message || "")) throw error;
+      }
+      if (marker?.state === "deleting") {
+        const error = new Error("ACCOUNT_DELETION_IN_PROGRESS");
+        error.code = "ACCOUNT_DELETION_IN_PROGRESS";
+        throw error;
+      }
+    }
+    module2.exports = { accountDeletionId, assertAccountWritable: assertAccountWritable2, assertOwnedRecord: assertOwnedRecord2 };
   }
 });
 
@@ -1018,7 +1035,7 @@ var require_face_style_core = __commonJS({
 
 // src/index.js
 var { createHash, randomUUID } = require("node:crypto");
-var { assertOwnedRecord } = require_cloud_guards();
+var { assertAccountWritable, assertOwnedRecord } = require_cloud_guards();
 var { createPhotoLifecycle, queueChallengeDeletion, adaptCloudDatabase } = require_lifecycleJobs();
 var {
   createChallenge,
@@ -1032,6 +1049,7 @@ function codedError(code) {
   return error;
 }
 var CLIENT_SAFE_ERROR_CODES = /* @__PURE__ */ new Set([
+  "ACCOUNT_DELETION_IN_PROGRESS",
   "ACTIVE_CHALLENGE_EXISTS",
   "CHALLENGE_NOT_COMPLETE",
   "CHALLENGE_NOT_ACTIVE",
@@ -1132,6 +1150,7 @@ function createChallengeApi({ database, getWXContext, now = () => /* @__PURE__ *
       const challenge = createChallenge({ ...payload, startedAt: trustedDate }, requestNow);
       challenge.id = requireId(createChallengeId());
       return database.runTransaction(async (transaction) => {
+        await assertAccountWritable(transaction, openid);
         const ownerReference = transaction.collection("challengeOwners").doc(openid);
         const [owner, existing] = await Promise.all([
           readOptionalDocument(ownerReference),
@@ -1155,6 +1174,14 @@ function createChallengeApi({ database, getWXContext, now = () => /* @__PURE__ *
       assertOwnedRecord(active, openid);
       return hydrateCheckIns(active, await findCheckIns(database, openid, active._id));
     }
+    if (event.action === "getHistory") {
+      const challenge = await readOptionalDocument(
+        database.collection("challenges").doc(requireId(payload.challengeId))
+      );
+      assertOwnedRecord(challenge, openid);
+      if (challenge.status !== "completed" || !challenge.history) throw codedError("CHALLENGE_NOT_COMPLETE");
+      return challenge.history;
+    }
     if (event.action === "checkIn" || event.action === "undoCheckIn") {
       const challengeId = requireId(payload.challengeId);
       const commandId = requireId(payload.id);
@@ -1162,6 +1189,7 @@ function createChallengeApi({ database, getWXContext, now = () => /* @__PURE__ *
       if (date > trustedDate) throw codedError("INVALID_ARGUMENT");
       const completed = event.action === "checkIn";
       return database.runTransaction(async (transaction) => {
+        await assertAccountWritable(transaction, openid);
         await assertChallengeWritable(transaction, openid, challengeId);
         const challenge = await readOptionalDocument(
           transaction.collection("challenges").doc(challengeId)
@@ -1197,6 +1225,7 @@ function createChallengeApi({ database, getWXContext, now = () => /* @__PURE__ *
         throw codedError("INVALID_ARGUMENT");
       }
       return database.runTransaction(async (transaction) => {
+        await assertAccountWritable(transaction, openid);
         await assertChallengeWritable(transaction, openid, challengeId);
         const challengeReference = transaction.collection("challenges").doc(challengeId);
         const challenge = await readOptionalDocument(challengeReference);
@@ -1227,11 +1256,17 @@ function createChallengeApi({ database, getWXContext, now = () => /* @__PURE__ *
     if (event.action === "delete") {
       const challengeId = requireId(payload.challengeId);
       const result = await database.runTransaction(async (transaction) => {
+        await assertAccountWritable(transaction, openid);
         const challengeReference = transaction.collection("challenges").doc(challengeId);
         const challenge = await readOptionalDocument(challengeReference);
         assertOwnedRecord(challenge, openid);
         const checkins = await findCheckIns(transaction, openid, challengeId);
+        const subscriptions = (await transaction.collection("reminder_subscriptions").where({
+          _openid: openid,
+          challengeId
+        }).get()).data;
         await Promise.all(checkins.map((item) => transaction.collection("checkins").doc(item._id).remove()));
+        await Promise.all(subscriptions.map((item) => transaction.collection("reminder_subscriptions").doc(item._id).remove()));
         await queueChallengeDeletion(transaction, database, challenge, requestNow);
         await challengeReference.remove();
         const ownerReference = transaction.collection("challengeOwners").doc(openid);

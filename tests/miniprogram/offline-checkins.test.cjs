@@ -148,6 +148,25 @@ test("flush removes acknowledged commands but retains the failed command and lat
   assert.deepEqual(storage.getStorageSync("offline-checkins"), []);
 });
 
+test("flush discards permanent business failures and continues with later work", async () => {
+  const { createOfflineCheckIns } = loadModuleWithoutWx();
+  const storage = createStorage();
+  const queue = createOfflineCheckIns(storage);
+  for (let day = 1; day <= 3; day += 1) {
+    queue.enqueueCheckIn(command(`cmd-${day}`, `2026-09-0${day}`));
+  }
+  const sent = [];
+
+  await queue.flushCheckIns(async item => {
+    sent.push(item.id);
+    if (item.id === "cmd-1") throw Object.assign(new Error("CHALLENGE_NOT_ACTIVE"), { code: "CHALLENGE_NOT_ACTIVE" });
+    return { ok: true };
+  });
+
+  assert.deepEqual(sent, ["cmd-1", "cmd-2", "cmd-3"]);
+  assert.deepEqual(storage.getStorageSync("offline-checkins"), []);
+});
+
 test("concurrent flush calls share one drain and never duplicate a command", async () => {
   const { createOfflineCheckIns } = loadModuleWithoutWx();
   const queue = createOfflineCheckIns(createStorage());

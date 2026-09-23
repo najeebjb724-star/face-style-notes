@@ -1,7 +1,18 @@
 const { createHash } = require("node:crypto");
+const { assertAccountWritable } = require("./cloud-guards");
 
 function codedError(code) {
   return Object.assign(new Error(code), { code });
+}
+
+function isMissingDocument(error) {
+  return error?.code === "DATABASE_DOCUMENT_NOT_EXIST" || error?.errCode === -502005
+    || /not[ _-]?exist/i.test(error?.message || "");
+}
+
+async function readOptional(reference) {
+  try { return (await reference.get())?.data || null; }
+  catch (error) { if (isMissingDocument(error)) return null; throw error; }
 }
 
 function getConfig(environment = process.env) {
@@ -52,8 +63,9 @@ function createReminderApi({ database, getWXContext, getConfig: config = getConf
     if (!challenge) throw codedError("CHALLENGE_NOT_ACTIVE");
     const id = subscriptionId(openid, challenge._id, templateId);
     await database.runTransaction(async transaction => {
-      const current = (await transaction.collection("challenges").doc(challenge._id).get())?.data;
-      const deletion = (await transaction.collection("deletion_jobs").doc(challengeDeletionId(openid, challenge._id)).get())?.data;
+      await assertAccountWritable(transaction, openid);
+      const current = await readOptional(transaction.collection("challenges").doc(challenge._id));
+      const deletion = await readOptional(transaction.collection("deletion_jobs").doc(challengeDeletionId(openid, challenge._id)));
       if (!current || current._openid !== openid || current.status !== "active" || deletion?.state === "deleting" || deletion?.state === "deleted") throw codedError("CHALLENGE_NOT_ACTIVE");
       await transaction.collection("reminder_subscriptions").doc(id).set({ data: {
         _openid: openid,
@@ -81,19 +93,32 @@ function createReminderApi({ database, getWXContext, getConfig: config = getConf
     if (!templateData || typeof sendSubscription !== "function") return { sent: 0, skipped: due.length };
     let sent = 0;
     for (const subscription of due) {
-      const claimed = await database.runTransaction(async transaction => {
-        const reference = transaction.collection("reminder_subscriptions").doc(subscription._id);
-        const current = (await reference.get())?.data;
-        if (!current || current.status !== "accept" || current.usedAt || current.sendState !== "pending" || current.dueAt > timestamp) return null;
-        const challenge = (await transaction.collection("challenges").doc(current.challengeId).get())?.data;
-        const deletion = (await transaction.collection("deletion_jobs").doc(challengeDeletionId(current._openid, current.challengeId)).get())?.data;
-        if (!challenge || challenge._openid !== current._openid || challenge.status !== "active" || deletion?.state === "deleting" || deletion?.state === "deleted") {
-          await reference.update({ data: { sendState: "unavailable", sendError: "CHALLENGE_NOT_ACTIVE", updatedAt: timestamp } });
-          return null;
-        }
-        await reference.update({ data: { sendState: "sending", attemptedAt: timestamp, updatedAt: timestamp } });
-        return current;
-      });
+      let claimed;
+      try {
+        claimed = await database.runTransaction(async transaction => {
+          const reference = transaction.collection("reminder_subscriptions").doc(subscription._id);
+          const current = await readOptional(reference);
+          if (!current || current.status !== "accept" || current.usedAt || current.sendState !== "pending" || current.dueAt > timestamp) return null;
+          await assertAccountWritable(transaction, current._openid);
+          const challenge = await readOptional(transaction.collection("challenges").doc(current.challengeId));
+          const deletion = await readOptional(transaction.collection("deletion_jobs").doc(challengeDeletionId(current._openid, current.challengeId)));
+          if (!challenge || challenge._openid !== current._openid || challenge.status !== "active" || deletion?.state === "deleting" || deletion?.state === "deleted") {
+            await reference.update({ data: { sendState: "unavailable", sendError: "CHALLENGE_NOT_ACTIVE", updatedAt: timestamp } });
+            return null;
+          }
+          await reference.update({ data: { sendState: "sending", attemptedAt: timestamp, updatedAt: timestamp } });
+          return current;
+        });
+      } catch (error) {
+        if (error?.code === "ACCOUNT_DELETION_IN_PROGRESS") continue;
+        if (!isMissingDocument(error)) throw error;
+        try {
+          await database.collection("reminder_subscriptions").doc(subscription._id).update({ data: {
+            sendState: "unavailable", sendError: "CHALLENGE_NOT_ACTIVE", updatedAt: timestamp
+          } });
+        } catch (_) {}
+        continue;
+      }
       if (!claimed) continue;
       try {
         await sendSubscription({
