@@ -82,7 +82,12 @@ function createAccountApi({ database, getWXContext, now = () => new Date() }) {
       const name = payload.kind === 'challenges' ? 'challenges' : 'reports';
       if (payload.after) requireId(payload.after);
       const rows = await list(name, { _openid: openid }, payload.after);
-      return { items: rows.map(item => ({ id: item._id, title: name === 'reports' ? '美学身份卡' : '风格挑战', createdAt: item.createdAt || item.startedAt || '' })), next: rows.length === 50 ? rows.at(-1)._id : null };
+      return { items: rows.map(item => ({
+        id: item._id,
+        title: name === 'reports' ? '美学身份卡' : '风格挑战',
+        createdAt: item.createdAt || item.startedAt || '',
+        ...(name === 'challenges' ? { status: ['active', 'completed'].includes(item.status) ? item.status : null } : {})
+      })), next: rows.length === 50 ? rows.at(-1)._id : null };
     }
     if (!['deleteReport', 'deleteChallenge', 'withdrawFaceConsent', 'deleteAccountData'].includes(event.action)) throw error('INVALID_ARGUMENT');
     const at = now().toISOString();

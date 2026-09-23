@@ -14,14 +14,22 @@ function setup(answers, fails = false) {
   return { page, calls, modals, navigations, storage };
 }
 
-test('profile records open their owner-scoped native detail routes', () => {
+test('profile routes active challenges to detail and completed challenges to recap', () => {
   const { page, navigations } = setup([]);
   page.openReport({ currentTarget: { dataset: { id: 'report-1' } } });
-  page.openChallengeHistory({ currentTarget: { dataset: { id: 'challenge-1' } } });
+  page.openChallenge({ currentTarget: { dataset: { id: 'challenge-active', status: 'active' } } });
+  page.openChallenge({ currentTarget: { dataset: { id: 'challenge-completed', status: 'completed' } } });
   assert.deepEqual(navigations, [
     '/pages/report/report?id=report-1',
-    '/pages/challenge-complete/challenge-complete?id=challenge-1'
+    '/pages/challenge-detail/challenge-detail?id=challenge-active',
+    '/pages/challenge-complete/challenge-complete?id=challenge-completed'
   ]);
+});
+
+test('profile does not guess a route for a legacy challenge without status', () => {
+  const { page, navigations } = setup([]);
+  page.openChallenge({ currentTarget: { dataset: { id: 'legacy' } } });
+  assert.deepEqual(navigations, []);
 });
 test('all-data deletion requires both confirmations, then reports pending cleanup and clears only relevant local data', async () => {
   const { page, calls, modals, storage } = setup([true, true]);

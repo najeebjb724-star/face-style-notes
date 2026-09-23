@@ -9,8 +9,9 @@
   </view>
   <button wx:if="{{reportNext}}" data-kind="reports" bindtap="loadMore">更多身份卡</button>
   <view wx:for="{{challenges}}" wx:key="id">
-    <text data-id="{{item.id}}" bindtap="openChallengeHistory">{{item.title}} · {{item.createdAt}}</text>
-    <button disabled="{{busy}}" data-id="{{item.id}}" bindtap="openChallengeHistory">打开挑战复盘</button>
+    <text>{{item.status === 'active' ? '进行中挑战' : item.status === 'completed' ? '挑战复盘' : '旧版挑战记录'}} · {{item.createdAt}}</text>
+    <button wx:if="{{item.status === 'active'}}" disabled="{{busy}}" data-id="{{item.id}}" data-status="{{item.status}}" bindtap="openChallenge">继续挑战</button>
+    <button wx:if="{{item.status === 'completed'}}" disabled="{{busy}}" data-id="{{item.id}}" data-status="{{item.status}}" bindtap="openChallenge">打开挑战复盘</button>
     <button disabled="{{busy}}" data-id="{{item.id}}" bindtap="confirmDeleteChallenge">删除这组挑战</button>
   </view>
   <button wx:if="{{challengeNext}}" data-kind="challenges" bindtap="loadMore">更多挑战</button>

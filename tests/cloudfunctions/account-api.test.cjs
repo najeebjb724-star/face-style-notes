@@ -37,6 +37,22 @@ function setup(seed = {}) {
 }
 const row = (id, extra = {}, owner = 'A') => ({ _id: id, _openid: owner, ...extra });
 
+test('challenge list data includes the persisted status needed for native routing', async () => {
+  const { api } = setup({ challenges: [
+    row('active', { status: 'active', title: '进行中' }),
+    row('completed', { status: 'completed', title: '已完成' }),
+    row('legacy')
+  ] });
+
+  const result = await api({ action: 'listData', payload: { kind: 'challenges' } });
+
+  assert.deepEqual(result.items.map(item => ({ id: item.id, status: item.status })), [
+    { id: 'active', status: 'active' },
+    { id: 'completed', status: 'completed' },
+    { id: 'legacy', status: null }
+  ]);
+});
+
 test('account deletion drains every private collection, preserves other owners and a truthful audit', async () => {
   const names = ['users', 'consents', 'analysis_jobs', 'analysis_uploads', 'reports', 'challengeOwners', 'challenges', 'checkins', 'challenge_photos', 'reminder_subscriptions', 'share_previews'];
   const seed = Object.fromEntries(names.map(name => [name, [row(`${name}-A`), row(`${name}-B`, {}, 'B')]]));
