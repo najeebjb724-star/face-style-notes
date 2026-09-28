@@ -2,14 +2,14 @@
 
 ## 使用前提
 
-当前没有真实 AppID、EnvId、订阅模板、CloudRun 版本或部署结果。本页是执行清单，不是已部署说明。配置完成仍必须通过 [发布检查清单](release-checklist.md)、[关键旅程](../../tests/e2e/critical-journeys.md) 和 [真机矩阵](device-matrix.md)。
+公开 AppID 已写入工程；当前仍没有真实 EnvId、订阅模板、CloudRun 版本或部署结果。本页是执行清单，不是已部署说明。配置完成仍必须通过 [发布检查清单](release-checklist.md)、[关键旅程](../../tests/e2e/critical-journeys.md) 和 [真机矩阵](device-matrix.md)。
 
 **只需要提供 AppID、EnvId 和已核准的模板配置。绝不要把 AppSecret 发给开发者、粘贴到聊天/工单、写进本仓库或放入小程序包。**
 
 ## 用户需要做的最少操作
 
 1. 在微信公众平台注册小程序，完成主体认证、服务类目、所需资质、备案和正式隐私保护指引。
-2. 复制公开的 **AppID**，在微信开发者工具导入本仓库并把 `touristappid` 换成真实 AppID。不要提供 AppSecret。
+2. 公开的 **AppID** 已写入 `project.config.json`；在微信开发者工具导入时核对项目绑定正确。不要提供 AppSecret。
 3. 在微信云开发创建开发环境，并在受控发布工单记录体验/生产 **EnvId**。当前运行时代码固定调用 `getCloudEnv("develop")`；只可为开发/测试阶段配置并验证 `develop`，不能因填写了 `trial` 或 `release` 槽位就声称体验版或发布版正在使用对应 EnvId。运行时渠道选择实现并验证前，不要把 trial/release EnvId 作为可用配置。
 4. 在微信后台申请一次性订阅消息模板，记录模板 ID、字段名/类型和跳转页；不要自行猜字段。
 5. 指定运营联系人、投诉渠道、告警接收人、删除审计保留期限，并提供发布与回滚负责人。

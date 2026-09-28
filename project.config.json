@@ -2,7 +2,7 @@
   "miniprogramRoot": "miniprogram/",
   "compileType": "miniprogram",
   "libVersion": "3.10.4",
-  "appid": "touristappid",
+  "appid": "wx7ea0d886cbaea650",
   "projectname": "face-style-notes-mini-program",
   "setting": {
     "es6": true,

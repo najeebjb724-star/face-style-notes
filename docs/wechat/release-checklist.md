@@ -26,7 +26,7 @@
 
 ## 阶段 1：注册与微信后台（P0）
 
-- [ ] **BLOCKED** — 已注册的小程序 AppID；`project.config.json` 不再使用 `touristappid`。
+- [x] **CONFIGURED** — 已注册的公开 AppID 已写入 `project.config.json`；AppSecret 未进入仓库或本流程。
 - [ ] **BLOCKED** — 主体认证、合适的服务类目和所需资质已获批。
 - [ ] **BLOCKED** — 小程序备案已完成。
 - [ ] **BLOCKED** — 正式微信隐私保护指引与实际数据处理一致，包含运营主体、联系/投诉渠道、人脸照片、挑战照片、分享、订阅和删除说明。

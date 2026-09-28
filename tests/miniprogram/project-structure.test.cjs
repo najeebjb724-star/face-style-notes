@@ -23,6 +23,12 @@ test("mini program declares the approved three tabs", () => {
   ]);
 });
 
+test("mini program project uses the registered public AppID", () => {
+  const project = JSON.parse(fs.readFileSync(path.join(__dirname, "../../project.config.json"), "utf8"));
+
+  assert.equal(project.appid, "wx7ea0d886cbaea650");
+});
+
 test("cloud environment lookup supports each release channel before configuration", () => {
   const { getCloudEnv } = require("../../miniprogram/config/env");
 

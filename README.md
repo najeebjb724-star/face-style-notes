@@ -6,14 +6,14 @@
 
 **本地文档与自动验证状态：发布文档包和本地自动化验证已完成。** 这不代表挑战照片云端桥已完成，也不代表任何外部或线上能力（微信后台、CloudBase、云存储、CloudRun、体验版、真机权限或审核）已经可用。
 
-**发布状态：BLOCKED，不可上传提审，也不可称为“审核就绪”。** 当前没有注册的小程序 AppID、生产 EnvId、获批的服务类目/备案/隐私配置、订阅消息模板、已部署的云托管版本和回滚版本，也没有微信开发者工具或真机验证记录。`project.config.json` 仍使用 `touristappid`，`miniprogram/config/env.js` 的三个环境值仍为空。
+**发布状态：BLOCKED，不可上传提审，也不可称为“审核就绪”。** 已注册的公开 AppID 已写入 `project.config.json`，但当前仍没有生产 EnvId、完成的备案/隐私配置、订阅消息模板、已部署的云托管版本和回滚版本，也没有微信开发者工具或真机验证记录。`miniprogram/config/env.js` 的三个环境值仍为空。
 
 2026-09-21 的本地验证结果会记录在 [发布检查清单](docs/wechat/release-checklist.md)。本地测试通过不代表微信后台、CloudBase、云存储、真机权限或提审通过。
 
 ## 最短的下一步
 
-1. 在微信公众平台注册小程序，完成主体、服务类目、备案和隐私指引；只记录 AppID，**绝不要发送、粘贴或提交 AppSecret**。
-2. 按 [云端配置](docs/wechat/cloud-setup.md) 关闭 [发布检查清单](docs/wechat/release-checklist.md) 的阶段 1：目标环境、权限、索引、函数、定时器、订阅模板、监控、云托管、回滚和运行时环境选择。
+1. 在微信公众平台继续完成备案和正式隐私指引；公开 AppID 已配置，**绝不要发送、粘贴或提交 AppSecret**。
+2. 创建 CloudBase 开发环境并记录 EnvId，再按 [云端配置](docs/wechat/cloud-setup.md) 关闭 [发布检查清单](docs/wechat/release-checklist.md) 的阶段 1：目标环境、权限、索引、函数、定时器、订阅模板、监控、云托管、回滚和运行时环境选择。
 3. **阶段 2：**阶段 1 全部通过后，上传体验版并填写 [审核员指引](docs/wechat/reviewer-guide.md) 的版本、账号和日期。
 4. **阶段 3–4：**在该体验版上按 [关键旅程](tests/e2e/critical-journeys.md)、[真机矩阵](docs/wechat/device-matrix.md) 和审核员指引留存真实证据；全部通过后才签字并提交审核。
 
