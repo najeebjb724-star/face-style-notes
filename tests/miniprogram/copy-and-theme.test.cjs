@@ -69,11 +69,15 @@ test("home provides visitor-safe state and the three stable entry actions", () =
 test("home loads available cloud bootstrap state without breaking visitor mode", async () => {
   let definition;
   let requestedFunction;
+  let requestedEnvironmentVersion;
   vm.runInNewContext(read("pages/home/home.js"), {
     Page(page) {
       definition = page;
     },
     wx: {
+      getAccountInfoSync() {
+        return { miniProgram: { envVersion: "trial" } };
+      },
       cloud: {
         callFunction(options) {
           requestedFunction = options.name;
@@ -88,7 +92,12 @@ test("home loads available cloud bootstrap state without breaking visitor mode",
     },
     require(moduleName) {
       assert.equal(moduleName, "../../config/env");
-      return { getCloudEnv: () => "configured-cloud-env" };
+      return {
+        getCloudEnv(version) {
+          requestedEnvironmentVersion = version;
+          return "configured-cloud-env";
+        }
+      };
     }
   });
   assert.equal(typeof definition.onShow, "function", "home cloud loader is missing");
@@ -100,6 +109,7 @@ test("home loads available cloud bootstrap state without breaking visitor mode",
   });
 
   assert.equal(requestedFunction, "bootstrapUser");
+  assert.equal(requestedEnvironmentVersion, "trial");
   assert.deepEqual(JSON.parse(JSON.stringify(updates)), [{
     latestReport: { id: "report-2" },
     activeChallenge: { title: "七日风格练习" }

@@ -1,6 +1,11 @@
 const { getCloudEnv } = require("../../config/env");
 
-const cloudEnv = getCloudEnv("develop");
+function getRuntimeCloudEnv() {
+  const version = typeof wx.getAccountInfoSync === "function"
+    ? wx.getAccountInfoSync().miniProgram.envVersion
+    : "develop";
+  return getCloudEnv(version);
+}
 
 Page({
   data: {
@@ -9,6 +14,7 @@ Page({
   },
 
   onShow() {
+    const cloudEnv = getRuntimeCloudEnv();
     if (!cloudEnv || typeof wx === "undefined" || !wx.cloud || typeof wx.cloud.callFunction !== "function") {
       return Promise.resolve();
     }

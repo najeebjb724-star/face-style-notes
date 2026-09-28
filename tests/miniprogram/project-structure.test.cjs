@@ -29,15 +29,50 @@ test("mini program project uses the registered public AppID", () => {
   assert.equal(project.appid, "wx7ea0d886cbaea650");
 });
 
-test("cloud environment lookup supports each release channel before configuration", () => {
+test("cloud environment lookup uses the free environment only before release", () => {
   const { getCloudEnv } = require("../../miniprogram/config/env");
 
-  assert.equal(getCloudEnv("develop"), "");
-  assert.equal(getCloudEnv("trial"), "");
+  assert.equal(getCloudEnv("develop"), "cloud1-d0gi550jk9a2f9337");
+  assert.equal(getCloudEnv("trial"), "cloud1-d0gi550jk9a2f9337");
   assert.equal(getCloudEnv("release"), "");
 });
 
-test("app launch skips cloud initialization in local visitor mode", () => {
+test("app launch selects the CloudBase environment from the runtime version", () => {
+  let app;
+  let initializedWith;
+  const source = fs.readFileSync(path.join(__dirname, "../../miniprogram/app.js"), "utf8");
+
+  vm.runInNewContext(source, {
+    App(definition) {
+      app = definition;
+    },
+    wx: {
+      getAccountInfoSync() {
+        return { miniProgram: { envVersion: "trial" } };
+      },
+      cloud: {
+        init(options) {
+          initializedWith = options;
+        }
+      }
+    },
+    require(moduleName) {
+      if (moduleName === "./config/env") {
+        return require("../../miniprogram/config/env");
+      }
+      throw new Error(`Unexpected module: ${moduleName}`);
+    }
+  });
+
+  app.onLaunch();
+
+  assert.deepEqual(JSON.parse(JSON.stringify(initializedWith)), {
+    env: "cloud1-d0gi550jk9a2f9337",
+    traceUser: true
+  });
+});
+
+test("app launch does not connect the release build to the development environment", () => {
   let app;
   let initializationCount = 0;
   const source = fs.readFileSync(path.join(__dirname, "../../miniprogram/app.js"), "utf8");
@@ -47,6 +82,9 @@ test("app launch skips cloud initialization in local visitor mode", () => {
       app = definition;
     },
     wx: {
+      getAccountInfoSync() {
+        return { miniProgram: { envVersion: "release" } };
+      },
       cloud: {
         init() {
           initializationCount += 1;
