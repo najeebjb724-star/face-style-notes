@@ -1,0 +1,4 @@
+<view class="error-state" role="alert">
+  <text class="error-state__message">{{message}}</text>
+  <button class="error-state__retry" bindtap="retry">重试</button>
+</view>

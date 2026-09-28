@@ -1,0 +1,10 @@
+.report-page { padding: 32rpx; }
+.summary-card, .group { background: #fffdf9; border-radius: 20rpx; margin-top: 24rpx; padding: 28rpx; }
+.memory { display: block; font-size: 32rpx; line-height: 1.6; margin-top: 12rpx; }
+.group-title { font-size: 30rpx; font-weight: 600; }
+.metric { border-top: 1rpx solid #ede5d8; display: flex; justify-content: space-between; margin-top: 16rpx; padding-top: 16rpx; }
+.advice, .line { display: block; margin-top: 16rpx; line-height: 1.6; }
+.axis { align-items: center; display: flex; gap: 12rpx; margin-top: 16rpx; }
+.axis-track { background: #ede5d8; border-radius: 99rpx; flex: 1; height: 12rpx; overflow: hidden; }
+.axis-fill { background: #2c2420; border-radius: inherit; height: 100%; }
+.primary { background: #2c2420; color: #fff; margin-top: 32rpx; }

@@ -3,22 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#fffbf7">
+  <meta name="theme-color" content="#F7F3EE">
   <title>看脸找风格｜个人形象基础数据卡</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <style>
     :root {
-      --paper: #fffbf7;
-      --ink: #3e2723;
-      --muted: #7b6762;
-      --sand: #d4a373;
-      --rose: #e5989b;
-      --rose-dark: #ad6267;
-      --cream: #f4e7da;
-      --white: #ffffff;
-      --line: rgba(62, 39, 35, 0.13);
+      --paper: #F7F3EE;
+      --card: #FFFDF9;
+      --gold: #C9A87C;
+      --ink: #2C2420;
+      --muted: #7A6B5A;
+      --line: #D4C4B0;
+      --line-soft: #EDE5D8;
+      --font-display: "Songti SC", "STSong", "Noto Serif SC", "Source Han Serif SC", Georgia, serif;
+      --font-body: "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
+      --shadow-paper: 0 12px 30px rgba(44, 36, 32, .06);
+      --shadow-modal: 0 -18px 46px rgba(44, 36, 32, .16);
+      --sand: var(--gold);
+      --rose: var(--gold);
+      --rose-dark: var(--gold);
+      --cream: var(--line-soft);
+      --white: var(--card);
     }
 
     * { box-sizing: border-box; }
@@ -26,79 +33,221 @@
     body {
       margin: 0;
       min-height: 100vh;
-      background:
-        radial-gradient(circle at 12% 3%, rgba(229, 152, 155, 0.13), transparent 27rem),
-        radial-gradient(circle at 96% 18%, rgba(212, 163, 115, 0.12), transparent 23rem),
-        var(--paper);
+      background: var(--paper);
       color: var(--ink);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      font-family: var(--font-body);
       -webkit-font-smoothing: antialiased;
     }
-    button, input { font: inherit; }
+    h1, h2, h3, .display-type { font-family: var(--font-display); font-weight: 600; }
+    button, [role="button"], input, select { min-height: 2.75rem; font: inherit; }
     button { -webkit-tap-highlight-color: transparent; }
     .shell { width: min(100%, 32rem); margin: 0 auto; padding: 0 1.25rem 3rem; }
-    .masthead { padding: 2.35rem 0 1.8rem; }
+    .masthead { padding: 2.6rem 0 1.8rem; }
+    .challenge-mode .masthead { display: none; }
+    .operation-header { border-bottom: 1px solid var(--line-soft); }
+    .identity-label { margin: 0; color: var(--gold); font-size: .67rem; font-weight: 800; letter-spacing: .16rem; text-transform: uppercase; }
     .eyebrow {
       display: flex; align-items: center; gap: .65rem;
       color: var(--rose-dark); font-size: .7rem; font-weight: 800;
       letter-spacing: .2em; text-transform: uppercase;
     }
     .eyebrow::before { content: ""; width: 1.6rem; height: 1px; background: currentColor; }
-    h1 { margin: .85rem 0 .65rem; font-size: clamp(2.4rem, 11vw, 3.7rem); line-height: .98; letter-spacing: -.07em; font-weight: 850; }
+    h1 { margin: .9rem 0 .75rem; font-size: clamp(2.45rem, 11vw, 3.7rem); line-height: 1.02; letter-spacing: -.045em; }
     .intro { max-width: 25rem; margin: 0; color: var(--muted); line-height: 1.75; font-size: .92rem; }
     .model-strip {
       display: flex; align-items: center; gap: .75rem; margin-top: 1.15rem;
       padding: .7rem .85rem; border: 1px solid var(--line); border-radius: 999px;
-      background: rgba(255,255,255,.58); font-size: .76rem; color: var(--muted);
+      background: var(--card); font-size: .76rem; color: var(--muted);
     }
-    .status-dot { width: .55rem; height: .55rem; flex: none; border-radius: 50%; background: var(--sand); box-shadow: 0 0 0 4px rgba(212,163,115,.15); }
+    .status-dot { width: .55rem; height: .55rem; flex: none; border-radius: 50%; background: var(--sand); box-shadow: 0 0 0 4px rgba(201,168,124,.15); }
     .status-dot.loading { animation: pulse 1.25s ease-in-out infinite; }
-    .status-dot.ready { background: #6f9b7a; box-shadow: 0 0 0 4px rgba(111,155,122,.14); }
-    .status-dot.error { background: var(--rose-dark); box-shadow: 0 0 0 4px rgba(173,98,103,.14); }
+    .status-dot.ready { background: var(--gold); box-shadow: 0 0 0 4px rgba(201,168,124,.14); }
+    .status-dot.error { background: var(--rose-dark); box-shadow: 0 0 0 4px rgba(201,168,124,.14); }
     .model-progress { margin-left: auto; color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 800; }
     .upload-card {
       position: relative; display: grid; place-items: center; min-height: 23rem;
-      overflow: hidden; border: 2px dashed var(--sand); border-radius: 1rem;
-      background: rgba(255,255,255,.62); cursor: pointer; transition: transform .2s ease, border-color .2s ease, background .2s ease;
+      overflow: hidden; border: 1px dashed var(--gold); border-radius: .35rem;
+      background: var(--card); cursor: pointer; transition: border-color .2s ease, background .2s ease;
     }
-    .upload-card:hover, .upload-card.dragging { transform: translateY(-2px); border-color: var(--rose-dark); background: #fff; }
-    .upload-card:focus-within { outline: 3px solid rgba(229,152,155,.3); outline-offset: 3px; }
+    .upload-card:hover, .upload-card.dragging { border-color: var(--ink); background: var(--card); }
+    .upload-card:focus-within { outline: 3px solid rgba(201,168,124,.35); outline-offset: 3px; }
     .upload-inner { width: 100%; padding: 2.4rem 2rem; text-align: center; }
     .scan-mark {
       position: relative; width: 7rem; height: 7rem; margin: 0 auto 1.65rem;
-      border-radius: 48% 48% 43% 43%; border: 1px solid rgba(62,39,35,.22);
-      background: linear-gradient(145deg, rgba(229,152,155,.18), rgba(212,163,115,.08));
+      border-radius: 48% 48% 43% 43%; border: 1px solid var(--line);
+      background: var(--line-soft);
     }
     .scan-mark::before, .scan-mark::after { content: ""; position: absolute; left: 50%; transform: translateX(-50%); }
-    .scan-mark::before { top: 2.35rem; width: 3.5rem; height: 1px; background: var(--ink); box-shadow: 0 1.45rem 0 rgba(62,39,35,.5); }
+    .scan-mark::before { top: 2.35rem; width: 3.5rem; height: 1px; background: var(--ink); box-shadow: 0 1.45rem 0 rgba(44,36,32,.5); }
     .scan-mark::after { top: -.15rem; width: 2.6rem; height: 7.2rem; border-top: 2px solid var(--rose); border-bottom: 2px solid var(--rose); animation: scan 2.4s ease-in-out infinite; }
     .upload-title { margin: 0; font-size: 1.08rem; font-weight: 800; }
     .upload-copy { margin: .65rem auto 1.3rem; max-width: 20rem; color: var(--muted); font-size: .82rem; line-height: 1.7; }
     .choose-pill { display: inline-flex; align-items: center; gap: .5rem; padding: .72rem 1rem; border-radius: 999px; background: var(--ink); color: #fff; font-size: .8rem; font-weight: 800; }
     .privacy-note { display: flex; gap: .55rem; align-items: flex-start; padding: 1rem .2rem 0; color: var(--muted); font-size: .73rem; line-height: 1.55; }
-    .notice { margin-top: 1rem; padding: .9rem 1rem; border-radius: .85rem; border: 1px solid rgba(173,98,103,.22); background: rgba(229,152,155,.1); color: #81474b; font-size: .8rem; line-height: 1.55; }
-    .notice.info { border-color: rgba(212,163,115,.28); background: rgba(212,163,115,.1); color: var(--ink); }
+    .notice { margin-top: 1rem; padding: .9rem 1rem; border: 1px solid var(--line); border-radius: .35rem; background: var(--card); color: var(--ink); font-size: .8rem; line-height: 1.55; }
+    .notice.info { border-color: var(--gold); background: var(--line-soft); color: var(--ink); }
+    .quality-card { position: relative; margin-top: 1rem; padding: 1.15rem 1.1rem 1.05rem; border: 1px solid var(--line); border-radius: .35rem; background: var(--card); }
+    .quality-card::before { content: ""; position: absolute; top: 0; right: 1.1rem; left: 1.1rem; height: 2px; background: var(--gold); }
+    .quality-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+    .quality-head h3 { margin: 0; font-size: 1rem; }
+    .quality-level { flex: none; padding: .25rem .55rem; border-radius: 999px; background: var(--line-soft); color: var(--rose-dark); font-size: .72rem; font-weight: 800; }
+    .quality-issue { margin: .85rem 0 .3rem; font-weight: 700; }
+    .quality-action { margin: 0 0 .8rem; color: var(--muted); font-size: .82rem; }
+    .quality-details { margin-bottom: .85rem; color: var(--muted); font-size: .75rem; }
+    .quality-details summary { cursor: pointer; color: var(--ink); }
+    .questionnaire { padding: 1.2rem; border: 1px solid var(--line); border-radius: .5rem; background: var(--card); box-shadow: var(--shadow-paper); }
+    .question-progress { color: var(--rose-dark); font-size: .74rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+    .question-progress-track { height: 1px; margin-top: .55rem; background: var(--line-soft); }
+    .question-progress-track > i { display: block; width: 0; height: 1px; background: var(--gold); transition: width .35s ease; }
+    .questionnaire h2 { margin: .45rem 0 .35rem; font-family: "Noto Serif SC", serif; font-size: 1.45rem; }
+    .question-intro { margin: 0 0 1.2rem; color: var(--muted); font-size: .82rem; line-height: 1.65; }
+    .question-step { margin: 0; padding: 0; border: 0; }
+    .question-step legend { width: 100%; margin-bottom: 1rem; font-family: "Noto Serif SC", serif; font-size: 1.08rem; font-weight: 800; }
+    .question-options { display: grid; gap: .65rem; }
+    .question-option { display: flex; align-items: flex-start; gap: .65rem; padding: .82rem .1rem; border: 0; border-bottom: 1px solid var(--line-soft); border-radius: 0; background: transparent; cursor: pointer; font-size: .84rem; line-height: 1.45; }
+    .question-option:has(input:checked) { color: var(--ink); border-color: var(--gold); box-shadow: none; }
+    .question-option input { margin-top: .16rem; accent-color: var(--rose-dark); }
+    .question-actions { display: grid; grid-template-columns: .8fr 1.3fr; gap: .65rem; margin-top: 1.1rem; }
+    .report-summary-grid, .science-advice-grid { display: grid; gap: .75rem; }
+    .science-card { padding: .95rem; border: 1px solid var(--line); border-radius: .9rem; background: var(--card); }
+    .science-card .badge { display: inline-block; margin-bottom: .5rem; padding: .2rem .45rem; border-radius: 999px; background: rgba(201,168,124,.14); color: var(--ink); font-size: .62rem; font-weight: 900; }
+    .science-card h4 { margin: 0 0 .25rem; font-size: .82rem; }
+    .science-card strong { display: block; color: var(--rose-dark); font-family: "Noto Serif SC", serif; font-size: 1.05rem; }
+    .science-card p { margin: .45rem 0 0; color: var(--muted); font-size: .74rem; line-height: 1.55; }
+    .data-details { border-top: 1px solid var(--line); }
+    .data-details:last-child { border-bottom: 1px solid var(--line); }
+    .data-details summary { display: flex; justify-content: space-between; padding: .85rem 0; cursor: pointer; font-weight: 800; font-size: .82rem; }
+    .metric-row { display: grid; grid-template-columns: 1fr auto; gap: .25rem .7rem; padding: .7rem 0; border-top: 1px dashed var(--line); }
+    .metric-row strong { font-size: .78rem; }
+    .metric-row b { color: var(--rose-dark); font-size: .78rem; }
+    .metric-row small { grid-column: 1 / -1; color: var(--muted); font-size: .68rem; line-height: 1.5; }
+    .care-box { padding: 1rem; border-radius: 1rem; background: rgba(201,168,124,.11); }
+    .care-columns { display: grid; gap: .8rem; }
+    .care-columns h4 { margin: 0 0 .35rem; font-size: .78rem; }
+    .care-columns ul, .limitations { margin: 0; padding-left: 1.1rem; color: var(--muted); font-size: .72rem; line-height: 1.65; }
+    .action-card-grid { display: grid; gap: .75rem; }
+    .action-card { width: 100%; padding: 1rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--card); color: var(--ink); text-align: left; cursor: pointer; transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease; }
+    .action-card:hover { transform: translateY(-1px); border-color: var(--sand); }
+    .action-card.selected { border-color: var(--rose-dark); box-shadow: inset 0 0 0 1px var(--rose-dark); background: rgba(201,168,124,.08); }
+    .action-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: .7rem; }
+    .action-title { font-family: "Noto Serif SC", serif; font-size: .95rem; }
+    .action-check { flex: none; display: grid; place-items: center; width: 1.4rem; height: 1.4rem; border: 1px solid var(--line); border-radius: 50%; color: transparent; font-size: .72rem; }
+    .action-card.selected .action-check { border-color: var(--rose-dark); background: var(--rose-dark); color: #fff; }
+    .action-reason { margin: .5rem 0 .7rem; color: var(--muted); font-size: .72rem; line-height: 1.55; }
+    .action-do { margin: 0; padding: .7rem .75rem; border-radius: .75rem; background: var(--cream); font-size: .75rem; line-height: 1.6; }
+    .action-meta { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .65rem; }
+    .action-meta span { padding: .25rem .45rem; border-radius: 999px; background: rgba(201,168,124,.13); color: var(--muted); font-size: .62rem; font-weight: 750; }
+    .action-card details { margin-top: .65rem; color: var(--muted); font-size: .68rem; line-height: 1.55; }
+    .action-card details summary { color: var(--rose-dark); cursor: pointer; font-weight: 800; }
+    .editorial-advice { display: grid; grid-template-columns: 4.8rem 1fr; min-height: 8.5rem; border-top: 1px solid var(--line); }
+    .editorial-advice:last-child { border-bottom: 1px solid var(--line); }
+    .advice-art { display: grid; place-items: center; background: var(--line-soft); color: var(--gold); font-family: var(--font-display); font-size: 2rem; }
+    .editorial-advice:nth-child(even) .advice-art { background: var(--ink); color: var(--gold); }
+    .advice-copy { padding: .9rem 0 .9rem 1rem; }
+    .advice-copy small { color: var(--gold); font-size: .62rem; font-weight: 800; letter-spacing: .06em; }
+    .advice-copy h4 { margin: .35rem 0; font-family: var(--font-display); font-size: 1rem; }
+    .advice-copy p { margin: .35rem 0 0; color: var(--muted); font-size: .74rem; line-height: 1.6; }
+    .advice-copy .advice-action { color: var(--ink); }
+    .editorial-challenge { display: grid; grid-template-columns: 4.2rem 1fr; width: 100%; padding: 0; overflow: hidden; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+    .editorial-challenge:last-child { border-bottom: 1px solid var(--line); }
+    .challenge-art { display: grid; place-items: center; min-height: 10rem; background: var(--ink); color: var(--gold); font-family: var(--font-display); font-size: 1.35rem; }
+    .editorial-challenge:nth-child(even) .challenge-art, .editorial-challenge-active .challenge-art { background: var(--line-soft); color: var(--ink); }
+    .challenge-copy { padding: .95rem 0 .95rem 1rem; }
+    .challenge-copy small { color: var(--gold); font-size: .62rem; font-weight: 800; letter-spacing: .06em; }
+    .challenge-copy h4 { margin: .35rem 0; font-family: var(--font-display); font-size: 1rem; }
+    .challenge-copy p { margin: .35rem 0 0; color: var(--muted); font-size: .74rem; line-height: 1.6; }
+    .challenge-copy .challenge-task { color: var(--ink); }
+    .challenge-copy .challenge-meta { color: var(--gold); font-size: .67rem; font-weight: 800; }
+    .challenge-open { width: 100%; margin-top: .7rem; border-color: var(--gold); }
+    .evidence-details summary { cursor: pointer; font-size: .8rem; font-weight: 800; }
+    .source-list { display: grid; gap: .45rem; margin: .8rem 0; }
+    .source-list a { color: var(--rose-dark); font-size: .72rem; text-decoration: underline; text-underline-offset: 2px; }
+    .report-quality { margin: 0 0 1rem; padding: .8rem .9rem; border: 1px solid var(--line); border-radius: .5rem; background: var(--line-soft); color: var(--ink); font-size: .72rem; line-height: 1.55; }
+    .readable-summary { padding: 1.2rem; border: 1px solid var(--line); border-radius: .5rem; background: var(--card); }
+    .readable-summary h3 { margin: .35rem 0 .45rem; font-family: "Noto Serif SC", serif; font-size: 1.25rem; }
+    .memory-sentence { margin: 0 0 1rem; color: var(--rose-dark); font-family: "Noto Serif SC", serif; font-size: 1rem; font-weight: 800; line-height: 1.65; overflow-wrap: anywhere; }
+    .terminology-grid { display: grid; gap: .6rem; }
+    .term-card { padding: .75rem; border: 1px solid rgba(44,36,32,.1); border-radius: .75rem; background: var(--card); overflow-wrap: anywhere; }
+    .term-card span { display: block; margin-bottom: .28rem; color: var(--muted); font-size: .62rem; font-weight: 800; }
+    .term-card strong { font-size: .75rem; line-height: 1.55; }
+    .takeaway-grid { display: grid; gap: .65rem; margin-top: .75rem; }
+    .takeaway-grid article { padding: .8rem; border-radius: .75rem; background: var(--card); }
+    .takeaway-grid h4 { margin: 0 0 .35rem; font-size: .75rem; }
+    .takeaway-grid p { margin: .3rem 0 0; color: var(--muted); font-size: .7rem; line-height: 1.6; overflow-wrap: anywhere; }
+    .monthly-focus { margin-top: .75rem; padding: .85rem; border-radius: .8rem; background: var(--ink); color: white; }
+    .monthly-focus span { display: block; margin-bottom: .3rem; color: rgba(255,255,255,.66); font-size: .6rem; font-weight: 800; }
+    .monthly-focus strong { font-size: .76rem; line-height: 1.55; overflow-wrap: anywhere; }
+    .detail-layer { margin-top: 1.1rem; }
+    .detail-layer-title { margin: 0; padding: .85rem 0 .2rem; font-family: "Noto Serif SC", serif; font-size: 1rem; }
     .text-link { margin-top: .7rem; padding: 0; border: 0; background: none; color: var(--rose-dark); text-decoration: underline; font-weight: 800; cursor: pointer; }
     .hidden { display: none !important; }
 
     .analysis-panel { padding: 2rem 0; }
-    .preview-stage { position: relative; width: min(78vw, 19rem); aspect-ratio: 4/5; margin: 0 auto 2rem; }
-    .preview-stage img { width: 100%; height: 100%; object-fit: cover; border-radius: 48% 48% 42% 42% / 34% 34% 26% 26%; filter: saturate(.84) contrast(.97); }
-    .preview-stage::after { content: ""; position: absolute; inset: -.55rem; border: 1px solid var(--sand); border-radius: 49% 49% 43% 43% / 35% 35% 27% 27%; }
-    .measure-line { position: absolute; z-index: 2; background: var(--rose); box-shadow: 0 0 0 1px rgba(255,255,255,.65); animation: measure 1.8s ease-in-out infinite; }
-    .measure-line.horizontal { left: -1rem; right: -1rem; top: 46%; height: 1px; }
-    .measure-line.vertical { top: -1rem; bottom: -1rem; left: 50%; width: 1px; animation-delay: -.6s; }
-    .analysis-heading { margin: 0 0 1.2rem; text-align: center; font-size: 1.35rem; font-weight: 850; letter-spacing: -.03em; }
-    .analysis-steps { display: grid; gap: .7rem; }
-    .analysis-step { display: flex; align-items: center; gap: .75rem; padding: .85rem 1rem; border-radius: .85rem; color: #9c8b86; font-size: .82rem; transition: all .25s ease; }
-    .analysis-step .step-icon { display: grid; place-items: center; width: 1.45rem; height: 1.45rem; border: 1px solid var(--line); border-radius: 50%; font-size: .65rem; }
-    .analysis-step.active { color: var(--ink); background: #fff; box-shadow: 0 8px 25px rgba(62,39,35,.07); font-weight: 800; }
-    .analysis-step.active .step-icon { color: #fff; border-color: var(--rose); background: var(--rose); animation: pulse .9s ease-in-out infinite; }
-    .analysis-step.done { color: #5d765f; }
-    .analysis-step.done .step-icon { color: #fff; border-color: #6f9b7a; background: #6f9b7a; }
+    .analysis-portrait-stage { position: relative; width: min(78vw, 19rem); aspect-ratio: 4/5; margin: 0 auto 2rem; }
+    .analysis-portrait-stage img { width: 100%; height: 100%; object-fit: cover; border-radius: 48% 48% 42% 42% / 34% 34% 26% 26%; filter: saturate(.84) contrast(.97); }
+    .analysis-portrait-stage::after { content: ""; position: absolute; inset: -.55rem; border: 1px solid var(--sand); border-radius: 49% 49% 43% 43% / 35% 35% 27% 27%; }
+    .analysis-contour-orbit { position: absolute; z-index: 3; inset: -1rem; width: calc(100% + 2rem); height: calc(100% + 2rem); fill: none; stroke: var(--gold); stroke-width: 1; opacity: .9; pointer-events: none; animation: contour-drift 7s ease-in-out infinite; }
+    .analysis-contour-orbit circle { fill: var(--gold); stroke: none; }
+    .analysis-copy { display: grid; gap: .7rem; }
+    .analysis-copy p { margin: 0; padding: .85rem 1rem; border-radius: .85rem; color: var(--muted); font-size: .82rem; transition: color .25s ease, background .25s ease, box-shadow .25s ease; }
+    .analysis-copy p.active { color: var(--ink); background: var(--card); box-shadow: var(--shadow-paper); font-weight: 800; }
+    .analysis-copy p.done { color: var(--muted); }
 
     .report-wrap { padding-top: .6rem; }
-    .report-sheet { overflow: hidden; border: 1px solid var(--line); border-radius: 1.35rem; background: var(--paper); box-shadow: 0 24px 60px rgba(62,39,35,.1); }
+    .identity-sheet { overflow: hidden; background: var(--ink); padding: .75rem; box-shadow: var(--shadow-paper); }
+    .identity-scroll { position: relative; background: var(--paper); border: 1px solid var(--gold); padding: 1.1rem; }
+    .identity-scroll::before, .identity-scroll::after { content: "✦"; position: absolute; left: 50%; transform: translateX(-50%); color: var(--gold); background: var(--paper); padding: 0 .55rem; }
+    .identity-scroll::before { top: -.72rem; }
+    .identity-scroll::after { bottom: -.72rem; }
+    .identity-cover { padding: 1.5rem .75rem 1.1rem; text-align: center; }
+    .identity-seal, .identity-type { display: block; color: var(--gold); font-size: .65rem; font-weight: 800; letter-spacing: .14em; }
+    .identity-type { margin-top: .55rem; color: var(--muted); }
+    .identity-cover h2 { margin: .65rem 0 .4rem; font-size: clamp(1.8rem, 8vw, 2.5rem); line-height: 1.08; }
+    .identity-cover p { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.7; }
+    .identity-portrait { position: relative; min-height: 28rem; margin: 0; overflow: hidden; border-radius: 50% 50% .5rem .5rem; background: var(--line-soft); }
+    .identity-portrait img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .tarot-corner { position: absolute; width: 1.5rem; height: 1.5rem; border-color: var(--gold); pointer-events: none; }
+    .corner-tl { top: .7rem; left: .7rem; border-top: 1px solid; border-left: 1px solid; }
+    .corner-tr { top: .7rem; right: .7rem; border-top: 1px solid; border-right: 1px solid; }
+    .corner-bl { bottom: .7rem; left: .7rem; border-bottom: 1px solid; border-left: 1px solid; }
+    .corner-br { right: .7rem; bottom: .7rem; border-right: 1px solid; border-bottom: 1px solid; }
+    .identity-portrait figcaption { position: absolute; right: .8rem; bottom: .8rem; left: .8rem; display: flex; flex-wrap: wrap; justify-content: center; gap: .38rem; }
+    .identity-portrait figcaption span { padding: .28rem .5rem; border: 1px solid var(--gold); background: var(--paper); color: var(--ink); font-size: .64rem; font-weight: 800; }
+    .identity-scroll > section { padding: 1.2rem 0; border-bottom: 1px solid var(--line); }
+    .identity-scroll > section h3 { margin: 0 0 .6rem; font-size: 1rem; }
+    #identityRadar { display: grid; place-items: center; }
+    .identity-radar-svg { width: min(100%, 15rem); color: var(--muted); font-family: var(--font-body); font-size: 10px; }
+    .identity-radar-svg .radar-grid { fill: none; stroke: var(--line); stroke-width: 1; }
+    .identity-radar-svg .radar-value { fill: rgba(201,168,124,.2); stroke: var(--gold); stroke-width: 2; transform-origin: center; animation: radarReveal .75s ease both; }
+    #identityRadar + p { margin: -.1rem 0 .8rem; color: var(--muted); font-size: .7rem; text-align: center; }
+    .identity-terms { display: grid; gap: .35rem; margin-top: .75rem; }
+    .identity-terms span { color: var(--muted); font-size: .68rem; }
+    .identity-terms b { color: var(--ink); font-size: .72rem; }
+    .trait-bar-card { padding: .8rem; background: var(--line-soft); }
+    .trait-heading { display: flex; justify-content: space-between; gap: .75rem; font-size: .72rem; }
+    .court-bar { display: flex; gap: .2rem; height: .6rem; margin: .55rem 0; }
+    .court-bar i { flex: var(--segment); min-width: 0; background: var(--gold); }
+    .trait-bar-card p { margin: 0; color: var(--muted); font-size: .7rem; line-height: 1.6; }
+    .trait-row { display: grid; grid-template-columns: 4.8rem 1fr 2rem; align-items: center; gap: .55rem; padding: .75rem 0; border-bottom: 1px solid var(--line-soft); font-size: .7rem; }
+    .trait-row > div { height: .35rem; overflow: hidden; background: var(--line-soft); }
+    .trait-row i { display: block; width: calc(var(--value) * 1%); height: 100%; background: var(--gold); animation: grow .8s ease both; }
+    .trait-row b { color: var(--muted); font-size: .65rem; text-align: right; }
+    .identity-note-list { margin: 0; padding-left: 1.1rem; color: var(--muted); font-size: .78rem; line-height: 1.7; }
+    .identity-collection { position: relative; overflow: hidden; margin-top: 1.2rem; padding: 1.35rem 1.1rem; background: #2C2420; color: #FFFDF9; }
+    .collection-orbit { position: absolute; top: -3.8rem; right: -2.8rem; width: 9rem; height: 9rem; border: 1px solid #C9A87C; border-radius: 50%; opacity: .62; }
+    .collection-orbit::after { content: ""; position: absolute; inset: 1rem; border: 1px solid #C9A87C; border-radius: 50%; }
+    .identity-collection > *:not(.collection-orbit) { position: relative; }
+    .identity-collection .identity-label { color: #C9A87C; }
+    .identity-collection strong, .identity-collection time { display: block; }
+    .identity-collection strong { margin-top: .42rem; font-family: var(--font-display); font-size: 1.15rem; letter-spacing: .04em; }
+    .identity-collection time { margin-top: .18rem; color: #C9A87C; font-size: .67rem; letter-spacing: .08em; }
+    .identity-collection > p { margin: .85rem 0 0; color: #EDE5D8; font-size: .71rem; line-height: 1.65; }
+    .identity-collection #memorySentence { color: #C9A87C; }
+    .collection-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; margin-top: 1rem; }
+    .collection-save, .collection-share, .identity-share-button { min-height: 2.75rem; border: 1px solid #C9A87C; font-weight: 800; cursor: pointer; }
+    .collection-save { background: #C9A87C; color: #2C2420; }
+    .collection-share, .identity-share-button { background: transparent; color: #FFFDF9; }
+    .detail-layer { margin-top: 1.1rem; }
     .report-inner { padding: 1.35rem; }
     .report-head { display: grid; grid-template-columns: 7.5rem 1fr; gap: 1rem; align-items: center; padding-bottom: 1.35rem; border-bottom: 1px solid var(--line); }
     .photo-frame { position: relative; width: 7.5rem; height: 8.65rem; }
@@ -125,44 +274,149 @@
     .bar-fill { height: 100%; border-radius: inherit; background: var(--sand); transform-origin: left; animation: grow .8s ease both; }
     .bar-fill.alert { background: var(--rose); }
     .pill-list { display: flex; flex-wrap: wrap; gap: .55rem; }
-    .feature-pill { padding: .48rem .72rem; border: 1px solid rgba(62,39,35,.14); border-radius: 999px; background: rgba(255,255,255,.76); font-size: .7rem; font-weight: 750; }
-    .feature-pill.accent { border-color: rgba(229,152,155,.4); background: rgba(229,152,155,.13); color: #8b4d51; }
+    .feature-pill { padding: .48rem .72rem; border: 1px solid rgba(44,36,32,.14); border-radius: 999px; background: var(--card); font-size: .7rem; font-weight: 750; }
+    .feature-pill.accent { border-color: rgba(201,168,124,.55); background: rgba(201,168,124,.13); color: var(--rose-dark); }
     .advice-grid { display: grid; gap: .75rem; }
-    .advice-card { position: relative; padding: 1rem 1rem 1.05rem 3rem; border-radius: 1rem; background: #fff; box-shadow: 0 8px 24px rgba(62,39,35,.065); }
+    .advice-card { position: relative; padding: 1rem 1rem 1.05rem 3rem; border: 1px solid var(--line-soft); border-radius: .5rem; background: var(--card); }
     .advice-icon { position: absolute; left: 1rem; top: 1rem; display: grid; place-items: center; width: 1.4rem; height: 1.4rem; border-radius: 50%; background: var(--cream); font-size: .72rem; }
     .advice-card h4 { margin: 0 0 .45rem; font-size: .8rem; }
     .advice-card p { margin: 0; color: var(--muted); font-size: .72rem; line-height: 1.7; }
     .keyword-list { display: grid; gap: .6rem; }
-    .keyword-row { display: flex; align-items: center; justify-content: space-between; gap: .65rem; padding: .65rem .7rem .65rem .85rem; border: 1px solid var(--line); border-radius: .8rem; background: rgba(255,255,255,.7); }
+    .keyword-row { display: flex; align-items: center; justify-content: space-between; gap: .65rem; padding: .65rem .7rem .65rem .85rem; border: 1px solid var(--line); border-radius: .8rem; background: var(--card); }
     .keyword-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .72rem; font-weight: 750; }
     .copy-btn { flex: none; padding: .38rem .62rem; border: 0; border-radius: 999px; background: var(--cream); color: var(--ink); font-size: .62rem; font-weight: 850; cursor: pointer; }
     .report-foot { display: flex; justify-content: space-between; gap: 1rem; padding-top: 1.25rem; color: var(--muted); font-size: .58rem; line-height: 1.5; }
     .report-foot strong { color: var(--rose-dark); }
     .action-stack { display: grid; gap: .7rem; padding: 1rem 0 0; }
     .primary-btn, .secondary-btn { width: 100%; min-height: 3.2rem; border-radius: 999px; font-weight: 850; cursor: pointer; transition: transform .18s ease, box-shadow .18s ease; }
-    .primary-btn { border: 0; background: var(--ink); color: #fff; box-shadow: 0 10px 24px rgba(62,39,35,.18); }
+    .primary-btn { border: 0; background: var(--ink); color: #fff; box-shadow: var(--shadow-paper); }
     .secondary-btn { border: 1px solid var(--sand); background: transparent; color: var(--ink); }
+    .text-btn { width: 100%; min-height: 2.75rem; margin-top: .45rem; padding: .7rem; border: 0; background: transparent; color: var(--rose-dark); font-size: .76rem; font-weight: 850; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
     .primary-btn:hover, .secondary-btn:hover { transform: translateY(-1px); }
     .primary-btn:disabled { opacity: .55; cursor: wait; transform: none; }
-    button:focus-visible, label:focus-visible { outline: 3px solid rgba(229,152,155,.38); outline-offset: 3px; }
-    .toast { position: fixed; left: 50%; bottom: calc(1.25rem + env(safe-area-inset-bottom)); z-index: 20; transform: translate(-50%, 1rem); padding: .7rem 1rem; border-radius: 999px; background: var(--ink); color: #fff; font-size: .75rem; opacity: 0; pointer-events: none; transition: all .22s ease; box-shadow: 0 10px 30px rgba(62,39,35,.25); }
+    button:focus-visible, label:focus-visible { outline: 3px solid rgba(201,168,124,.45); outline-offset: 3px; }
+    .toast { position: fixed; left: 50%; bottom: calc(1.25rem + env(safe-area-inset-bottom)); z-index: 20; transform: translate(-50%, 1rem); padding: .7rem 1rem; border-radius: 999px; background: var(--ink); color: #fff; font-size: .75rem; opacity: 0; pointer-events: none; transition: all .22s ease; box-shadow: var(--shadow-paper); }
     .toast.show { opacity: 1; transform: translate(-50%, 0); }
     .model-retry { margin-left: auto; border: 0; padding: 0; background: none; color: var(--rose-dark); font-size: .7rem; font-weight: 800; text-decoration: underline; cursor: pointer; }
+    .home-challenge-entry { margin-top: 1rem; }
+    #homeChallengeButton { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: .7rem; min-height: 5rem; padding: .8rem .9rem; border-color: var(--line); border-radius: .35rem; background: var(--card); text-align: left; }
+    #homeChallengeButton b, #homeChallengeButton small { display: block; }
+    #homeChallengeButton b { font-size: .84rem; }
+    #homeChallengeButton small { margin-top: .28rem; color: var(--muted); font-size: .72rem; font-weight: 500; }
+    #homeChallengeButton i { color: var(--rose-dark); font-size: .72rem; font-style: normal; white-space: nowrap; }
+    .journal-day { display: grid; place-items: center; width: 2.65rem; height: 2.65rem; border: 1px solid var(--gold); border-radius: 50%; color: var(--rose-dark); font-family: var(--font-display); font-size: .78rem; }
+    .challenge-view { width: min(100%, 480px); max-width: 480px; margin: 0 auto; padding: max(1.15rem, env(safe-area-inset-top)) 0 calc(6.5rem + env(safe-area-inset-bottom)); }
+    .challenge-journal { background: var(--paper); }
+    .challenge-journal .challenge-header { padding-bottom: .95rem; border-bottom: 1px solid var(--line-soft); }
+    .challenge-journal .challenge-header .eyebrow { color: var(--muted); letter-spacing: .14em; }
+    .challenge-journal .today-challenge { min-height: 13rem; border: 0; border-radius: .25rem; background: var(--ink); box-shadow: 0 10px 24px rgba(44,36,32,.1); }
+    .challenge-journal .today-challenge h3, .challenge-journal .today-challenge p { color: var(--card); }
+    .challenge-journal .today-challenge p { color: #EDE5D8; }
+    .challenge-journal .today-kicker, .challenge-journal .today-challenge .identity-label { color: var(--gold) !important; }
+    .challenge-journal .challenge-progress { gap: .7rem; margin-top: 1.1rem; }
+    .challenge-journal .challenge-progress article { border: 0; border-top: 2px solid var(--gold); border-radius: 0; background: transparent; }
+    .challenge-journal .challenge-history { padding-top: .8rem; border-top: 1px solid var(--line-soft); }
+    .challenge-journal .challenge-history p { padding: .65rem 0; border-bottom: 1px solid var(--line-soft); }
+    .challenge-journal .completion-card { border-radius: .25rem; box-shadow: none; }
+    .challenge-header { display: flex; align-items: flex-start; gap: .85rem; margin-bottom: 1.35rem; }
+    .challenge-header .eyebrow { font-size: .62rem; }
+    .challenge-header h2 { margin: .42rem 0 0; font-family: "Noto Serif SC", serif; font-size: 1.55rem; line-height: 1.2; }
+    .icon-button { display: grid; flex: none; place-items: center; width: 2.75rem; min-width: 2.75rem; min-height: 2.75rem; border: 1px solid var(--line); border-radius: 50%; background: var(--card); color: var(--ink); font-size: 1.2rem; cursor: pointer; }
+    .today-challenge { min-height: 13rem; padding: 1.2rem; border: 1px solid var(--gold); border-radius: .5rem; background: var(--card); box-shadow: var(--shadow-paper); }
+    .today-challenge .eyebrow { color: var(--rose-dark); }
+    .today-challenge h3 { margin: .7rem 0 .35rem; font-family: "Noto Serif SC", serif; font-size: 1.35rem; }
+    .today-challenge p { margin: 0; color: var(--muted); font-size: .84rem; line-height: 1.65; }
+    .today-kicker { color: var(--rose-dark) !important; font-size: .72rem !important; font-weight: 850; }
+    .today-challenge .tutorial-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; margin-top: 1rem; }
+    .today-challenge .tutorial-actions button { min-height: 2.75rem; padding: .55rem; border: 1px solid var(--line); border-radius: .8rem; background: var(--card); color: var(--ink); font-size: .76rem; font-weight: 800; cursor: pointer; }
+    .today-challenge .primary-btn, .today-challenge .secondary-btn { margin-top: .7rem; }
+    .today-challenge .text-btn { margin-top: .25rem; }
+    .today-tutorial-url { display: block; margin-top: .55rem; overflow: hidden; color: var(--muted); font-size: .67rem; text-overflow: ellipsis; white-space: nowrap; }
+    .challenge-progress { display: grid; grid-template-columns: repeat(3, 1fr); gap: .55rem; margin: .8rem 0 1rem; }
+    .challenge-progress article { padding: .75rem .65rem; border: 1px solid var(--line); border-radius: .85rem; background: var(--card); }
+    .challenge-progress span { display: block; color: var(--muted); font-size: .67rem; }
+    .challenge-progress strong { display: block; margin-top: .22rem; font-variant-numeric: tabular-nums; font-size: 1rem; }
+    .completion-card { margin: 1rem 0; padding: 1rem; border: 1px solid var(--gold); border-radius: .5rem; background: var(--card); }
+    .completion-card h3 { margin: .4rem 0; font-family: "Noto Serif SC", serif; font-size: 1.08rem; }
+    .completion-card p { margin: 0; color: var(--muted); font-size: .75rem; line-height: 1.6; }
+    .completion-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: .45rem; margin: .8rem 0; }
+    .completion-summary span { padding: .55rem .4rem; border-radius: .65rem; background: var(--card); color: var(--muted); font-size: .62rem; text-align: center; }
+    .completion-summary strong { display: block; margin-top: .12rem; color: var(--ink); font-size: .8rem; }
+    .completion-comparison { display: grid; grid-template-columns: repeat(2, 1fr); gap: .45rem; min-height: 1.2rem; margin-top: .7rem; color: var(--muted); font-size: .72rem; line-height: 1.5; }
+    .completion-comparison figure { position: relative; aspect-ratio: 1 / 1; margin: 0; overflow: hidden; border-radius: .65rem; background: var(--cream); }
+    .completion-comparison img { width: 100%; height: 100%; object-fit: cover; }
+    .completion-comparison figcaption { position: absolute; right: .35rem; bottom: .35rem; padding: .18rem .38rem; border-radius: 999px; background: rgba(44,36,32,.72); color: #fff; font-size: .6rem; font-weight: 800; }
+    .completion-card .secondary-btn, .completion-card .text-btn { margin-top: .65rem; }
+    .poster-canvas { display: none; }
+    .comparison-view { margin-top: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: 1.1rem; background: var(--card); }
+    .comparison-view h3 { margin: 0; font-family: "Noto Serif SC", serif; font-size: 1rem; }
+    .comparison-view > p { margin: .38rem 0 0; color: var(--muted); font-size: .73rem; line-height: 1.55; }
+    .comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; margin-top: .8rem; }
+    .comparison-frame { position: relative; min-width: 0; aspect-ratio: 1 / 1.22; margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: .8rem; background: var(--line-soft); }
+    .comparison-frame img { width: 100%; height: 100%; object-fit: cover; }
+    .comparison-frame figcaption { position: absolute; right: .45rem; bottom: .45rem; padding: .22rem .45rem; border-radius: 999px; background: rgba(44,36,32,.72); color: #fff; font-size: .64rem; font-weight: 800; }
+    .comparison-placeholder { display: grid; height: 100%; place-items: center; padding: .75rem; color: var(--muted); font-size: .72rem; line-height: 1.45; text-align: center; }
+    .photo-capture-controls { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; margin-top: .75rem; }
+    .photo-capture-controls label { display: grid; min-height: 2.75rem; place-items: center; padding: .5rem; border: 1px solid var(--line); border-radius: .75rem; background: var(--card); color: var(--ink); font-size: .75rem; font-weight: 800; cursor: pointer; }
+    .photo-capture-controls label:focus-within { outline: 3px solid rgba(201,168,124,.45); outline-offset: 2px; }
+    .photo-capture-controls input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; }
+    .photo-storage-note { min-height: 1.2rem; margin-top: .65rem !important; color: var(--rose-dark) !important; }
+    .challenge-history { margin-top: 1rem; color: var(--muted); font-size: .75rem; line-height: 1.6; }
+    .challenge-history p { margin: 0; }
+    .challenge-view > .primary-btn { position: sticky; bottom: calc(.75rem + env(safe-area-inset-bottom)); z-index: 2; min-height: 3.2rem; }
+    .sheet-backdrop { position: fixed; inset: 0; z-index: 30; display: flex; align-items: flex-end; background: rgba(44,36,32,.34); transition: opacity .2s ease; }
+    .sheet-backdrop.hidden { display: none; }
+    .bottom-sheet { width: min(100%, 480px); max-width: 480px; max-height: min(82vh, 42rem); margin: 0 auto; overflow-y: auto; padding: .7rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom)); border-radius: 1.35rem 1.35rem 0 0; background: var(--card); box-shadow: var(--shadow-modal); animation: sheet-rise .24s ease both; }
+    .sheet-handle { width: 2.5rem; height: .28rem; margin: 0 auto 1rem; border-radius: 999px; background: rgba(44,36,32,.2); }
+    .bottom-sheet h2 { margin: 0 0 .85rem; font-family: "Noto Serif SC", serif; font-size: 1.3rem; }
+    .challenge-template-cards { display: grid; gap: .65rem; }
+    .challenge-template-card { width: 100%; min-height: 5.4rem; padding: .85rem .95rem; border: 1px solid var(--line); border-radius: .95rem; background: var(--card); color: var(--ink); text-align: left; cursor: pointer; }
+    .challenge-template-card strong, .challenge-template-card small { display: block; }
+    .challenge-template-card strong { font-size: .9rem; }
+    .challenge-template-card small { margin-top: .3rem; color: var(--muted); font-size: .72rem; line-height: 1.45; }
+    .challenge-template-card.recommended { border-color: var(--rose-dark); box-shadow: inset 0 0 0 1px var(--rose-dark); background: rgba(201,168,124,.08); }
+    .challenge-template-card .recommendation { color: var(--rose-dark); font-weight: 800; }
+    .bottom-sheet .secondary-btn { margin-top: .8rem; }
+    .bottom-sheet .text-btn { min-height: 2.75rem; }
+    .challenge-form { display: grid; gap: .8rem; }
+    .challenge-form label, .tutorial-row { display: grid; gap: .35rem; color: var(--muted); font-size: .78rem; font-weight: 750; }
+    .challenge-form input, .challenge-form select { width: 100%; min-height: 2.75rem; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .7rem; background: var(--card); color: var(--ink); }
+    .challenge-form input:focus, .challenge-form select:focus, .challenge-template-card:focus-visible, .icon-button:focus-visible { outline: 3px solid rgba(201,168,124,.45); outline-offset: 2px; }
+    .tutorial-inputs { display: grid; gap: .65rem; }
+    .tutorial-row { grid-template-columns: 1fr 1.25fr; align-items: end; }
+    .tutorial-row input { min-width: 0; }
+    .challenge-form-message { min-height: 1.25rem; margin: 0; color: var(--rose-dark); font-size: .76rem; line-height: 1.5; }
+    .danger-btn { margin-top: .75rem; color: var(--ink); }
 
     @keyframes pulse { 50% { transform: scale(.72); opacity: .48; } }
     @keyframes scan { 0%,100% { transform: translateX(-50%) translateY(.35rem); opacity: .55; } 50% { transform: translateX(-50%) translateY(5.7rem); opacity: 1; } }
-    @keyframes measure { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+    @keyframes contour-drift { 0%,100% { transform: rotate(-1deg) scale(.99); } 50% { transform: rotate(1deg) scale(1.01); } }
     @keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-    @media (min-width: 28rem) { .report-inner { padding: 1.7rem; } .action-stack { grid-template-columns: 1.35fr 1fr; } }
-    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+    @keyframes radarReveal { from { opacity: 0; transform: scale(.82); } to { opacity: 1; transform: scale(1); } }
+    @keyframes sheet-rise { from { transform: translateY(1.5rem); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .identity-sheet, .identity-scroll, .editorial-advice { min-width: 0; }
+    .identity-sheet p, .identity-sheet a, .identity-sheet strong { overflow-wrap: anywhere; }
+    @media (max-width: 22rem) {
+      .shell { padding-inline: .75rem; }
+      .identity-scroll { padding: .75rem; }
+      .identity-cover h2 { font-size: 1.7rem; }
+      .identity-portrait { min-height: 23rem; }
+      .collection-actions { grid-template-columns: 1fr; }
+    }
+    @media (min-width: 28rem) { .report-inner { padding: 1.7rem; } .action-stack { grid-template-columns: 1.35fr 1fr; } .terminology-grid, .takeaway-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+      .analysis-contour-orbit circle { display: none; }
+      .analysis-contour-orbit, .identity-sheet { animation: none !important; transform: none !important; }
+    }
   </style>
 </head>
 <body>
   <main class="shell">
-    <header class="masthead">
-      <div class="eyebrow">Face style notes</div>
-      <h1>看脸，<br>找到你的风格。</h1>
-      <p class="intro">读取面部比例与轮廓，把“我适合什么”变成一张简单、具体、能照着用的风格数据卡。</p>
+    <header class="masthead operation-header">
+      <p class="identity-label">AESTHETIC IDENTITY ARCHIVE</p>
+      <h1>看见轮廓，<br>收藏自己的美学语言。</h1>
+      <p class="intro">上传一张正面照，得到可读、可保存的面部比例与风格记录。</p>
       <div class="model-strip" aria-live="polite">
         <span id="statusDot" class="status-dot loading"></span>
         <span id="modelStatus">正在加载模型，首次约需 10 秒…</span>
@@ -185,62 +439,175 @@
         <span aria-hidden="true">◌</span>
         <span>照片只在你的浏览器里分析，不会上传或保存。结果是基于几何比例的风格参考，不评价美丑。</span>
       </div>
+      <div class="home-challenge-entry"><button id="homeChallengeButton" class="secondary-btn" type="button">先做一个变美挑战</button></div>
       <div id="messageBox" class="notice hidden" role="alert"></div>
+      <section id="qualityCard" class="quality-card hidden" aria-live="polite">
+        <div class="quality-head"><h3>照片质量检查</h3><span id="qualityLevel" class="quality-level"></span></div>
+        <p id="qualityIssue" class="quality-issue"></p>
+        <p id="qualityAction" class="quality-action"></p>
+        <details class="quality-details"><summary>查看其他提示与检测数据</summary><div id="qualityMetrics"></div></details>
+        <button id="retakeButton" class="secondary-btn" type="button">重新选择照片</button>
+        <button id="useAnywayButton" class="text-btn" type="button">仍用这张照片分析</button>
+      </section>
     </section>
 
     <section id="analysisView" class="analysis-panel hidden" aria-live="polite">
-      <div class="preview-stage">
-        <img id="analysisPhoto" alt="待分析的用户照片">
-        <span class="measure-line horizontal"></span>
-        <span class="measure-line vertical"></span>
+      <div class="analysis-portrait-stage">
+        <img id="analysisPhoto" alt="正在解读的照片">
+        <svg class="analysis-contour-orbit" viewBox="0 0 240 300" aria-hidden="true">
+          <path d="M120 24C62 24 40 84 46 151c6 72 37 123 74 134 37-11 68-62 74-134 6-67-16-127-74-127Z"></path>
+          <circle r="3"><animateMotion dur="3.6s" repeatCount="indefinite" path="M120 24C62 24 40 84 46 151c6 72 37 123 74 134 37-11 68-62 74-134 6-67-16-127-74-127Z"></animateMotion></circle>
+        </svg>
       </div>
-      <h2 class="analysis-heading">正在读你的面部线条</h2>
-      <div class="analysis-steps">
-        <div id="analyzeStep1" class="analysis-step"><span class="step-icon">1</span><span>正在定位面部轮廓</span></div>
-        <div id="analyzeStep2" class="analysis-step"><span class="step-icon">2</span><span>正在计算三庭五眼</span></div>
-        <div id="analyzeStep3" class="analysis-step"><span class="step-icon">3</span><span>正在生成风格报告</span></div>
+      <div class="analysis-copy" aria-live="polite">
+        <p id="analyzeStep1">正在读取你的面部轮廓</p>
+        <p id="analyzeStep2">正在整理你的比例特征</p>
+        <p id="analyzeStep3">正在制作专属美学身份卡</p>
       </div>
     </section>
 
+    <section id="questionnaireView" class="questionnaire hidden" aria-labelledby="questionnaireTitle">
+      <div id="questionProgress" class="question-progress" aria-live="polite">第 1 / 6 题</div>
+      <div class="question-progress-track" aria-hidden="true"><i id="questionProgressTrack"></i></div>
+      <h2 id="questionnaireTitle">补充你的日常情况</h2>
+      <p class="question-intro">照片只提供几何信息。这 6 题把建议限制在你的肤感、时间和预算内；答案仅保存在当前页面内存。</p>
+      <form id="questionnaireForm">
+        <fieldset class="question-step" data-key="postCleanse">
+          <legend>洁面后约 30 分钟，脸部通常是什么感觉？</legend>
+          <div class="question-options">
+            <label class="question-option"><input type="radio" name="postCleanse" value="tight"><span>整体紧绷或容易起皮</span></label>
+            <label class="question-option"><input type="radio" name="postCleanse" value="comfortable"><span>整体舒适，没有明显干或油</span></label>
+            <label class="question-option"><input type="radio" name="postCleanse" value="tzone"><span>T 区较油、两颊偏干或舒适</span></label>
+            <label class="question-option"><input type="radio" name="postCleanse" value="allOver"><span>大部分区域较快出现油光</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="question-step hidden" data-key="reactivity">
+          <legend>换新护肤品后，刺痛、发红或发痒常见吗？</legend>
+          <div class="question-options">
+            <label class="question-option"><input type="radio" name="reactivity" value="often"><span>经常出现</span></label>
+            <label class="question-option"><input type="radio" name="reactivity" value="sometimes"><span>偶尔出现</span></label>
+            <label class="question-option"><input type="radio" name="reactivity" value="rarely"><span>很少出现</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="question-step hidden" data-key="primaryGoal">
+          <legend>你现在最想先改善哪一项？</legend>
+          <div class="question-options">
+            <label class="question-option"><input type="radio" name="primaryGoal" value="skin"><span>建立简单稳定的基础护肤</span></label>
+            <label class="question-option"><input type="radio" name="primaryGoal" value="makeup"><span>找到更合适的妆容重点</span></label>
+            <label class="question-option"><input type="radio" name="primaryGoal" value="hair"><span>找到更省心的发型方向</span></label>
+            <label class="question-option"><input type="radio" name="primaryGoal" value="overall"><span>先建立整体形象基础</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="question-step hidden" data-key="dailyMinutes">
+          <legend>每天愿意花多少时间打理？</legend>
+          <div class="question-options">
+            <label class="question-option"><input type="radio" name="dailyMinutes" value="5"><span>约 5 分钟，只做最基础步骤</span></label>
+            <label class="question-option"><input type="radio" name="dailyMinutes" value="15"><span>约 15 分钟，可以完成简单妆发</span></label>
+            <label class="question-option"><input type="radio" name="dailyMinutes" value="30"><span>约 30 分钟，愿意细化步骤</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="question-step hidden" data-key="hairMaintenance">
+          <legend>你能接受多高的发型维护频率？</legend>
+          <div class="question-options">
+            <label class="question-option"><input type="radio" name="hairMaintenance" value="minimal"><span>尽量免打理，不常修剪或造型</span></label>
+            <label class="question-option"><input type="radio" name="hairMaintenance" value="light"><span>可接受简单吹整和定期修剪</span></label>
+            <label class="question-option"><input type="radio" name="hairMaintenance" value="regular"><span>愿意定期造型、染烫或精细护理</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="question-step hidden" data-key="monthlyBudget">
+          <legend>每月用于基础护肤与形象尝试的预算？</legend>
+          <div class="question-options">
+            <label class="question-option"><input type="radio" name="monthlyBudget" value="basic"><span>基础：优先少而必要的单品</span></label>
+            <label class="question-option"><input type="radio" name="monthlyBudget" value="moderate"><span>适中：可增加一项针对性尝试</span></label>
+            <label class="question-option"><input type="radio" name="monthlyBudget" value="flexible"><span>灵活：更看重体验与选择空间</span></label>
+          </div>
+        </fieldset>
+      </form>
+      <div class="question-actions">
+        <button id="questionBack" class="secondary-btn" type="button">上一题</button>
+        <button id="questionNext" class="primary-btn" type="button">下一题</button>
+      </div>
+      <div id="questionMessage" class="notice hidden" role="alert"></div>
+    </section>
+
     <section id="reportView" class="report-wrap hidden" aria-labelledby="reportTitle">
-      <div id="reportCapture" class="report-sheet">
-        <div class="report-inner">
-          <header class="report-head">
-            <div class="photo-frame"><img id="reportPhoto" alt="用户照片"></div>
-            <div>
-              <div class="report-kicker">YOUR FACE NOTES</div>
-              <h2 id="reportTitle" class="report-title">个人形象<br>基础数据卡</h2>
-              <div id="reportDate" class="report-date"></div>
-            </div>
+      <div id="reportCapture" class="identity-sheet">
+        <div class="identity-scroll">
+          <header class="identity-cover">
+            <span id="identitySerial" class="identity-seal"></span>
+            <span id="identityType" class="identity-type"></span>
+            <h2 id="reportTitle"><span id="identityTitle"></span></h2>
+            <p id="identityPoem"></p>
           </header>
-
-          <section class="shape-block">
-            <div>
-              <div class="section-label">脸型分析 / FACE SHAPE</div>
-              <h3 id="faceShape" class="shape-name"></h3>
-              <p id="faceDescription" class="shape-desc"></p>
+          <figure id="identityPortrait" class="identity-portrait">
+            <img id="reportPhoto" alt="本次分析使用的照片">
+            <div class="tarot-corner corner-tl" aria-hidden="true"></div>
+            <div class="tarot-corner corner-tr" aria-hidden="true"></div>
+            <div class="tarot-corner corner-bl" aria-hidden="true"></div>
+            <div class="tarot-corner corner-br" aria-hidden="true"></div>
+            <figcaption id="identityPortraitTags"></figcaption>
+          </figure>
+          <section aria-labelledby="identityRadarTitle">
+            <h3 id="identityRadarTitle">六维特征图谱</h3>
+            <div id="identityRadar"></div>
+            <p>越高代表特征越明显，不代表越好。</p>
+            <div id="identityTraitBars"></div>
+            <div id="terminologyGrid" class="identity-terms"></div>
+          </section>
+          <section id="identityMemories"></section>
+          <section id="identityDirections"></section>
+          <footer id="identityCollection" class="identity-collection">
+            <div class="collection-orbit" aria-hidden="true"></div>
+            <p class="identity-label">COLLECTED AESTHETIC PROFILE</p>
+            <strong id="collectionSerial"></strong>
+            <time id="reportDate"></time>
+            <p id="memorySentence"></p>
+            <p>照片仅在当前浏览器处理；身份卡是个人风格参考，不是美貌或健康评价。</p>
+            <div class="collection-actions">
+              <button id="saveButton" class="collection-save" type="button">保存身份卡</button>
+              <button id="shareIdentityButton" class="collection-share identity-share-button" type="button">分享身份卡</button>
             </div>
-            <div class="ratio-seal"><div><strong id="faceRatio"></strong><small>长宽比</small></div></div>
+          </footer>
+
+          <section id="qualityBanner" class="report-quality hidden" aria-live="polite"></section>
+
+          <div class="detail-layer">
+          <h3 class="detail-layer-title">完整数据与依据</h3>
+          <section class="report-section">
+            <h3 class="section-heading">先看这 3 点 <span>照片内几何摘要</span></h3>
+            <div id="coreTraits" class="report-summary-grid"></div>
           </section>
 
           <section class="report-section">
-            <h3 class="section-heading">三庭比例 <span>以均衡的约 33% 为参考</span></h3>
-            <div id="courtList" class="court-list"></div>
+            <h3 class="section-heading">具体数据 <span>展开查看公式与置信度</span></h3>
+            <div id="dataGroups"></div>
           </section>
 
           <section class="report-section">
-            <h3 class="section-heading">面部特征 <span>决定风格的落点</span></h3>
-            <div id="featureTags" class="pill-list"></div>
+            <h3 class="section-heading">造型实验 <span>经验映射，不代表固定规则</span></h3>
+            <div id="styleAdviceGrid" class="science-advice-grid"></div>
+          </section>
+
+          <section id="carePlan" class="report-section">
+            <h3 class="section-heading">基础护理路线 <span>依据你的自评</span></h3>
+            <div id="carePlanContent" class="care-box"></div>
+          </section>
+
+          <section id="reportChallengeSection" class="report-section">
+            <h3 class="section-heading">把这次建议变成挑战 <span>直接选卡开始</span></h3>
+            <p class="question-intro">选择一张建议卡，设置提醒后，它会直接进入“我的变美挑战”；两处看到的是同一份任务和进度。</p>
+            <div id="reportChallengeCards" class="action-card-grid"></div>
+            <div id="reportActiveChallenge" class="hidden"></div>
           </section>
 
           <section class="report-section">
-            <h3 class="section-heading">你的风格建议 <span id="styleLabel"></span></h3>
-            <div class="advice-grid">
-              <article class="advice-card"><span class="advice-icon">妆</span><h4>妆容怎么画</h4><p id="makeupAdvice"></p></article>
-              <article class="advice-card"><span class="advice-icon">发</span><h4>发型怎么选</h4><p id="hairAdvice"></p></article>
-              <article class="advice-card"><span class="advice-icon">穿</span><h4>穿搭怎么配</h4><p id="outfitAdvice"></p></article>
-            </div>
+            <details id="evidenceDrawer" class="evidence-details">
+              <summary>查看解读依据、来源和局限</summary>
+              <div id="sourceList" class="source-list"></div>
+              <ul id="limitations" class="limitations"></ul>
+            </details>
           </section>
+          </div>
 
           <section class="report-section">
             <h3 class="section-heading">小红书搜索指南 <span>点击即可复制</span></h3>
@@ -255,38 +622,1030 @@
       </div>
 
       <div class="action-stack">
-        <button id="saveButton" class="primary-btn" type="button">保存报告图</button>
         <button id="retryButton" class="secondary-btn" type="button">重新测试</button>
       </div>
       <div id="reportMessage" class="notice hidden" role="alert"></div>
     </section>
+
+    <section id="challengeView" class="view challenge-view challenge-journal hidden" aria-labelledby="challengeTitle">
+      <header class="challenge-header">
+        <button id="closeChallengeButton" class="icon-button" type="button" aria-label="返回">←</button>
+        <div><span class="eyebrow">BEAUTY CHALLENGE</span><h2 id="challengeTitle">我的变美挑战</h2></div>
+      </header>
+      <div id="todayChallenge" class="today-challenge"></div>
+      <div id="challengeProgress" class="challenge-progress"></div>
+      <section id="completionCard" class="completion-card hidden" aria-labelledby="completionTitle">
+        <span class="eyebrow">CHALLENGE COMPLETE</span>
+        <h3 id="completionTitle">完成这一段挑战</h3>
+        <p id="completionCopy"></p>
+        <div id="completionSummary" class="completion-summary"></div>
+        <div id="completionComparisonPreview" class="completion-comparison"></div>
+        <button id="downloadPosterButton" class="secondary-btn" type="button">下载结营海报</button>
+        <button id="completeChallengeButton" class="text-btn" type="button">标记挑战完成</button>
+      </section>
+      <section id="comparisonView" class="comparison-view hidden" aria-labelledby="comparisonTitle">
+        <h3 id="comparisonTitle">开始与结束对照</h3>
+        <p>照片仅保存在这台设备的浏览器中，不会上传。</p>
+        <div class="comparison-grid">
+          <figure class="comparison-frame"><span id="beforePhotoPlaceholder" class="comparison-placeholder">添加开始照片后在这里查看</span><img id="beforePhoto" class="hidden" alt="挑战开始照片"><figcaption>开始</figcaption></figure>
+          <figure class="comparison-frame"><span id="afterPhotoPlaceholder" class="comparison-placeholder">添加结束照片后在这里查看</span><img id="afterPhoto" class="hidden" alt="挑战结束照片"><figcaption>结束</figcaption></figure>
+        </div>
+        <div id="photoCaptureControls" class="photo-capture-controls">
+          <label>添加开始照片<input id="startPhotoInput" type="file" accept="image/*" capture="user"></label>
+          <label>添加结束照片<input id="endPhotoInput" type="file" accept="image/*" capture="user"></label>
+        </div>
+        <p id="photoStorageNote" class="photo-storage-note" aria-live="polite"></p>
+      </section>
+      <button id="newChallengeButton" class="primary-btn" type="button">选择一个挑战</button>
+      <button id="deleteChallengeButton" class="text-btn danger-btn hidden" type="button">结束并删除当前挑战</button>
+      <section id="challengeHistory" class="challenge-history" aria-label="挑战记录"></section>
+      <canvas id="posterCanvas" class="poster-canvas" width="1080" height="1440" aria-hidden="true"></canvas>
+    </section>
+    <div id="challengeTemplateSheet" class="sheet-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="templateSheetTitle">
+      <div class="bottom-sheet">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <h2 id="templateSheetTitle">你想养成什么？</h2>
+        <div id="challengeTemplateCards" class="challenge-template-cards"></div>
+        <button id="customChallengeButton" class="secondary-btn" type="button">自定义挑战</button>
+        <form id="customChallengeForm" class="challenge-form hidden" novalidate>
+          <label>挑战名称<input id="customChallengeTitle" name="title" type="text" maxlength="30" required placeholder="例如：晚间护肤打卡"></label>
+          <label>持续天数<input id="customChallengeDays" name="days" type="number" min="1" max="90" value="7" required></label>
+          <label>完成频率<select id="customChallengeFrequency" name="frequency"><option value="daily">每天</option><option value="weekly">每周</option></select></label>
+          <label>提醒时间<input id="challengeReminderTime" name="reminderTime" type="time" value="21:30"></label>
+          <div id="tutorialInputs" class="tutorial-inputs" aria-label="参考教程">
+            <div class="tutorial-row"><label>教程名称<input name="tutorialLabel" type="text" maxlength="30" placeholder="可选"></label><label>教程链接<input name="tutorialUrl" type="url" placeholder="https://"></label></div>
+            <div class="tutorial-row"><label>教程名称<input name="tutorialLabel" type="text" maxlength="30" placeholder="可选"></label><label>教程链接<input name="tutorialUrl" type="url" placeholder="https://"></label></div>
+          </div>
+          <p id="customChallengeMessage" class="challenge-form-message" aria-live="polite"></p>
+          <button class="primary-btn" type="submit">开始我的挑战</button>
+        </form>
+        <form id="templateTutorialForm" class="challenge-form hidden" novalidate>
+          <p id="templateTutorialHint" class="challenge-history"></p>
+          <label>提醒时间<input id="templateReminderTime" name="templateReminderTime" type="time" value="21:30" required></label>
+          <div id="templateTutorialInputs" class="tutorial-inputs" aria-label="妆容教程链接"></div>
+          <p id="templateTutorialMessage" class="challenge-form-message" aria-live="polite"></p>
+          <button class="primary-btn" type="submit">开始这个挑战</button>
+        </form>
+        <button id="closeTemplateSheetButton" class="text-btn" type="button">暂不创建</button>
+      </div>
+    </div>
+    <div id="deleteChallengeSheet" class="sheet-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="deleteChallengeTitle">
+      <div class="bottom-sheet">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <h2 id="deleteChallengeTitle">删除挑战与照片？</h2>
+        <p class="challenge-history">挑战进度和关联的本地对照照将一并删除，且无法恢复。</p>
+        <button id="confirmDeleteChallengeButton" class="primary-btn" type="button">确认删除</button>
+        <button id="cancelDeleteChallengeButton" class="text-btn" type="button">保留挑战</button>
+      </div>
+    </div>
+    <div id="tutorialConfirmSheet" class="sheet-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="tutorialConfirmTitle">
+      <div class="bottom-sheet">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <h2 id="tutorialConfirmTitle">打开外部教程？</h2>
+        <p id="tutorialConfirmText" class="challenge-history" aria-live="polite"></p>
+        <button id="confirmTutorialButton" class="primary-btn" type="button">继续打开</button>
+        <button id="cancelTutorialButton" class="text-btn" type="button">留在挑战页</button>
+      </div>
+    </div>
   </main>
   <div id="toast" class="toast" role="status"></div>
+
+  <script id="face-style-core">
+    (() => {
+      "use strict";
+
+      const distance = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
+
+      const safeDivide = (numerator, denominator, fallback = null) =>
+        Number.isFinite(numerator) && Number.isFinite(denominator) && Math.abs(denominator) > 1e-9
+          ? numerator / denominator
+          : fallback;
+
+      function dateToUtcDayOrdinal(value) {
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+        if (!match) return NaN;
+        const [, yearText, monthText, dayText] = match;
+        const year = Number(yearText);
+        const month = Number(monthText);
+        const day = Number(dayText);
+        const ordinal = Date.UTC(year, month - 1, day) / 86400000;
+        const verified = new Date(ordinal * 86400000);
+        return verified.getUTCFullYear() === year && verified.getUTCMonth() === month - 1 && verified.getUTCDate() === day ? ordinal : NaN;
+      }
+
+      function calendarDateFromOrdinal(ordinal) {
+        if (!Number.isFinite(ordinal)) return "";
+        const date = new Date(ordinal * 86400000);
+        return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+      }
+
+      const formatCalendarDate = (value, offsetDays = 0) => calendarDateFromOrdinal(dateToUtcDayOrdinal(value) + offsetDays).replace(/-/g, "");
+
+      const escapeCalendarText = (value) => String(value).replace(/\\/g, "\\\\").replace(/\r\n|\r|\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
+
+      function utf8OctetLength(character) {
+        const codePoint = character.codePointAt(0);
+        if (codePoint <= 0x7f) return 1;
+        if (codePoint <= 0x7ff) return 2;
+        if (codePoint <= 0xffff) return 3;
+        return 4;
+      }
+
+      function foldCalendarLine(line) {
+        const chunks = [];
+        let chunk = "";
+        let chunkOctets = 0;
+        let limit = 75;
+        for (const character of String(line)) {
+          const characterOctets = utf8OctetLength(character);
+          if (chunk && chunkOctets + characterOctets > limit) {
+            chunks.push(chunk);
+            chunk = character;
+            chunkOctets = characterOctets;
+            limit = 74;
+          } else {
+            chunk += character;
+            chunkOctets += characterOctets;
+          }
+        }
+        chunks.push(chunk);
+        return chunks.join("\r\n ");
+      }
+
+      function foldCalendarText(value) {
+        return String(value).split(/\r\n|\r|\n/).map(foldCalendarLine).join("\r\n");
+      }
+
+      const CHALLENGE_TEMPLATES = Object.freeze([
+        { id: "body-lotion-30", kind: "habit", title: "30 天身体乳习惯", durationDays: 30, frequency: "daily", taskLabel: "今天涂身体乳", photoDays: [1, 30], taskDays: [], tutorialSlots: 0 },
+        { id: "sunscreen-21", kind: "habit", title: "21 天每日防晒", durationDays: 21, frequency: "daily", taskLabel: "今天完成防晒", photoDays: [1, 21], taskDays: [], tutorialSlots: 0 },
+        { id: "clean-tools-4", kind: "habit", title: "4 周清洁化妆工具", durationDays: 28, frequency: "weekly", taskLabel: "本周清洁化妆工具", photoDays: [], taskDays: [], tutorialSlots: 0 },
+        { id: "makeup-3-in-7", kind: "training", title: "7 天学会 3 个完整妆容", durationDays: 7, frequency: "scheduled", taskLabel: "完成今天的妆容练习", photoDays: [1, 7], taskDays: [1, 4, 7], tutorialSlots: 3 },
+        { id: "eye-makeup-7", kind: "training", title: "7 天眼妆练习", durationDays: 7, frequency: "daily", taskLabel: "完成今天的眼妆练习", photoDays: [1, 7], taskDays: [], tutorialSlots: 3 },
+        { id: "brow-makeup-7", kind: "training", title: "7 天眉妆练习", durationDays: 7, frequency: "daily", taskLabel: "完成今天的眉妆练习", photoDays: [1, 7], taskDays: [], tutorialSlots: 3 }
+      ].map((item) => Object.freeze({ ...item, photoDays: Object.freeze([...item.photoDays]), taskDays: Object.freeze([...item.taskDays]) })));
+
+      function localCalendarDate(date = new Date()) {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      }
+
+      function getChallengeTemplates() {
+        return CHALLENGE_TEMPLATES.map((item) => ({ ...item, photoDays: [...item.photoDays], taskDays: [...item.taskDays] }));
+      }
+
+      function normalizeDayArray(value, durationDays) {
+        if (!Array.isArray(value)) return [];
+        return [...new Set(value.filter((day) => Number.isInteger(day) && day >= 1 && day <= durationDays))].sort((a, b) => a - b);
+      }
+
+      function getChallengeOccurrenceDays(challenge) {
+        const durationDays = Number.isInteger(challenge?.durationDays) && challenge.durationDays >= 1 ? challenge.durationDays : 0;
+        if (!durationDays) return [];
+        if (challenge.frequency === "daily") return Array.from({ length: durationDays }, (_, index) => index + 1);
+        if (challenge.frequency === "weekly") return Array.from({ length: Math.ceil(durationDays / 7) }, (_, index) => index * 7 + 1).filter((day) => day <= durationDays);
+        if (challenge.frequency === "scheduled") return normalizeDayArray(challenge.taskDays, durationDays);
+        return [];
+      }
+
+      function validateTutorialUrl(value) {
+        try {
+          const url = new URL(String(value).trim());
+          return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+        } catch (_) {
+          return "";
+        }
+      }
+
+      function createChallenge(input, now = new Date()) {
+        const template = CHALLENGE_TEMPLATES.find((item) => item.id === input.templateId);
+        const custom = input.templateId === "custom";
+        if (!template && !custom) throw new Error("请选择一个挑战模板");
+        const durationDays = custom ? Math.min(90, Math.max(1, Number(input.durationDays) || 7)) : template.durationDays;
+        const startedAt = input.startedAt || localCalendarDate(now);
+        return {
+          version: 2,
+          id: `challenge-${now.getTime()}`,
+          templateId: input.templateId,
+          title: custom ? String(input.title || "我的变美挑战").trim().slice(0, 30) : template.title,
+          kind: custom ? "custom" : template.kind,
+          durationDays,
+          frequency: custom ? (input.frequency === "weekly" ? "weekly" : "daily") : template.frequency,
+          reminderTime: /^([01]\d|2[0-3]):[0-5]\d$/.test(input.reminderTime) ? input.reminderTime : "21:30",
+          startedAt,
+          taskLabel: custom ? String(input.taskLabel || input.title || "完成今天的挑战").trim().slice(0, 40) : template.taskLabel,
+          tutorials: (input.tutorials || []).map((item) => ({ label: String(item.label || "教程").slice(0, 30), url: validateTutorialUrl(item.url) })).filter((item) => item.url),
+          photoDays: custom ? [] : [...template.photoDays],
+          taskDays: custom ? [] : [...template.taskDays],
+          checkIns: {},
+          status: "active",
+          createdAt: now.toISOString()
+        };
+      }
+
+      function getChallengeDay(challenge, date = localCalendarDate()) {
+        const start = dateToUtcDayOrdinal(challenge?.startedAt);
+        const current = dateToUtcDayOrdinal(date);
+        return Number.isFinite(start) && Number.isFinite(current) ? current - start + 1 : NaN;
+      }
+
+      function isChallengeOccurrenceDay(challenge, day) {
+        return getChallengeOccurrenceDays(challenge).includes(day);
+      }
+
+      function getChallengeDateForDay(challenge, day) {
+        return calendarDateFromOrdinal(dateToUtcDayOrdinal(challenge?.startedAt) + day - 1);
+      }
+
+      function getNextChallengeOccurrenceDay(challenge, day) {
+        return getChallengeOccurrenceDays(challenge).find((occurrenceDay) => occurrenceDay > day) || null;
+      }
+
+      function getChallengeTutorialForDay(challenge, day) {
+        const tutorials = Array.isArray(challenge?.tutorials) ? challenge.tutorials : [];
+        if (!tutorials.length) return null;
+        const occurrenceIndex = getChallengeOccurrenceDays(challenge).indexOf(day);
+        return occurrenceIndex >= 0 ? tutorials[occurrenceIndex % tutorials.length] : null;
+      }
+
+      function toggleChallengeCheckIn(challenge, date = localCalendarDate()) {
+        const day = getChallengeDay(challenge, date);
+        if (!isChallengeOccurrenceDay(challenge, day)) return challenge;
+        const checkIns = { ...challenge.checkIns };
+        if (checkIns[date]) delete checkIns[date];
+        else checkIns[date] = { completedAt: new Date().toISOString() };
+        return { ...challenge, checkIns };
+      }
+
+      function getChallengeProgress(challenge, date = localCalendarDate()) {
+        const rawDay = getChallengeDay(challenge, date);
+        const day = Number.isFinite(rawDay) ? Math.min(challenge.durationDays, Math.max(1, rawDay)) : 1;
+        const occurrenceDays = getChallengeOccurrenceDays(challenge);
+        const occurrenceDates = occurrenceDays.map((occurrenceDay) => getChallengeDateForDay(challenge, occurrenceDay));
+        const completedDates = occurrenceDates.filter((occurrenceDate) => challenge.checkIns?.[occurrenceDate]);
+        let streak = 0;
+        const occurredDates = occurrenceDates.filter((_, index) => occurrenceDays[index] <= rawDay);
+        for (let index = occurredDates.length - 1; index >= 0 && challenge.checkIns?.[occurredDates[index]]; index -= 1) {
+          streak += 1;
+        }
+        const completed = completedDates.length;
+        const total = occurrenceDays.length;
+        return { day, total, completed, completionRate: total ? Math.round(completed / total * 100) : 0, streak, isComplete: rawDay >= challenge.durationDays && completed > 0 };
+      }
+
+      function getChallengeFinishDate(challenge) {
+        return calendarDateFromOrdinal(dateToUtcDayOrdinal(challenge.startedAt) + challenge.durationDays - 1);
+      }
+
+      function getChallengePosterFinishDate(challenge) {
+        return /^\d{4}-\d{2}-\d{2}$/.test(challenge?.completedAt || "") ? challenge.completedAt : getChallengeFinishDate(challenge);
+      }
+
+      function isChallengeCompletionEligible(challenge, date = localCalendarDate()) {
+        return Boolean(challenge && getChallengeDay(challenge, date) >= challenge.durationDays);
+      }
+
+      function createChallengeHistoryEntry(challenge, progress, completedAt = localCalendarDate()) {
+        return {
+          id: challenge.id,
+          title: challenge.title,
+          startedAt: challenge.startedAt,
+          completedAt,
+          durationDays: challenge.durationDays,
+          total: Number.isInteger(progress.total) ? progress.total : getChallengeOccurrenceDays(challenge).length,
+          completed: progress.completed,
+          completionRate: progress.completionRate,
+          streak: progress.streak
+        };
+      }
+
+      function normalizeChallengeState(value) {
+        const empty = { version: 2, active: null, history: [], pendingPhotoDeletionIds: [] };
+        if (!value || value.version !== 2 || typeof value !== "object") return empty;
+        const active = normalizeActiveChallenge(value.active);
+        const history = Array.isArray(value.history) ? value.history.map(normalizeHistoryEntry).filter(Boolean) : [];
+        const pendingPhotoDeletionIds = normalizePendingPhotoDeletionIds(value.pendingPhotoDeletionIds);
+        return { version: 2, active, history, pendingPhotoDeletionIds };
+      }
+
+      function normalizeActiveChallenge(value) {
+        if (!value || typeof value !== "object") return null;
+        const id = typeof value.id === "string" ? value.id.trim() : "";
+        const title = typeof value.title === "string" ? value.title.trim().slice(0, 30) : "";
+        const durationDays = Number(value.durationDays);
+        const startedAt = typeof value.startedAt === "string" ? value.startedAt : "";
+        const frequency = value.frequency;
+        const reminderTime = value.reminderTime;
+        if (!id || !title || !Number.isInteger(durationDays) || durationDays < 1 || durationDays > 90 || !Number.isFinite(dateToUtcDayOrdinal(startedAt)) || !["daily", "weekly", "scheduled"].includes(frequency) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(reminderTime || "") || value.status !== "active") return null;
+        const challenge = {
+          version: 2,
+          id,
+          templateId: typeof value.templateId === "string" && value.templateId.trim() ? value.templateId.trim() : "custom",
+          title,
+          kind: typeof value.kind === "string" && value.kind.trim() ? value.kind.trim() : "custom",
+          durationDays,
+          frequency,
+          reminderTime,
+          startedAt,
+          taskLabel: typeof value.taskLabel === "string" && value.taskLabel.trim() ? value.taskLabel.trim().slice(0, 40) : title,
+          tutorials: Array.isArray(value.tutorials) ? value.tutorials.map((item) => ({ label: String(item?.label || "教程").trim().slice(0, 30), url: validateTutorialUrl(item?.url) })).filter((item) => item.url) : [],
+          photoDays: normalizeDayArray(value.photoDays, durationDays),
+          taskDays: normalizeDayArray(value.taskDays, durationDays),
+          checkIns: {},
+          status: "active",
+          createdAt: typeof value.createdAt === "string" && Number.isFinite(Date.parse(value.createdAt)) ? value.createdAt : `${startedAt}T00:00:00.000Z`
+        };
+        if (value.checkIns && typeof value.checkIns === "object" && !Array.isArray(value.checkIns)) {
+          Object.entries(value.checkIns).forEach(([date, checkIn]) => {
+            if (checkIn && typeof checkIn === "object" && Number.isFinite(dateToUtcDayOrdinal(date)) && isChallengeOccurrenceDay(challenge, getChallengeDay(challenge, date))) challenge.checkIns[date] = { ...checkIn };
+          });
+        }
+        return challenge;
+      }
+
+      function normalizeHistoryEntry(value) {
+        if (!value || typeof value !== "object") return null;
+        const id = typeof value.id === "string" ? value.id.trim() : "";
+        const title = typeof value.title === "string" ? value.title.trim().slice(0, 30) : "";
+        const durationDays = Number(value.durationDays);
+        if (!id || !title || typeof value.startedAt !== "string" || typeof value.completedAt !== "string" || !Number.isFinite(dateToUtcDayOrdinal(value.startedAt)) || !Number.isFinite(dateToUtcDayOrdinal(value.completedAt)) || !Number.isInteger(durationDays) || durationDays < 1 || durationDays > 90) return null;
+        const total = Math.min(durationDays, Math.max(1, Number.isFinite(Number(value.total)) ? Math.round(Number(value.total)) : durationDays));
+        return {
+          id,
+          title,
+          startedAt: value.startedAt,
+          completedAt: value.completedAt,
+          durationDays,
+          total,
+          completed: Math.min(total, Math.max(0, Number.isFinite(Number(value.completed)) ? Math.round(Number(value.completed)) : 0)),
+          completionRate: Math.min(100, Math.max(0, Number.isFinite(Number(value.completionRate)) ? Math.round(Number(value.completionRate)) : 0)),
+          streak: Math.min(total, Math.max(0, Number.isFinite(Number(value.streak)) ? Math.round(Number(value.streak)) : 0))
+        };
+      }
+
+      function normalizePendingPhotoDeletionIds(value) {
+        return Array.isArray(value) ? [...new Set(value.filter((id) => typeof id === "string").map((id) => id.trim()).filter(Boolean))] : [];
+      }
+
+      function addPendingPhotoDeletion(challengeState, challengeId) {
+        const normalized = normalizeChallengeState(challengeState);
+        return { ...normalized, pendingPhotoDeletionIds: normalizePendingPhotoDeletionIds([...normalized.pendingPhotoDeletionIds, challengeId]) };
+      }
+
+      function removePendingPhotoDeletion(challengeState, challengeId) {
+        const normalized = normalizeChallengeState(challengeState);
+        const target = typeof challengeId === "string" ? challengeId.trim() : "";
+        return { ...normalized, pendingPhotoDeletionIds: normalized.pendingPhotoDeletionIds.filter((id) => id !== target) };
+      }
+
+      function normalizeChallengePosterPhotos(photos) {
+        return Array.isArray(photos) ? photos.filter((item) => item?.blob && ["start", "end"].includes(item.slot)) : [];
+      }
+
+      function sanitizeChallengePosterFilename(value) {
+        return String(value || "").replace(/[\\/:*?"<>|\u0000-\u001F\u007F]+/g, "-").trim().replace(/^-+|-+$/g, "") || "我的挑战";
+      }
+
+      function buildChallengeCalendarText(challenge, pageUrl) {
+        const returnUrl = validateTutorialUrl(pageUrl);
+        const challengeUrl = returnUrl.startsWith("https:") ? returnUrl : "";
+        const tutorialLines = (Array.isArray(challenge.tutorials) ? challenge.tutorials : []).map((item) => `${item.label}: ${item.url}`);
+        const occurrenceDays = getChallengeOccurrenceDays(challenge);
+        const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(challenge.reminderTime || "") ? challenge.reminderTime.replace(":", "") : "2130";
+        const recurrence = challenge.frequency === "daily"
+          ? `RRULE:FREQ=DAILY;COUNT=${occurrenceDays.length}`
+          : challenge.frequency === "weekly" ? `RRULE:FREQ=WEEKLY;COUNT=${occurrenceDays.length}` : "";
+        const eventDays = challenge.frequency === "scheduled" ? occurrenceDays : occurrenceDays.slice(0, 1);
+        const events = eventDays.map((day) => {
+          const tutorial = challenge.frequency === "scheduled" ? getChallengeTutorialForDay(challenge, day) : null;
+          const eventTutorialLines = challenge.frequency === "scheduled" ? (tutorial ? [`${tutorial.label}: ${tutorial.url}`] : []) : tutorialLines;
+          const description = [challenge.taskLabel, ...eventTutorialLines, "回到挑战中心完成打卡", challengeUrl ? `返回地址：${challengeUrl}` : ""].filter(Boolean).join("\n");
+          return [
+            "BEGIN:VEVENT",
+            `UID:${escapeCalendarText(`${challenge.id}${challenge.frequency === "scheduled" ? `-${day}` : ""}@face-style-notes`)}`,
+            `DTSTAMP:${formatCalendarDate(challenge.startedAt)}T000000Z`,
+            `DTSTART:${formatCalendarDate(challenge.startedAt, day - 1)}T${time}00`,
+            `SUMMARY:${escapeCalendarText(challenge.title)}`,
+            `DESCRIPTION:${escapeCalendarText(description)}`,
+            recurrence,
+            challengeUrl ? `URL:${challengeUrl}` : "",
+            "END:VEVENT"
+          ].filter(Boolean).join("\r\n");
+        });
+        return foldCalendarText(["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Face Style Notes//Challenge//ZH-CN", "CALSCALE:GREGORIAN", ...events, "END:VCALENDAR", ""].join("\r\n"));
+      }
+
+      function maySaveChallengePhoto(challengeId, activeChallenge) {
+        return Boolean(challengeId && activeChallenge?.id === challengeId && activeChallenge.status === "active");
+      }
+
+      function getChallengePhotoFailureScope(stage) {
+        return stage === "storage" ? "storage" : "file";
+      }
+
+      const averagePoint = (points, indexes) => ({
+        x: indexes.reduce((sum, index) => sum + points[index].x, 0) / indexes.length,
+        y: indexes.reduce((sum, index) => sum + points[index].y, 0) / indexes.length
+      });
+
+      const angleDegrees = (a, b) => Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+      const round = (value, digits = 2) => {
+        if (!Number.isFinite(value)) return null;
+        const factor = 10 ** digits;
+        return Math.round((value + Math.sign(value || 1) * Number.EPSILON) * factor) / factor;
+      };
+
+      function evaluatePhotoQuality(signals) {
+        const { detectionScore, faceBox, imageSize, points, laplacianVariance, meanBrightness } = signals;
+        const leftEye = averagePoint(points, [36, 37, 38, 39, 40, 41]);
+        const rightEye = averagePoint(points, [42, 43, 44, 45, 46, 47]);
+        const roll = Math.abs(angleDegrees(leftEye, rightEye));
+        const faceRatio = safeDivide(faceBox.width, imageSize.width, 0);
+        const faceWidth = distance(points[0], points[16]);
+        const leftNose = distance(points[30], points[0]);
+        const rightNose = distance(points[30], points[16]);
+        const yawProxy = safeDivide(Math.abs(leftNose - rightNose), faceWidth, 1);
+        const issues = [];
+        const push = (condition, id, message, action, severity = "reject") => {
+          if (condition) issues.push({ id, message, action, severity });
+        };
+        push(detectionScore < 0.55, "low_detection", "面部细节不足", "换一张更清晰、无遮挡的照片");
+        push(faceRatio < 0.28 || faceBox.width < 180, "face_too_small", "脸部在画面中太小", "靠近一些，并保留完整头部轮廓");
+        push(faceRatio > 0.85, "face_too_large", "脸部离镜头太近", "手机后退到约一臂距离");
+        push(roll > 5, "head_roll", "头部倾斜会影响比例", "让双眼连线保持水平");
+        push(yawProxy > 0.12, "head_yaw", "脸部没有正对镜头", "鼻尖朝向镜头，左右脸颊露出接近");
+        push(laplacianVariance < 45, "blurry", "照片可能模糊", "擦净镜头并保持手机稳定");
+        push(meanBrightness < 55, "too_dark", "面部光线太暗", "面向窗户或增加均匀光线");
+        push(meanBrightness > 215, "too_bright", "面部出现过曝", "避开直射强光并降低曝光");
+        const medium = roll > 3 || yawProxy > 0.08;
+        return {
+          accepted: !issues.some((item) => item.severity === "reject"),
+          level: issues.length ? "low" : medium ? "medium" : "high",
+          issues,
+          metrics: {
+            roll: round(roll, 1), yawProxy: round(yawProxy, 3), faceRatio: round(faceRatio, 3),
+            laplacianVariance: round(laplacianVariance, 1), meanBrightness: round(meanBrightness, 1)
+          }
+        };
+      }
+
+      function overridePhotoQuality(quality) {
+        return { ...quality, accepted: true, level: "low", overridden: true };
+      }
+
+      const confidenceRank = { low: 0, medium: 1, high: 2 };
+      const capConfidence = (value, cap) => confidenceRank[value] > confidenceRank[cap] ? cap : value;
+
+      function capMeasurementConfidence(value, cap) {
+        if (Array.isArray(value)) return value.map((item) => capMeasurementConfidence(item, cap));
+        if (!value || typeof value !== "object") return value;
+        const next = { ...value };
+        if (next.confidence) next.confidence = capConfidence(next.confidence, cap);
+        Object.keys(next).forEach((key) => {
+          if (key !== "confidence") next[key] = capMeasurementConfidence(next[key], cap);
+        });
+        return next;
+      }
+
+      function inferQuestionnaire(answers = {}) {
+        const skinMap = { tight: "dry", comfortable: "normal", tzone: "combination", allOver: "oily" };
+        const required = ["postCleanse", "reactivity", "primaryGoal", "dailyMinutes", "hairMaintenance", "monthlyBudget"];
+        return {
+          complete: required.every((key) => answers[key] !== undefined && answers[key] !== ""),
+          skinTendency: skinMap[answers.postCleanse] || null,
+          sensitivityTendency: answers.reactivity === "often" ? "sensitive" : answers.reactivity === "sometimes" ? "possible" : answers.reactivity === "rarely" ? "low" : null,
+          primaryGoal: answers.primaryGoal || null,
+          dailyMinutes: Number(answers.dailyMinutes) || null,
+          hairMaintenance: answers.hairMaintenance || null,
+          monthlyBudget: answers.monthlyBudget || null
+        };
+      }
+
+      const KNOWLEDGE_BASE = Object.freeze({
+        sources: {
+          interEthnicReview: { title: "跨族群面部尺寸系统综述", url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC3074358/", type: "research" },
+          southernChineseCanons: { title: "华南成人新古典面部比例研究", url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC3532441/", type: "research" },
+          photoStandard: { title: "标准化面部摄影指南", url: "https://www.imi.org.uk/wp-content/uploads/2022/03/NG_Dental_Photo_2_0_S.pdf", type: "guideline" },
+          aadBasics: { title: "美国皮肤科学会基础护肤建议", url: "https://www.aad.org/public/everyday-care/skin-care-basics/care/skin-care-budget", type: "guideline" },
+          faceApi: { title: "Face-API.js 68 点说明", url: "https://github.com/justadudewhohacks/face-api.js/", type: "implementation" }
+        },
+        metrics: {
+          face_length_width: { formulaText: "估算发际线至下巴长度 ÷ 面宽", referenceType: "产品启发式解释带", sourceIds: ["interEthnicReview", "faceApi"] },
+          cheek_face_width: { formulaText: "颧区可见宽度 ÷ 面宽", referenceType: "照片内归一化几何", sourceIds: ["faceApi"] },
+          jaw_face_width: { formulaText: "下颌转折宽度 ÷ 面宽", referenceType: "照片内归一化几何", sourceIds: ["faceApi"] },
+          chin_face_width: { formulaText: "下巴两侧宽度 ÷ 面宽", referenceType: "照片内归一化几何", sourceIds: ["faceApi"] },
+          eye_spacing: { formulaText: "内眼角距离 ÷ 平均眼宽", referenceType: "古典五眼视觉参照", sourceIds: ["southernChineseCanons"] },
+          left_eye_side_space: { formulaText: "外眼角至可见脸缘距离 ÷ 平均眼宽", referenceType: "照片内五眼留白代理", sourceIds: ["southernChineseCanons", "faceApi"] },
+          right_eye_side_space: { formulaText: "外眼角至可见脸缘距离 ÷ 平均眼宽", referenceType: "照片内五眼留白代理", sourceIds: ["southernChineseCanons", "faceApi"] },
+          eye_aspect_left: { formulaText: "左眼垂直开合 ÷ 左眼宽", referenceType: "照片内归一化几何", sourceIds: ["faceApi"] },
+          eye_aspect_right: { formulaText: "右眼垂直开合 ÷ 右眼宽", referenceType: "照片内归一化几何", sourceIds: ["faceApi"] },
+          canthal_tilt: { formulaText: "双眼内外眼角连线的平均角度", referenceType: "造型方向参考", sourceIds: ["faceApi", "photoStandard"] },
+          brow_tilt: { formulaText: "左右眉首尾连线的平均角度", referenceType: "造型方向参考", sourceIds: ["faceApi"] },
+          brow_eye_distance: { formulaText: "眉眼中心距离 ÷ 平均眼宽", referenceType: "照片内归一化几何", sourceIds: ["faceApi"] },
+          eye_size_difference: { formulaText: "左右眼宽差 ÷ 平均眼宽", referenceType: "拍摄敏感指标", sourceIds: ["photoStandard"] },
+          nose_face_width: { formulaText: "鼻翼宽度 ÷ 面宽", referenceType: "照片内归一化几何", sourceIds: ["interEthnicReview", "faceApi"] },
+          nose_eye_spacing: { formulaText: "鼻翼宽度 ÷ 内眼角距离", referenceType: "照片内归一化几何", sourceIds: ["faceApi"] },
+          mouth_face_width: { formulaText: "嘴角宽度 ÷ 面宽", referenceType: "照片内归一化几何", sourceIds: ["interEthnicReview", "faceApi"] },
+          upper_lower_lip: { formulaText: "上唇可见高度 ÷ 下唇可见高度", referenceType: "表情敏感指标", sourceIds: ["faceApi"] },
+          mouth_tilt: { formulaText: "两侧嘴角连线角度", referenceType: "表情与拍摄敏感指标", sourceIds: ["photoStandard"] },
+          jaw_curve: { formulaText: "下颌折线路径 ÷ 两侧下颌直线距离", referenceType: "轮廓曲线代理", sourceIds: ["faceApi"] },
+          symmetry: { formulaText: "成对关键点镜像残差的平均值", referenceType: "拍摄敏感的二维代理", sourceIds: ["photoStandard", "faceApi"] },
+          court_upper: { formulaText: "估算发际线至鼻根 ÷ 三庭总长", referenceType: "低可信度估算", sourceIds: ["interEthnicReview", "southernChineseCanons"] },
+          court_middle: { formulaText: "鼻根至鼻底 ÷ 三庭总长", referenceType: "古典三庭视觉参照", sourceIds: ["interEthnicReview", "southernChineseCanons"] },
+          court_lower: { formulaText: "鼻底至下巴 ÷ 三庭总长", referenceType: "古典三庭视觉参照", sourceIds: ["interEthnicReview", "southernChineseCanons"] }
+        },
+        styleRules: {
+          eye_concentrated: { evidenceType: "styling", advice: "眉头减淡，眼尾可适度向外延伸 2–3 毫米", avoid: "不要同时加重眉头与眼头", sourceIds: [] },
+          eye_spacious: { evidenceType: "styling", advice: "眉头可自然前移，眼头增加少量亮度和线条", avoid: "避免继续拉长外眼线", sourceIds: [] },
+          eye_reference: { evidenceType: "styling", advice: "保持眼线与眉形的自然长度，先用明暗测试重心", limitation: "属于造型经验，不代表优劣", sourceIds: [] },
+          middle_long: { evidenceType: "styling", advice: "腮红横向轻扫，卧蚕适度提亮，眉毛避免过度高挑", avoid: "避免把鼻影拉得过长", sourceIds: [] },
+          face_long: { evidenceType: "styling", advice: "用刘海、脸侧层次或横向腮红分段纵向视觉", avoid: "避免头顶和纵向线条同时过度拉高", sourceIds: [] },
+          face_wide: { evidenceType: "styling", advice: "用锁骨、领口和脸侧纵向层次增加方向感", avoid: "避免两侧同时堆积厚重体积", sourceIds: [] },
+          canthal_up: { evidenceType: "styling", advice: "眼线沿原生走向轻收尾，唇颊保持柔和", limitation: "眼角方向会受表情和拍摄角度影响", sourceIds: [] },
+          canthal_down: { evidenceType: "styling", advice: "外眼角上方增加少量睫毛与阴影，不必强行上挑", limitation: "眼角方向会受表情和拍摄角度影响", sourceIds: [] },
+          brow_direction: { evidenceType: "styling", advice: "顺着眉骨方向整理眉峰，先减少而非新增线条", limitation: "眉毛可塑性高，建议逐步试验", sourceIds: [] },
+          nose_contour: { evidenceType: "styling", advice: "鼻影控制在眼窝至鼻翼的自然转折内，少量多次", avoid: "避免一条深色直线贯穿鼻梁", sourceIds: [] },
+          lip_emphasis: { evidenceType: "styling", advice: "在眼妆较轻时用唇色建立一个清晰重点", avoid: "避免眼唇同时使用最高对比", sourceIds: [] },
+          jaw_framing: { evidenceType: "styling", advice: "用脸侧碎发、耳饰和领口控制下半脸的线条密度", limitation: "轮廓建议取决于发量和实际侧面结构", sourceIds: [] },
+          feature_light: { evidenceType: "styling", advice: "使用低对比、边缘柔和的颜色，保留皮肤留白", avoid: "避免每个五官同时加深轮廓", sourceIds: [] },
+          feature_strong: { evidenceType: "styling", advice: "可承接更清晰的眉眼或唇部重点，但一次只选一个", avoid: "避免多个高对比重点互相竞争", sourceIds: [] }
+        },
+        careRules: {
+          base: { evidenceType: "care", morning: ["按出油感受选择清水或温和清洁", "保湿", "广谱 SPF 30+ 防晒"], evening: ["温和清洁", "保湿"], sourceIds: ["aadBasics"] },
+          sensitive: { evidenceType: "care", advice: "一次只新增一种产品，先做小范围试用；持续刺痛、红肿或皮疹时停止并咨询皮肤科医生", sourceIds: ["aadBasics"] }
+        }
+      });
+
+      const metric = (id, value, unit, extra = {}) => {
+        const knowledge = KNOWLEDGE_BASE.metrics[id] || {};
+        return {
+          id,
+          value: round(value, extra.digits ?? 2),
+          unit,
+          evidenceType: "geometry",
+          confidence: extra.confidence || "high",
+          ...knowledge,
+          ...extra
+        };
+      };
+
+      function computeRegionalSymmetry(points, faceWidth, qualityLevel) {
+        const midX = (points[27].x + points[8].x) / 2;
+        const regions = {
+          eyes: [[36, 45], [37, 44], [38, 43], [39, 42], [40, 47], [41, 46]],
+          brows: [[17, 26], [18, 25], [19, 24], [20, 23], [21, 22]],
+          mouth: [[48, 54], [49, 53], [50, 52], [59, 55], [58, 56]],
+          jaw: [[0, 16], [2, 14], [4, 12], [6, 10]]
+        };
+        const regionValues = {};
+        Object.entries(regions).forEach(([name, pairs]) => {
+          regionValues[name] = pairs.reduce((sum, [left, right]) => {
+            const horizontal = (points[left].x + points[right].x) - 2 * midX;
+            const vertical = points[left].y - points[right].y;
+            return sum + Math.hypot(horizontal, vertical) / faceWidth;
+          }, 0) / pairs.length;
+        });
+        const average = Object.values(regionValues).reduce((sum, value) => sum + value, 0) / Object.keys(regionValues).length;
+        return metric("symmetry", average * 100, "% residual", {
+          label: "二维镜像残差",
+          confidence: qualityLevel === "high" ? "medium" : "low",
+          note: "该数值容易受拍摄角度、表情与光线影响，只用于检查照片内左右差异。",
+          regions: Object.fromEntries(Object.entries(regionValues).map(([name, value]) => [name, round(value * 100, 1)]))
+        });
+      }
+
+      function computeMeasurements(points, qualityLevel = "high", confidenceCap = null) {
+        const faceWidth = distance(points[0], points[16]);
+        const visibleLength = Math.abs(points[8].y - points[27].y);
+        const estimatedFaceLength = visibleLength * 1.8;
+        const leftEyeWidth = distance(points[36], points[39]);
+        const rightEyeWidth = distance(points[42], points[45]);
+        const averageEyeWidth = (leftEyeWidth + rightEyeWidth) / 2;
+        const innerEyeDistance = distance(points[39], points[42]);
+        const noseWidth = distance(points[31], points[35]);
+        const mouthWidth = distance(points[48], points[54]);
+        const hairlineY = points[27].y - (points[33].y - points[27].y) * 1.2;
+        const rawCourts = [Math.abs(points[27].y - hairlineY), Math.abs(points[33].y - points[27].y), Math.abs(points[8].y - points[33].y)];
+        const courtTotal = rawCourts.reduce((sum, value) => sum + value, 0);
+        const roundedCourts = rawCourts.map((value) => round(safeDivide(value * 100, courtTotal, 0), 0));
+        roundedCourts[2] += 100 - roundedCourts.reduce((sum, value) => sum + value, 0);
+        const eyeSpacingValue = safeDivide(innerEyeDistance, averageEyeWidth, 0);
+        const leftEyeCenter = averagePoint(points, [36, 37, 38, 39, 40, 41]);
+        const rightEyeCenter = averagePoint(points, [42, 43, 44, 45, 46, 47]);
+        const leftBrowCenter = averagePoint(points, [17, 18, 19, 20, 21]);
+        const rightBrowCenter = averagePoint(points, [22, 23, 24, 25, 26]);
+        const jawPath = [0, 2, 4, 6, 8, 10, 12, 14, 16].reduce((sum, index, position, indexes) => position ? sum + distance(points[indexes[position - 1]], points[index]) : 0, 0);
+        const eyeAspectLeft = safeDivide((distance(points[37], points[41]) + distance(points[38], points[40])) / 2, leftEyeWidth, 0);
+        const eyeAspectRight = safeDivide((distance(points[43], points[47]) + distance(points[44], points[46])) / 2, rightEyeWidth, 0);
+        const canthalTilt = (angleDegrees(points[36], points[39]) + angleDegrees(points[42], points[45])) / 2;
+        const browTilt = (angleDegrees(points[17], points[21]) + angleDegrees(points[22], points[26])) / 2;
+        const result = {
+          faceWidth: round(faceWidth, 2),
+          faceLengthWidth: metric("face_length_width", safeDivide(estimatedFaceLength, faceWidth, 0), "ratio", { label: "估算脸长宽比", referenceType: "产品启发式解释带" }),
+          cheekFaceWidth: metric("cheek_face_width", safeDivide(distance(points[2], points[14]), faceWidth, 0), "ratio", { label: "颧区/面宽" }),
+          jawFaceWidth: metric("jaw_face_width", safeDivide(distance(points[4], points[12]), faceWidth, 0), "ratio", { label: "下颌/面宽" }),
+          chinFaceWidth: metric("chin_face_width", safeDivide(distance(points[6], points[10]), faceWidth, 0), "ratio", { label: "下巴/面宽" }),
+          eyeSpacing: metric("eye_spacing", eyeSpacingValue, "eye_width", { label: "眼距/眼宽", band: eyeSpacingValue < .85 ? "concentrated" : eyeSpacingValue <= 1.15 ? "reference" : "spacious", referenceType: "古典五眼视觉参照" }),
+          leftEyeSideSpace: metric("left_eye_side_space", safeDivide(Math.abs(points[36].x - points[0].x), averageEyeWidth, 0), "eye_width", { label: "左侧眼外留白", confidence: qualityLevel === "high" ? "medium" : "low" }),
+          rightEyeSideSpace: metric("right_eye_side_space", safeDivide(Math.abs(points[16].x - points[45].x), averageEyeWidth, 0), "eye_width", { label: "右侧眼外留白", confidence: qualityLevel === "high" ? "medium" : "low" }),
+          eyeAspectLeft: metric("eye_aspect_left", eyeAspectLeft, "ratio", { label: "左眼开合" }),
+          eyeAspectRight: metric("eye_aspect_right", eyeAspectRight, "ratio", { label: "右眼开合" }),
+          canthalTilt: metric("canthal_tilt", canthalTilt, "°", { label: "眼角方向", confidence: qualityLevel }),
+          browTilt: metric("brow_tilt", browTilt, "°", { label: "眉毛方向", confidence: qualityLevel }),
+          browEyeDistance: metric("brow_eye_distance", safeDivide((distance(leftBrowCenter, leftEyeCenter) + distance(rightBrowCenter, rightEyeCenter)) / 2, averageEyeWidth, 0), "eye_width", { label: "眉眼距离" }),
+          eyeSizeDifference: metric("eye_size_difference", safeDivide(Math.abs(leftEyeWidth - rightEyeWidth), averageEyeWidth, 0), "ratio", { label: "左右眼宽差", confidence: qualityLevel === "high" ? "medium" : "low" }),
+          noseFaceWidth: metric("nose_face_width", safeDivide(noseWidth, faceWidth, 0), "ratio", { label: "鼻翼/面宽" }),
+          noseEyeSpacing: metric("nose_eye_spacing", safeDivide(noseWidth, innerEyeDistance, 0), "ratio", { label: "鼻翼/内眼距" }),
+          mouthFaceWidth: metric("mouth_face_width", safeDivide(mouthWidth, faceWidth, 0), "ratio", { label: "嘴宽/面宽" }),
+          lipRatio: metric("upper_lower_lip", safeDivide(distance(points[51], points[62]), distance(points[66], points[57]), 0), "ratio", { label: "上下唇高度代理", confidence: "low" }),
+          mouthTilt: metric("mouth_tilt", angleDegrees(points[48], points[54]), "°", { label: "嘴角连线", confidence: "low" }),
+          jawCurve: metric("jaw_curve", safeDivide(jawPath, distance(points[0], points[16]), 0), "ratio", { label: "下颌曲线代理" }),
+          visualWeight: {
+            eyes: round(safeDivide(averageEyeWidth * 2, faceWidth, 0), 2),
+            brows: round(safeDivide((distance(points[17], points[21]) + distance(points[22], points[26])) / 2, faceWidth, 0), 2),
+            nose: round(safeDivide(noseWidth, faceWidth, 0), 2),
+            lips: round(safeDivide(mouthWidth, faceWidth, 0), 2)
+          },
+          courts: ["upper", "middle", "lower"].map((id, index) => metric(`court_${id}`, roundedCourts[index], "%", { label: ["上庭", "中庭", "下庭"][index], confidence: index === 0 ? "low" : qualityLevel, referenceType: index === 0 ? "低可信度估算" : "古典三庭视觉参照" })),
+          symmetry: computeRegionalSymmetry(points, faceWidth, qualityLevel)
+        };
+        return confidenceCap ? capMeasurementConfidence(result, confidenceCap) : result;
+      }
+
+      function rankFaceShapes(measurements) {
+        const ratio = measurements.faceLengthWidth.value;
+        const jaw = measurements.jawFaceWidth.value;
+        const chin = measurements.chinFaceWidth.value;
+        const cheek = measurements.cheekFaceWidth.value;
+        const curve = measurements.jawCurve.value;
+        const scores = {
+          "长脸": Math.max(0, (ratio - 1.08) * 5),
+          "圆脸": Math.max(0, 1.15 - ratio) + Math.max(0, curve - 1.18),
+          "方脸": Math.max(0, jaw - .68) * 4 + Math.max(0, 1.22 - curve),
+          "菱形脸": Math.max(0, cheek - jaw) * 5 + Math.max(0, .48 - chin),
+          "心形脸": Math.max(0, cheek - jaw) * 3 + Math.max(0, .44 - chin),
+          "椭圆脸": Math.max(0, .18 - Math.abs(ratio - 1.05)) + Math.max(0, .12 - Math.abs(cheek - jaw))
+        };
+        return Object.entries(scores).sort((a, b) => b[1] - a[1]);
+      }
+
+      function deriveReadableProfile(measurements, quality = { level: "high" }) {
+        const ranked = rankFaceShapes(measurements);
+        const primary = ranked[0][0];
+        const secondary = ranked[1][1] >= ranked[0][1] * .72 ? ranked[1][0] : null;
+        const courtValues = measurements.courts.map((item) => item.value);
+        const courtLabels = measurements.courts.map((item) => item.value > 36 ? "相对突出" : item.value < 30 ? "相对收敛" : "接近三等分参照");
+        const eyeTerm = measurements.eyeSpacing.band === "spacious" ? "眼距相对舒展" : measurements.eyeSpacing.band === "concentrated" ? "眼距相对集中" : "接近一眼宽参照";
+        const weightScore = (measurements.visualWeight.eyes + measurements.visualWeight.brows + measurements.visualWeight.nose + measurements.visualWeight.lips) / 4;
+        const featureWeight = weightScore < .2 ? "五官量感偏轻" : weightScore > .28 ? "五官量感偏强" : "五官量感适中";
+        const lineTendency = measurements.jawCurve.value > 1.22 ? "曲线感较明显" : measurements.jawCurve.value < 1.14 ? "直线感较明显" : "直曲混合";
+        const shapeExplanations = {
+          "长脸": "纵向比例相对突出，脸侧线条更容易形成向下延伸感。",
+          "圆脸": "长宽较接近，下颌路径呈现较明显的柔和曲线。",
+          "方脸": "下颌宽度存在感较明显，轮廓方向相对清晰。",
+          "菱形脸": "颧区相对突出，下颌与下巴的横向宽度较收。",
+          "心形脸": "颧区相对舒展，下巴横向宽度较收。",
+          "椭圆脸": "长宽处于中间带，颧区与下颌宽度过渡较连续。"
+        };
+        const strengths = [
+          measurements.eyeSpacing.band === "spacious" ? "眼部留白舒展，适合清晰但不过度外扩的眉眼重点。" : "眉眼聚焦感清楚，适合把视觉重点放在眼尾与睫毛。",
+          lineTendency.includes("曲线") ? "轮廓过渡柔和，容易承接自然层次和柔和边缘。" : "轮廓方向清晰，容易承接利落线条和明确配饰。"
+        ].slice(0, 2);
+        const attention = [measurements.eyeSpacing.band === "spacious" ? "眉头和眼尾若同时外扩，眼部横向留白会进一步增加。" : "眉头若同时加深并向内延伸，眉眼重心会更集中。"];
+        return {
+          faceShape: { primary, secondary, explanation: shapeExplanations[primary], confidence: quality.level === "low" || quality.overridden ? "low" : "medium", metricIds: [measurements.faceLengthWidth.id, measurements.cheekFaceWidth.id, measurements.jawFaceWidth.id, measurements.chinFaceWidth.id, measurements.jawCurve.id] },
+          threeCourts: { values: courtValues, labels: courtLabels, summary: `上庭 ${courtValues[0]}%、中庭 ${courtValues[1]}%、下庭 ${courtValues[2]}%；上庭为估算，三庭仅作视觉参照。`, metricIds: measurements.courts.map((item) => item.id), confidence: "low" },
+          fiveEyes: { term: eyeTerm, summary: `眼距约 ${measurements.eyeSpacing.value} 个眼宽，左侧可见留白约 ${measurements.leftEyeSideSpace.value} 个眼宽，右侧约 ${measurements.rightEyeSideSpace.value} 个眼宽；五眼为古典视觉参照，不代表审美等级。`, metricIds: [measurements.eyeSpacing.id, measurements.leftEyeSideSpace.id, measurements.rightEyeSideSpace.id], confidence: quality.level === "high" ? "medium" : "low" },
+          featureWeight: { term: featureWeight, metricIds: [measurements.eyeAspectLeft.id, measurements.browEyeDistance.id, measurements.noseFaceWidth.id, measurements.mouthFaceWidth.id], confidence: quality.level === "high" ? "medium" : "low" },
+          lineTendency: { term: lineTendency, metricIds: [measurements.jawCurve.id], confidence: measurements.jawCurve.confidence },
+          strengths,
+          attention,
+          memorySentence: `${secondary ? `${primary}偏${secondary}` : `${primary}倾向`}，${eyeTerm}，${courtLabels[1] === "接近三等分参照" ? "中庭接近三等分参照" : `中庭${courtLabels[1]}`}。`
+        };
+      }
+
+      const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+      const finiteValue = (value, fallback = 0) => Number.isFinite(value) ? value : fallback;
+      const scaleIdentityValue = (value, min, max) => round(clamp((finiteValue(value) - min) / (max - min), 0, 1) * 100, 0);
+
+      function buildIdentityPresentation(measurements, readableProfile, generatedAt = new Date()) {
+        const requiredMetrics = ["faceLengthWidth", "cheekFaceWidth", "jawFaceWidth", "symmetry", "eyeSpacing"];
+        requiredMetrics.forEach((id) => {
+          if (!Number.isFinite(measurements?.[id]?.value)) throw new TypeError(`Identity presentation requires finite measurement: ${id}.value`);
+        });
+        ["eyes", "brows", "nose", "lips"].forEach((id) => {
+          if (!Number.isFinite(measurements?.visualWeight?.[id])) throw new TypeError(`Identity presentation requires finite measurement: visualWeight.${id}`);
+        });
+        if (!Array.isArray(measurements?.courts) || measurements.courts.length < 3) throw new TypeError("Identity presentation requires three finite court measurements");
+        measurements.courts.slice(0, 3).forEach((item, index) => {
+          if (!Number.isFinite(item?.value)) throw new TypeError(`Identity presentation requires finite measurement: courts[${index}].value`);
+        });
+        const courts = measurements.courts.slice(0, 3).map((item) => item.value);
+        const courtDrift = Math.max(...courts.map((value) => Math.abs(value - 33.33)));
+        const visualWeight = ["eyes", "brows", "nose", "lips"].reduce((sum, id) => sum + measurements.visualWeight[id], 0) / 4;
+        const metricValue = (id) => measurements[id].value;
+        const axes = [
+          { id: "lengthWidth", label: "轮廓纵横差异", value: scaleIdentityValue(Math.abs(metricValue("faceLengthWidth") - 1.04), 0, .24) },
+          { id: "cheekJaw", label: "颧颌宽度差异", value: scaleIdentityValue(Math.abs(metricValue("cheekFaceWidth") - metricValue("jawFaceWidth")), 0, .22) },
+          { id: "features", label: "五官量感差异", value: scaleIdentityValue(Math.abs(visualWeight - .24), 0, .10) },
+          { id: "courts", label: "三庭分布差异", value: scaleIdentityValue(courtDrift, 0, 10) },
+          { id: "mirror", label: "左右对照差异", value: scaleIdentityValue(metricValue("symmetry"), 0, 8) },
+          { id: "eyeSpace", label: "眼距参照差异", value: scaleIdentityValue(Math.abs(metricValue("eyeSpacing") - 1), 0, .45) }
+        ];
+        const pronounced = axes.filter((axis) => axis.value >= 68).length;
+        const type = pronounced >= 3 ? "UNIQUE" : pronounced >= 1 ? "SIGNATURE" : "CLASSIC";
+        const parsedDate = generatedAt instanceof Date ? generatedAt.getTime() : new Date(generatedAt).getTime();
+        const minuteIndex = Number.isFinite(parsedDate) ? Math.abs(Math.trunc(parsedDate / 60000)) % 10000 : 0;
+        const serial = `NO.${String(Math.trunc(minuteIndex)).padStart(4, "0")}`;
+        const line = readableProfile?.lineTendency?.term || "直曲混合";
+        const style = line.includes("直线") ? "冷感叙事型" : line.includes("曲线") ? "柔和氛围型" : "清晰平衡型";
+        return {
+          serial,
+          type,
+          title: `${readableProfile?.faceShape?.primary || "轮廓"} · ${style}`,
+          poem: line.includes("直线") ? "你的轮廓方向清晰，像一帧被认真收藏的旧电影。" : "你的线条留有柔和余韵，适合让细节慢慢被看见。",
+          portraitTags: [readableProfile?.threeCourts?.labels?.[1], readableProfile?.fiveEyes?.term, readableProfile?.featureWeight?.term].filter(Boolean).slice(0, 3),
+          axes
+        };
+      }
+
+      function conclusion({ title, value, explanation, action, evidenceType, metricIds = [], confidence = "high" }) {
+        if (!evidenceType || (evidenceType !== "care" && metricIds.length === 0)) throw new Error("Untraceable conclusion");
+        return { title, value, explanation, action, evidenceType, metricIds, confidence };
+      }
+
+      function composeReport({ quality, measurements, profile }) {
+        const readableProfile = deriveReadableProfile(measurements, quality);
+        const ratio = measurements.faceLengthWidth;
+        const eye = measurements.eyeSpacing;
+        const middle = measurements.courts[1];
+        const ratioBand = ratio.value > 1.12 ? "纵向相对突出" : ratio.value < .95 ? "横向相对突出" : "长宽接近中间带";
+        const eyeLabel = eye.band === "spacious" ? "眼距相对舒展" : eye.band === "concentrated" ? "眼距相对集中" : "接近一眼宽参照";
+        const middleLabel = middle.value > 36 ? "中庭占比相对高" : middle.value < 30 ? "中庭占比相对低" : "中庭接近三等分参照";
+        const traitMap = {
+          face: conclusion({ title: "整体轮廓", value: `${ratio.value.toFixed(2)} : 1`, explanation: `${ratioBand}。脸长包含发际线估算，因此置信度低于面宽。`, action: "用发型和领口做一次横向/纵向线条对照。", evidenceType: "geometry", metricIds: [ratio.id], confidence: ratio.confidence }),
+          eye: conclusion({ title: "眼部间距", value: `${eye.value.toFixed(2)} 个眼宽`, explanation: `${eyeLabel}；一眼宽只作为古典视觉参照，不是理想标准。`, action: eye.band === "spacious" ? "眉头可自然前移，先试不外拉的眼线。" : eye.band === "concentrated" ? "眉头减淡，眼尾可轻微外延。" : "保持自然长度，比较柔和与清晰两种边缘。", evidenceType: "geometry", metricIds: [eye.id], confidence: eye.confidence }),
+          middle: conclusion({ title: "三庭视觉参照", value: `${measurements.courts.map((item) => item.value).join(" / ")}%`, explanation: `${middleLabel}；上庭来自发际线估算，整组仅用于构图参考。`, action: "在同一光线下比较不同眉形与腮红位置。", evidenceType: "geometry", metricIds: measurements.courts.map((item) => item.id), confidence: "low" })
+        };
+        const priority = profile?.primaryGoal === "makeup" ? ["eye", "middle", "face"] : profile?.primaryGoal === "hair" ? ["face", "middle", "eye"] : ["face", "eye", "middle"];
+        const coreTraits = priority.map((id) => traitMap[id]);
+        const eyeRuleId = eye.band === "spacious" ? "eye_spacious" : eye.band === "concentrated" ? "eye_concentrated" : "eye_reference";
+        const eyeRule = KNOWLEDGE_BASE.styleRules[eyeRuleId];
+        const faceRule = KNOWLEDGE_BASE.styleRules[ratio.value > 1.06 ? "face_long" : "face_wide"];
+        const jawRule = KNOWLEDGE_BASE.styleRules.jaw_framing;
+        const timeNote = profile?.dailyMinutes <= 5 ? "控制为一步变化，约 2 分钟完成。" : "可分别拍照比较两种强度。";
+        const hairNote = profile?.hairMaintenance === "minimal" ? "优先选择自然落位、无需每日夹卷的脸侧层次。" : faceRule.advice;
+        const styleAdvice = [
+          conclusion({ title: "妆容", value: eyeLabel, explanation: `${eyeRule.advice}。${timeNote}`, action: eyeRule.avoid || eyeRule.limitation, evidenceType: "styling", metricIds: [eye.id], confidence: "medium" }),
+          conclusion({ title: "发型", value: ratioBand, explanation: hairNote, action: faceRule.avoid || faceRule.limitation, evidenceType: "styling", metricIds: [ratio.id], confidence: "medium" }),
+          conclusion({ title: "穿搭与配饰", value: `下颌曲线 ${measurements.jawCurve.value.toFixed(2)}`, explanation: jawRule.advice, action: jawRule.limitation, evidenceType: "styling", metricIds: [measurements.jawCurve.id], confidence: "medium" })
+        ];
+        const dataGroups = [
+          { id: "overall", title: "整体比例", items: [measurements.faceLengthWidth, measurements.cheekFaceWidth, measurements.jawFaceWidth, measurements.chinFaceWidth, ...measurements.courts] },
+          { id: "eye_brow", title: "眼部与眉部", items: [measurements.eyeSpacing, measurements.leftEyeSideSpace, measurements.rightEyeSideSpace, measurements.eyeAspectLeft, measurements.eyeAspectRight, measurements.canthalTilt, measurements.browTilt, measurements.browEyeDistance, measurements.eyeSizeDifference] },
+          { id: "nose_lip", title: "鼻部与唇部", items: [measurements.noseFaceWidth, measurements.noseEyeSpacing, measurements.mouthFaceWidth, measurements.lipRatio, measurements.mouthTilt] },
+          { id: "jaw_symmetry", title: "下颌与左右差异", items: [measurements.jawCurve, measurements.symmetry] }
+        ];
+        const skinLabels = { dry: "偏干肤感", normal: "较舒适肤感", combination: "混合肤感", oily: "偏油肤感" };
+        const sensitivityLabels = { sensitive: "较易反应", possible: "偶有反应", low: "较少反应" };
+        const carePlan = profile?.complete ? {
+          tendency: `${skinLabels[profile.skinTendency]} · ${sensitivityLabels[profile.sensitivityTendency]}`,
+          morning: KNOWLEDGE_BASE.careRules.base.morning,
+          evening: KNOWLEDGE_BASE.careRules.base.evening,
+          boundary: profile.sensitivityTendency === "sensitive" || profile.sensitivityTendency === "possible" ? KNOWLEDGE_BASE.careRules.sensitive.advice : "若持续出现刺痛、红肿或皮疹，停止新增产品并咨询皮肤科医生。",
+          evidenceType: "care",
+          sourceIds: ["aadBasics"]
+        } : null;
+        const goalLabels = { skin: "稳定基础护理", makeup: "调整一个妆容变量", hair: "调整一个发型变量", overall: "调整一个造型变量" };
+        const styleAction = profile?.primaryGoal === "hair" ? hairNote : eyeRule.advice;
+        const styleKeyword = profile?.primaryGoal === "hair" ? `${readableProfile.faceShape.primary} 低维护 发型 对照` : `${readableProfile.fiveEyes.term} 眉形 眼线 对照`;
+        const actionCards = profile?.complete ? [
+          {
+            id: "style-focus",
+            title: goalLabels[profile.primaryGoal] || goalLabels.overall,
+            reason: `与你的“${readableProfile.faceShape.primary}倾向、${readableProfile.fiveEyes.term}”观察直接相关，先只比较一个变量。`,
+            action: styleAction,
+            duration: profile.dailyMinutes <= 5 ? "每天约 2–5 分钟" : "每次约 10–15 分钟",
+            cost: profile.monthlyBudget === "basic" ? "优先使用现有物品" : "无需立即购买新品",
+            successSignal: "你能清楚说出哪一种更协调、更容易执行。",
+            stopRule: "如果连续三次都觉得步骤负担大，就降低强度或换卡。",
+            searchKeyword: styleKeyword
+          },
+          {
+            id: "foundation",
+            title: "先稳定基础状态",
+            reason: `你的自评为“${skinLabels[profile.skinTendency]} · ${sensitivityLabels[profile.sensitivityTendency]}”，先减少变量更容易观察。`,
+            action: "连续 7 天只稳定清洁、保湿和白天广谱 SPF 30+ 防晒，不同时新增多件产品。",
+            duration: "早晚各约 3 分钟",
+            cost: "不要求新增预算",
+            successSignal: "能够稳定执行，并知道哪一步让自己更舒适。",
+            stopRule: "出现持续刺痛、红肿或皮疹时停止新增产品并咨询皮肤科医生。",
+            searchKeyword: "科学护肤 基础三件套 敏感肌 精简"
+          },
+          {
+            id: "photo-review",
+            title: "做一次同条件复盘",
+            reason: "单次照片容易受角度和光线影响，同条件记录比追求某个数字更可靠。",
+            action: "今天保存一张基线照，第 7 天和第 30 天在相同距离、光线和表情下复拍，只比较舒适度与执行难度。",
+            duration: "每次约 3 分钟",
+            cost: "零成本",
+            successSignal: "三张照片条件接近，能看出所选动作是否值得保留。",
+            stopRule: "如果拍摄条件差异明显，不做前后结论，只重新建立基线。",
+            searchKeyword: "妆前妆后 同光线 对比记录 方法"
+          }
+        ] : [{
+          id: "geometry-compare",
+          title: "先做一次几何对照",
+          reason: "问卷信息不完整，先从照片内可观察的造型变量开始。",
+          action: eyeRule.advice,
+          duration: "约 5 分钟",
+          cost: "零成本",
+          successSignal: "能分辨两种方案带来的视觉差异。",
+          stopRule: "如果照片角度不同，不比较结果。",
+          searchKeyword: "眉形 眼线 同角度 对照"
+        }];
+        const sourceIds = new Set(["southernChineseCanons", "interEthnicReview", "faceApi", "photoStandard"]);
+        if (carePlan) sourceIds.add("aadBasics");
+        const sources = Array.from(sourceIds, (id) => ({ id, ...KNOWLEDGE_BASE.sources[id] }));
+        return {
+          quality,
+          readableProfile,
+          coreTraits,
+          dataGroups,
+          styleAdvice,
+          carePlan,
+          actionCards,
+          sources,
+          limitations: [
+            "结果依赖单张照片的角度、镜头距离、光线和表情。",
+            "上庭使用关键点外推估算，置信度较低。",
+            "脸型倾向与术语阈值属于产品启发式解释带，不是普适分类标准。",
+            "本工具只做二维几何与通用护理整理，不替代专业诊疗或个体审美判断。"
+          ]
+        };
+      }
+
+      window.FaceStyleCore = { distance, safeDivide, averagePoint, angleDegrees, round, evaluatePhotoQuality, overridePhotoQuality, capMeasurementConfidence, inferQuestionnaire, computeMeasurements, deriveReadableProfile, buildIdentityPresentation, composeReport, CHALLENGE_TEMPLATES, getChallengeTemplates, validateTutorialUrl, dateToUtcDayOrdinal, createChallenge, getChallengeDay, getChallengeOccurrenceDays, isChallengeOccurrenceDay, getChallengeDateForDay, getNextChallengeOccurrenceDay, getChallengeTutorialForDay, getChallengeProgress, getChallengeFinishDate, getChallengePosterFinishDate, isChallengeCompletionEligible, createChallengeHistoryEntry, normalizeChallengeState, addPendingPhotoDeletion, removePendingPhotoDeletion, normalizeChallengePosterPhotos, sanitizeChallengePosterFilename, toggleChallengeCheckIn, buildChallengeCalendarText, maySaveChallengePhoto, getChallengePhotoFailureScope, KNOWLEDGE_BASE };
+    })();
+  </script>
 
   <script>
     /* Face-API.js 模型地址：仅加载轻量检测器与 68 点关键点模型。 */
     const MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights";
+    const CHALLENGE_STORAGE_KEY = "faceStyleChallengeStateV2";
     const $ = (id) => document.getElementById(id);
-    const state = { modelsReady: false, photo: "", report: null };
+    const state = { modelsReady: false, photo: "", detection: null, quality: null, measurements: null, questionnaire: {}, profile: null, report: null, questionIndex: 0, qualityFailureCount: 0, qualityOverride: false, challengeState: null, challengeReturnView: "upload", challengeReturnFocus: null, pendingTutorialUrl: "", pendingTemplateId: "", pendingCustomTaskLabel: "", recommendedTemplateId: "", photoStorageAvailable: null, challengePhotoUrls: { start: "", end: "" }, challengePhotoRenderToken: 0 };
 
     const views = {
       upload: $("uploadView"),
       analysis: $("analysisView"),
-      report: $("reportView")
+      questionnaire: $("questionnaireView"),
+      report: $("reportView"),
+      challenge: $("challengeView")
     };
+    const modalStack = [];
+    const modalIsolation = new Map();
+
+    function isVisibleEnabledControl(element) {
+      return Boolean(element && !element.disabled && !element.closest(".hidden,[inert]") && element.getClientRects().length);
+    }
+
+    function getModalFocusable(sheet) {
+      return [...sheet.querySelectorAll('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(isVisibleEnabledControl);
+    }
+
+    function refreshModalIsolation() {
+      modalIsolation.forEach((wasInert, element) => { element.inert = wasInert; });
+      modalIsolation.clear();
+      const top = modalStack[modalStack.length - 1];
+      if (!top) return;
+      const main = top.sheet.parentElement;
+      const background = [...main.children].filter((element) => element !== top.sheet).concat([...document.body.children].filter((element) => element !== main));
+      background.forEach((element) => {
+        modalIsolation.set(element, element.inert);
+        element.inert = true;
+      });
+    }
+
+    function openModalSheet(sheet, trigger, initialFocus, onEscape) {
+      if (!sheet || modalStack.some((entry) => entry.sheet === sheet)) return;
+      const visibleTrigger = isVisibleEnabledControl(trigger) ? trigger : null;
+      sheet.classList.remove("hidden");
+      modalStack.push({ sheet, trigger: visibleTrigger, onEscape });
+      refreshModalIsolation();
+      const target = isVisibleEnabledControl(initialFocus) ? initialFocus : getModalFocusable(sheet)[0];
+      target?.focus();
+    }
+
+    function closeModalSheet(sheet, returnFocus = true) {
+      const index = modalStack.findIndex((entry) => entry.sheet === sheet);
+      if (index < 0) return;
+      const [{ trigger }] = modalStack.splice(index, 1);
+      sheet.classList.add("hidden");
+      refreshModalIsolation();
+      if (returnFocus && isVisibleEnabledControl(trigger)) requestAnimationFrame(() => trigger.focus());
+    }
+
+    function handleModalKeydown(event) {
+      const top = modalStack[modalStack.length - 1];
+      if (!top) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        top.onEscape?.();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const controls = getModalFocusable(top.sheet);
+      if (!controls.length) {
+        event.preventDefault();
+        return;
+      }
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !top.sheet.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !top.sheet.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
 
     window.addEventListener("load", init);
 
     function init() {
+      state.challengeState = loadChallengeState();
+      renderHomeChallengeEntry();
       bindEvents();
+      configureChallengePhotoStorage();
+      if (new URLSearchParams(window.location.search).get("view") === "challenge") openChallengeCenter("calendar");
       loadModels();
     }
 
     function bindEvents() {
       $("fileInput").addEventListener("change", (event) => handleFile(event.target.files[0]));
+      $("startPhotoInput").addEventListener("change", (event) => handleChallengePhotoCapture("start", event.target.files[0]));
+      $("endPhotoInput").addEventListener("change", (event) => handleChallengePhotoCapture("end", event.target.files[0]));
       $("retryButton").addEventListener("click", resetApp);
-      $("saveButton").addEventListener("click", saveReport);
+      $("saveButton").addEventListener("click", saveIdentityCard);
+      $("shareIdentityButton").addEventListener("click", shareIdentityCard);
+      $("homeChallengeButton").addEventListener("click", () => openChallengeCenter("home"));
+      $("closeChallengeButton").addEventListener("click", closeChallengeCenter);
+      $("newChallengeButton").addEventListener("click", openTemplateSheet);
+      $("downloadPosterButton").addEventListener("click", downloadChallengePoster);
+      $("completeChallengeButton").addEventListener("click", completeActiveChallenge);
+      $("closeTemplateSheetButton").addEventListener("click", closeTemplateSheet);
+      $("customChallengeButton").addEventListener("click", showCustomChallengeForm);
+      $("customChallengeForm").addEventListener("submit", submitCustomChallenge);
+      $("templateTutorialForm").addEventListener("submit", submitTemplateTutorials);
+      $("challengeTemplateCards").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-template-id]");
+        if (button) selectChallengeTemplate(button.dataset.templateId);
+      });
+      $("todayChallenge").addEventListener("click", (event) => {
+        if (event.target.closest("#checkInButton")) completeToday();
+        else if (event.target.closest("#undoCheckInButton")) undoToday();
+        else if (event.target.closest("#openTutorialButton")) openTutorial(event.target.closest("#openTutorialButton").dataset.tutorialUrl);
+        else if (event.target.closest("#copyTutorialButton")) copyTutorial(event.target.closest("#copyTutorialButton").dataset.tutorialUrl);
+        else if (event.target.closest("[data-yesterday-checkin]")) toggleChallengeCheckInFor(event.target.closest("[data-yesterday-checkin]").dataset.yesterdayCheckin, "undoCheckInButton");
+        else if (event.target.closest("#addChallengeCalendarButton")) downloadChallengeCalendar();
+      });
+      $("challengeTemplateSheet").addEventListener("click", (event) => {
+        if (event.target === $("challengeTemplateSheet")) closeTemplateSheet();
+      });
+      $("deleteChallengeButton").addEventListener("click", openDeleteChallengeConfirmation);
+      $("confirmDeleteChallengeButton").addEventListener("click", deleteActiveChallenge);
+      $("cancelDeleteChallengeButton").addEventListener("click", closeDeleteChallengeConfirmation);
+      $("deleteChallengeSheet").addEventListener("click", (event) => {
+        if (event.target === $("deleteChallengeSheet")) closeDeleteChallengeConfirmation();
+      });
+      $("confirmTutorialButton").addEventListener("click", confirmTutorialOpen);
+      $("cancelTutorialButton").addEventListener("click", closeTutorialConfirmation);
+      $("tutorialConfirmSheet").addEventListener("click", (event) => {
+        if (event.target === $("tutorialConfirmSheet")) closeTutorialConfirmation();
+      });
+      document.addEventListener("keydown", handleModalKeydown);
       $("modelRetry").addEventListener("click", loadModels);
+      $("retakeButton").addEventListener("click", () => {
+        $("fileInput").value = "";
+        $("qualityCard").classList.add("hidden");
+        $("fileInput").click();
+      });
+      $("useAnywayButton").addEventListener("click", continueWithCurrentPhoto);
+      $("questionnaireForm").addEventListener("change", (event) => {
+        if (event.target.matches("input[type=radio]")) {
+          state.questionnaire[event.target.name] = event.target.value;
+          $("questionMessage").classList.add("hidden");
+        }
+      });
+      $("questionBack").addEventListener("click", () => moveQuestion(-1));
+      $("questionNext").addEventListener("click", () => moveQuestion(1));
+      $("reportChallengeCards").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-report-challenge-id]");
+        if (button) openReportChallengeSetup(button.dataset.reportChallengeId, button);
+      });
+      $("reportActiveChallenge").addEventListener("click", (event) => {
+        if (event.target.closest("[data-open-active-challenge]")) openChallengeCenter("report");
+      });
 
       const dropZone = $("dropZone");
       ["dragenter", "dragover"].forEach((name) => dropZone.addEventListener(name, (event) => {
@@ -312,6 +1671,7 @@
       $("modelProgress").textContent = "0 / 2";
       $("chooseLabel").textContent = "模型加载中";
       hideMessage();
+      $("qualityCard").classList.add("hidden");
 
       try {
         if (!window.faceapi) throw new Error("Face-API.js 未能加载");
@@ -391,6 +1751,120 @@
       });
     }
 
+    function openChallengePhotoDb() {
+      return new Promise((resolve, reject) => {
+        if (!window.indexedDB) {
+          reject(new Error("当前浏览器不支持本地照片存储"));
+          return;
+        }
+        const request = indexedDB.open("faceStyleChallengePhotos", 1);
+        request.onupgradeneeded = () => {
+          const database = request.result;
+          const store = database.objectStoreNames.contains("photos")
+            ? request.transaction.objectStore("photos")
+            : database.createObjectStore("photos", { keyPath: "key" });
+          if (!store.indexNames.contains("challengeId")) store.createIndex("challengeId", "challengeId", { unique: false });
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error("本地照片存储不可用"));
+        request.onblocked = () => reject(new Error("本地照片存储暂时不可用"));
+      });
+    }
+
+    function saveChallengePhoto(challengeId, slot, blob) {
+      return openChallengePhotoDb().then((database) => new Promise((resolve, reject) => {
+        const transaction = database.transaction("photos", "readwrite");
+        transaction.objectStore("photos").put({ key: `${challengeId}:${slot}`, challengeId, slot, blob, createdAt: new Date().toISOString() });
+        transaction.oncomplete = () => { database.close(); resolve(); };
+        transaction.onerror = () => { database.close(); reject(transaction.error || new Error("照片保存失败")); };
+        transaction.onabort = () => { database.close(); reject(transaction.error || new Error("照片保存失败")); };
+      }));
+    }
+
+    function getChallengePhotos(challengeId) {
+      return openChallengePhotoDb().then((database) => new Promise((resolve, reject) => {
+        const transaction = database.transaction("photos", "readonly");
+        const request = transaction.objectStore("photos").index("challengeId").getAll(challengeId);
+        request.onsuccess = () => resolve(request.result.sort((a, b) => String(a.slot).localeCompare(String(b.slot))));
+        request.onerror = () => reject(request.error || new Error("照片读取失败"));
+        transaction.oncomplete = () => database.close();
+        transaction.onabort = () => { database.close(); reject(transaction.error || new Error("照片读取失败")); };
+      }));
+    }
+
+    function deleteChallengePhotos(challengeId) {
+      return openChallengePhotoDb().then((database) => new Promise((resolve, reject) => {
+        const transaction = database.transaction("photos", "readwrite");
+        const index = transaction.objectStore("photos").index("challengeId");
+        const request = index.openCursor(challengeId);
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (cursor) {
+            cursor.delete();
+            cursor.continue();
+          }
+        };
+        request.onerror = () => reject(request.error || new Error("照片删除失败"));
+        transaction.oncomplete = () => { database.close(); resolve(); };
+        transaction.onerror = () => { database.close(); reject(transaction.error || new Error("照片删除失败")); };
+        transaction.onabort = () => { database.close(); reject(transaction.error || new Error("照片删除失败")); };
+      }));
+    }
+
+    async function compressChallengePhoto(file) {
+      if (!file || !file.type.startsWith("image/") || file.type === "image/svg+xml") throw new Error("请选择 JPG、PNG、WebP 等支持的图片文件。");
+      if (file.size > 20 * 1024 * 1024) throw new Error("照片文件过大，请选择 20MB 以内的图片。");
+
+      const drawToBlob = (source, width, height) => new Promise((resolve, reject) => {
+        const maxSide = 1280;
+        const scale = Math.min(1, maxSide / Math.max(width, height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(width * scale));
+        canvas.height = Math.max(1, Math.round(height * scale));
+        const context = canvas.getContext("2d", { alpha: false });
+        if (!context) {
+          reject(new Error("当前浏览器无法处理照片"));
+          return;
+        }
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(source, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("照片压缩失败，请换一张重试。")), "image/jpeg", 0.82);
+      });
+
+      if (typeof createImageBitmap === "function") {
+        try {
+          const bitmap = await createImageBitmap(file);
+          try {
+            return await drawToBlob(bitmap, bitmap.width, bitmap.height);
+          } finally {
+            bitmap.close?.();
+          }
+        } catch (_) {
+          // Some mobile browsers expose createImageBitmap but cannot decode every camera format.
+        }
+      }
+
+      return new Promise((resolve, reject) => {
+        const image = new Image();
+        const objectUrl = URL.createObjectURL(file);
+        image.onload = async () => {
+          try {
+            resolve(await drawToBlob(image, image.naturalWidth, image.naturalHeight));
+          } catch (error) {
+            reject(error);
+          } finally {
+            URL.revokeObjectURL(objectUrl);
+          }
+        };
+        image.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error("无法读取这张照片，请换一张 JPG、PNG 或 WebP 图片重试。"));
+        };
+        image.src = objectUrl;
+      });
+    }
+
     async function analyzeImage(dataUrl) {
       const image = await faceapi.fetchImage(dataUrl);
       setAnalysisStep(1);
@@ -407,16 +1881,131 @@
 
       setAnalysisStep(2);
       await wait(420);
-      const report = calculateFeatures(detections[0].landmarks.positions);
-      if (!report.isFrontal) throw new Error("请上传更正面的照片，两眼尽量保持水平");
+      state.detection = detections[0];
+      const signals = computeImageSignals(image, detections[0]);
+      state.quality = FaceStyleCore.evaluatePhotoQuality(signals);
+      if (!state.quality.accepted) {
+        renderQualityFailure(state.quality);
+        showView("upload");
+        return;
+      }
+      state.measurements = FaceStyleCore.computeMeasurements(detections[0].landmarks.positions, state.quality.level);
 
       setAnalysisStep(3);
       await wait(500);
-      state.report = report;
-      renderReport(report, dataUrl);
+      state.report = null;
       setAnalysisStep(4);
       await wait(180);
+      state.questionIndex = 0;
+      renderQuestion();
+      showView("questionnaire");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function renderQuestion() {
+      const steps = Array.from(document.querySelectorAll(".question-step"));
+      steps.forEach((step, index) => step.classList.toggle("hidden", index !== state.questionIndex));
+      $("questionProgress").textContent = `第 ${state.questionIndex + 1} / ${steps.length} 题`;
+      $("questionProgressTrack").style.width = `${((state.questionIndex + 1) / steps.length) * 100}%`;
+      $("questionBack").disabled = state.questionIndex === 0;
+      $("questionNext").textContent = state.questionIndex === steps.length - 1 ? "生成我的基础报告" : "下一题";
+      const current = steps[state.questionIndex];
+      const selected = state.questionnaire[current.dataset.key];
+      if (selected !== undefined) {
+        const input = current.querySelector(`input[value="${CSS.escape(String(selected))}"]`);
+        if (input) input.checked = true;
+      }
+    }
+
+    function moveQuestion(direction) {
+      const steps = Array.from(document.querySelectorAll(".question-step"));
+      const current = steps[state.questionIndex];
+      if (direction > 0 && !state.questionnaire[current.dataset.key]) {
+        $("questionMessage").textContent = "请先选择最接近你的情况。";
+        $("questionMessage").classList.remove("hidden");
+        return;
+      }
+      $("questionMessage").classList.add("hidden");
+      if (direction < 0) {
+        state.questionIndex = Math.max(0, state.questionIndex - 1);
+        renderQuestion();
+        return;
+      }
+      if (state.questionIndex < steps.length - 1) {
+        state.questionIndex += 1;
+        renderQuestion();
+        return;
+      }
+      state.profile = FaceStyleCore.inferQuestionnaire(state.questionnaire);
+      state.report = FaceStyleCore.composeReport({ quality: state.quality, measurements: state.measurements, profile: state.profile });
+      renderReport(state.report, state.photo);
       showView("report");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function computeImageSignals(image, detection) {
+      const box = detection.detection.box;
+      const canvas = document.createElement("canvas");
+      canvas.width = 256;
+      canvas.height = 256;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      const sx = Math.max(0, box.x);
+      const sy = Math.max(0, box.y);
+      const sw = Math.min(box.width, image.naturalWidth - sx);
+      const sh = Math.min(box.height, image.naturalHeight - sy);
+      context.drawImage(image, sx, sy, sw, sh, 0, 0, 256, 256);
+      const pixels = context.getImageData(0, 0, 256, 256).data;
+      const gray = new Float32Array(256 * 256);
+      let brightnessTotal = 0;
+      for (let index = 0; index < gray.length; index += 1) {
+        const offset = index * 4;
+        gray[index] = pixels[offset] * .299 + pixels[offset + 1] * .587 + pixels[offset + 2] * .114;
+        brightnessTotal += gray[index];
+      }
+      let lapTotal = 0;
+      let lapSquaredTotal = 0;
+      let lapCount = 0;
+      for (let y = 1; y < 255; y += 1) {
+        for (let x = 1; x < 255; x += 1) {
+          const index = y * 256 + x;
+          const lap = gray[index - 256] + gray[index + 256] + gray[index - 1] + gray[index + 1] - 4 * gray[index];
+          lapTotal += lap;
+          lapSquaredTotal += lap * lap;
+          lapCount += 1;
+        }
+      }
+      const lapMean = lapTotal / lapCount;
+      return {
+        detectionScore: detection.detection.score,
+        faceBox: { width: box.width, height: box.height },
+        imageSize: { width: image.naturalWidth, height: image.naturalHeight },
+        points: detection.landmarks.positions,
+        laplacianVariance: lapSquaredTotal / lapCount - lapMean * lapMean,
+        meanBrightness: brightnessTotal / gray.length
+      };
+    }
+
+    function renderQualityFailure(quality) {
+      state.qualityFailureCount += 1;
+      const primary = quality.issues[0];
+      $("qualityLevel").textContent = "建议重拍";
+      $("qualityIssue").textContent = primary.message;
+      $("qualityAction").textContent = `怎么拍：${primary.action}`;
+      const other = quality.issues.slice(1).map((item) => item.message).join("、") || "无其他明显问题";
+      $("qualityMetrics").textContent = `其他提示：${other}。倾斜 ${quality.metrics.roll}°，面部宽度占图像 ${Math.round(quality.metrics.faceRatio * 100)}%，亮度 ${quality.metrics.meanBrightness}。阈值为本工具的启发式解释带。`;
+      $("useAnywayButton").textContent = state.qualityFailureCount > 1 ? "继续分析（结果仅供参考）" : "仍用这张照片分析";
+      $("qualityCard").classList.remove("hidden");
+    }
+
+    function continueWithCurrentPhoto() {
+      if (!state.detection || !state.quality || state.quality.accepted) return;
+      state.quality = FaceStyleCore.overridePhotoQuality(state.quality);
+      state.qualityOverride = true;
+      state.measurements = FaceStyleCore.computeMeasurements(state.detection.landmarks.positions, "low", "medium");
+      $("qualityCard").classList.add("hidden");
+      state.questionIndex = 0;
+      renderQuestion();
+      showView("questionnaire");
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
@@ -573,37 +2162,925 @@
       return { labels, makeup, hair, outfit, avoid, keywords };
     }
 
-    function renderReport(report, photo) {
-      const style = buildStyle(report);
-      const descriptions = {
-        "长脸": "纵向比例更突出，成熟感与知性线条明显，横向增加层次会更平衡。",
-        "圆脸": "长宽比例接近、下颌转折柔和，自带亲和与轻盈的少年感。",
-        "方脸": "下颌宽度与轮廓直线感更明显，骨骼存在感带来大气、利落的气质。",
-        "菱形脸": "颧骨附近存在感更强，额头与下颌相对收窄，轮廓清晰、有辨识度。",
-        "心形脸": "上半脸更舒展、下巴较收，视觉重心轻盈，精致感比较突出。",
-        "椭圆脸": "长宽与下颌过渡较均衡，轮廓流畅，对发型和风格的包容度较高。"
-      };
+    function localDateString(date = new Date()) {
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    }
 
-      $("reportPhoto").src = photo;
-      $("reportDate").textContent = new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-      $("faceShape").textContent = report.faceShape;
-      $("faceDescription").textContent = descriptions[report.faceShape];
-      $("faceRatio").textContent = report.lengthWidthRatio.toFixed(2);
-      $("styleLabel").textContent = style.labels.join(" · ");
+    function emptyChallengeState() {
+      return { version: 2, active: null, history: [], pendingPhotoDeletionIds: [] };
+    }
 
-      $("courtList").innerHTML = report.courts.map((court) => {
-        const rounded = Math.round(court.value);
-        return `<div><div class="court-meta"><span>${court.name}<em>${court.status === "均衡" ? "" : court.status}</em></span><b>${rounded}%</b></div><div class="bar-track"><div class="bar-fill ${court.status === "偏长" ? "alert" : ""}" style="width:${Math.min(100, rounded)}%"></div></div></div>`;
+    function loadChallengeState() {
+      try {
+        const value = JSON.parse(localStorage.getItem(CHALLENGE_STORAGE_KEY));
+        return FaceStyleCore.normalizeChallengeState(value);
+      } catch (_) {
+        return emptyChallengeState();
+      }
+    }
+
+    function renderHomeChallengeEntry() {
+      const active = state.challengeState?.active;
+      $("homeChallengeButton").innerHTML = active
+        ? `<span class="journal-day">${FaceStyleCore.getChallengeDay(active, localDateString())}</span><span><b>今天的变美记录</b><small>${escapeHtml(active.title)}</small></span><i>去打卡 →</i>`
+        : `<span></span><span><b>开始一个变美挑战</b><small>把一次建议变成可坚持的记录</small></span><i>查看 →</i>`;
+    }
+
+    function saveChallengeState() {
+      try {
+        localStorage.setItem(CHALLENGE_STORAGE_KEY, JSON.stringify(state.challengeState));
+      } catch (_) {
+        showToast("浏览器无法长期保存，当前挑战可能在关闭页面后丢失");
+      }
+    }
+
+    async function configureChallengePhotoStorage() {
+      try {
+        const database = await openChallengePhotoDb();
+        database.close();
+        state.photoStorageAvailable = true;
+        await retryPendingPhotoDeletions();
+      } catch (_) {
+        state.photoStorageAvailable = false;
+      }
+      if (state.challengeState?.active) renderChallengeCenter();
+    }
+
+    async function retryPendingPhotoDeletions() {
+      const pendingIds = [...(state.challengeState?.pendingPhotoDeletionIds || [])];
+      let failed = false;
+      for (const challengeId of pendingIds) {
+        try {
+          await Promise.resolve(window.deleteChallengePhotos(challengeId));
+          state.challengeState = FaceStyleCore.removePendingPhotoDeletion(state.challengeState, challengeId);
+          saveChallengeState();
+        } catch (_) {
+          failed = true;
+        }
+      }
+      if (failed) showToast("部分本机照片仍待清理，稍后会自动重试");
+      return !failed;
+    }
+
+    function clearChallengePhotoUrls() {
+      Object.values(state.challengePhotoUrls).forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+      state.challengePhotoUrls = { start: "", end: "" };
+    }
+
+    function showChallengePhotoStorageUnavailable() {
+      state.photoStorageAvailable = false;
+      clearChallengePhotoUrls();
+      $("beforePhoto").removeAttribute("src");
+      $("afterPhoto").removeAttribute("src");
+      $("beforePhoto").classList.add("hidden");
+      $("afterPhoto").classList.add("hidden");
+      $("beforePhotoPlaceholder").classList.remove("hidden");
+      $("afterPhotoPlaceholder").classList.remove("hidden");
+      $("photoCaptureControls").classList.add("hidden");
+      $("photoStorageNote").textContent = "当前浏览器仍可打卡，但不能保存对比照片";
+    }
+
+    async function renderChallengePhotoComparison(challenge) {
+      const token = ++state.challengePhotoRenderToken;
+      const view = $("comparisonView");
+      if (!challenge) {
+        clearChallengePhotoUrls();
+        view.classList.add("hidden");
+        return;
+      }
+      view.classList.remove("hidden");
+      $("startPhotoInput").value = "";
+      $("endPhotoInput").value = "";
+      if (state.photoStorageAvailable !== true) {
+        $("beforePhoto").classList.add("hidden");
+        $("afterPhoto").classList.add("hidden");
+        $("beforePhotoPlaceholder").classList.remove("hidden");
+        $("afterPhotoPlaceholder").classList.remove("hidden");
+        $("photoCaptureControls").classList.add("hidden");
+        $("photoStorageNote").textContent = state.photoStorageAvailable === false ? "当前浏览器仍可打卡，但不能保存对比照片" : "正在准备本地照片存储…";
+        return;
+      }
+      $("photoCaptureControls").classList.remove("hidden");
+      $("photoStorageNote").textContent = "";
+      clearChallengePhotoUrls();
+      try {
+        const photos = await getChallengePhotos(challenge.id);
+        if (token !== state.challengePhotoRenderToken || state.challengeState.active?.id !== challenge.id) return;
+        ["start", "end"].forEach((slot) => {
+          const photo = photos.find((item) => item.slot === slot);
+          const image = $(slot === "start" ? "beforePhoto" : "afterPhoto");
+          const placeholder = $(slot === "start" ? "beforePhotoPlaceholder" : "afterPhotoPlaceholder");
+          if (!photo?.blob) {
+            image.removeAttribute("src");
+            image.classList.add("hidden");
+            placeholder.classList.remove("hidden");
+            return;
+          }
+          const url = URL.createObjectURL(photo.blob);
+          state.challengePhotoUrls[slot] = url;
+          image.src = url;
+          image.classList.remove("hidden");
+          placeholder.classList.add("hidden");
+        });
+        if (FaceStyleCore.getChallengeDay(challenge, localDateString()) >= challenge.durationDays) {
+          const hasBoth = ["start", "end"].every((slot) => photos.some((item) => item.slot === slot && item.blob));
+          const preview = $("completionComparisonPreview");
+          preview.replaceChildren();
+          if (hasBoth) {
+            ["start", "end"].forEach((slot) => {
+              const frame = document.createElement("figure");
+              const image = new Image();
+              image.src = state.challengePhotoUrls[slot];
+              image.alt = `挑战${slot === "start" ? "开始" : "结束"}照片预览`;
+              const label = document.createElement("figcaption");
+              label.textContent = slot === "start" ? "开始" : "结束";
+              frame.append(image, label);
+              preview.append(frame);
+            });
+          } else {
+            preview.textContent = "没有两张对照照时，海报会以挑战进度呈现。";
+          }
+        }
+      } catch (_) {
+        if (token === state.challengePhotoRenderToken) {
+          showChallengePhotoStorageUnavailable();
+          showToast("照片无法读取，但挑战打卡不受影响");
+        }
+      }
+    }
+
+    async function handleChallengePhotoCapture(slot, file) {
+      const challenge = state.challengeState.active;
+      const input = $(slot === "start" ? "startPhotoInput" : "endPhotoInput");
+      if (!file || !challenge || state.photoStorageAvailable !== true) {
+        input.value = "";
+        return;
+      }
+      const challengeId = challenge.id;
+      let blob;
+      try {
+        blob = await compressChallengePhoto(file);
+      } catch (error) {
+        showToast(error?.message || "照片无法处理，请换一张重试");
+        input.value = "";
+        return;
+      }
+      if (!FaceStyleCore.maySaveChallengePhoto(challengeId, state.challengeState.active)) {
+        input.value = "";
+        return;
+      }
+      try {
+        await saveChallengePhoto(challengeId, slot, blob);
+      } catch (_) {
+        if (FaceStyleCore.getChallengePhotoFailureScope("storage") === "storage") {
+          showChallengePhotoStorageUnavailable();
+        }
+        showToast("照片无法保存，仍可继续打卡");
+        input.value = "";
+        return;
+      }
+      if (!FaceStyleCore.maySaveChallengePhoto(challengeId, state.challengeState.active)) {
+        input.value = "";
+        return;
+      }
+      try {
+        await renderChallengePhotoComparison(state.challengeState.active);
+        showToast(`${slot === "start" ? "开始" : "结束"}照片已保存在本机`);
+      } finally {
+        input.value = "";
+      }
+    }
+
+    function openChallengeCenter(source, focusTrigger = document.activeElement) {
+      state.challengeReturnView = source === "report" && state.report ? "report" : "upload";
+      state.challengeReturnFocus = source === "report" ? focusTrigger : $("homeChallengeButton");
+      renderChallengeCenter();
+      showView("challenge");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      requestAnimationFrame(() => $("closeChallengeButton").focus());
+    }
+
+    function closeChallengeCenter() {
+      closeTemplateSheet(false);
+      if (state.challengeReturnView === "report" && state.report) renderReportChallengeRecommendations(state.report);
+      showView(state.challengeReturnView);
+      const returnTarget = state.challengeReturnView === "report" && state.challengeState.active
+        ? $("reportActiveChallenge").querySelector("[data-open-active-challenge]")
+        : state.challengeReturnFocus;
+      requestAnimationFrame(() => returnTarget?.focus());
+    }
+
+    function openTemplateSheet(recommendedTemplateId = "", focusTrigger = document.activeElement) {
+      state.recommendedTemplateId = recommendedTemplateId;
+      showTemplateOptions();
+      $("challengeTemplateCards").innerHTML = FaceStyleCore.getChallengeTemplates().map((item) => {
+        const type = item.kind === "habit" ? "习惯养成" : "妆容练习";
+        const photo = item.photoDays.length ? `第 ${item.photoDays.join(" / ")} 天拍照` : "不要求拍照";
+        const recommended = item.id === state.recommendedTemplateId;
+        return `<button class="challenge-template-card${recommended ? " recommended" : ""}" type="button" data-template-id="${escapeHtml(item.id)}"><strong>${escapeHtml(item.title)}</strong><small>${item.durationDays} 天 · ${type} · ${photo}${recommended ? '<span class="recommendation">根据本次报告推荐</span>' : ""}</small></button>`;
       }).join("");
+      openModalSheet($("challengeTemplateSheet"), focusTrigger, $("challengeTemplateCards").querySelector("button"), () => closeTemplateSheet());
+    }
 
-      const tags = [report.featureWeight, report.eyeSpacing, report.jawLine, ...style.labels];
-      $("featureTags").innerHTML = tags.map((tag, index) => `<span class="feature-pill ${index < 2 ? "accent" : ""}">${escapeHtml(tag)}</span>`).join("");
-      $("makeupAdvice").textContent = style.makeup;
-      $("hairAdvice").textContent = style.hair;
-      $("outfitAdvice").textContent = `${style.outfit} 风格避雷：${style.avoid}。`;
+    function showTemplateOptions() {
+      $("challengeTemplateCards").classList.remove("hidden");
+      $("customChallengeButton").classList.remove("hidden");
+      $("customChallengeForm").classList.add("hidden");
+      $("templateTutorialForm").classList.add("hidden");
+      $("customChallengeMessage").textContent = "";
+      $("templateTutorialMessage").textContent = "";
+      state.pendingTemplateId = "";
+      state.pendingCustomTaskLabel = "";
+    }
 
-      $("keywordList").innerHTML = style.keywords.map((keyword) => `<div class="keyword-row"><span>${escapeHtml(keyword)}</span><button class="copy-btn" type="button" data-keyword="${escapeHtml(keyword)}">复制</button></div>`).join("");
+    function showCustomChallengeForm(prefill = {}) {
+      $("challengeTemplateCards").classList.add("hidden");
+      $("customChallengeButton").classList.add("hidden");
+      $("customChallengeForm").classList.remove("hidden");
+      $("templateSheetTitle").textContent = "自定义你的挑战";
+      if (prefill.title) $("customChallengeTitle").value = prefill.title;
+      if (prefill.durationDays) $("customChallengeDays").value = prefill.durationDays;
+      if (prefill.frequency) $("customChallengeFrequency").value = prefill.frequency;
+      state.pendingCustomTaskLabel = typeof prefill.taskLabel === "string" ? prefill.taskLabel : "";
+      requestAnimationFrame(() => $("customChallengeTitle").focus());
+    }
+
+    function closeTemplateSheet(returnFocus = true) {
+      const sheet = $("challengeTemplateSheet");
+      if (sheet.classList.contains("hidden")) return;
+      closeModalSheet(sheet, returnFocus);
+      $("templateSheetTitle").textContent = "你想养成什么？";
+      showTemplateOptions();
+      state.recommendedTemplateId = "";
+    }
+
+    function startChallenge(input) {
+      if (state.challengeState.active?.status === "active") {
+        showToast("请先完成或结束当前挑战");
+        return false;
+      }
+      state.challengeState.active = FaceStyleCore.createChallenge(input, new Date());
+      saveChallengeState();
+      renderHomeChallengeEntry();
+      closeTemplateSheet(false);
+      renderChallengeCenter();
+      showToast("挑战已开始，今天就做第一步");
+      return true;
+    }
+
+    function selectChallengeTemplate(id) {
+      const template = FaceStyleCore.getChallengeTemplates().find((item) => item.id === id);
+      if (!template) return;
+      showTemplateSetup(template);
+    }
+
+    function showTemplateSetup(template) {
+      state.pendingTemplateId = template.id;
+      $("challengeTemplateCards").classList.add("hidden");
+      $("customChallengeButton").classList.add("hidden");
+      $("customChallengeForm").classList.add("hidden");
+      $("templateTutorialForm").classList.remove("hidden");
+      $("templateSheetTitle").textContent = `${template.title}的提醒设置`;
+      $("templateTutorialHint").textContent = template.tutorialSlots > 0
+        ? `选择提醒时间，可选填写最多 ${template.tutorialSlots} 个教程；教程会按任务次数依次显示。`
+        : "确认任务提醒时间后即可开始；这个习惯挑战不需要填写教程。";
+      $("templateReminderTime").value = "21:30";
+      $("templateTutorialInputs").innerHTML = Array.from({ length: template.tutorialSlots }).map((_, index) => `<div class="tutorial-row"><label>教程 ${index + 1} 名称<input name="templateTutorialLabel" type="text" maxlength="30" placeholder="可选"></label><label>教程 ${index + 1} 链接<input name="templateTutorialUrl" type="url" placeholder="https://"></label></div>`).join("");
+      $("templateTutorialMessage").textContent = "";
+      requestAnimationFrame(() => $("templateReminderTime").focus());
+    }
+
+    function submitTemplateTutorials(event) {
+      event.preventDefault();
+      if (!state.pendingTemplateId) return;
+      const reminderTime = $("templateReminderTime").value;
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(reminderTime)) {
+        $("templateTutorialMessage").textContent = "请选择有效的提醒时间。";
+        return;
+      }
+      const labels = [...document.querySelectorAll("#templateTutorialInputs [name=templateTutorialLabel]")];
+      const urls = [...document.querySelectorAll("#templateTutorialInputs [name=templateTutorialUrl]")];
+      const tutorials = [];
+      for (let index = 0; index < urls.length; index += 1) {
+        const label = labels[index].value.trim();
+        const url = urls[index].value.trim();
+        if (Boolean(label) !== Boolean(url)) {
+          $("templateTutorialMessage").textContent = "教程名称和链接需要同时填写。";
+          return;
+        }
+        if (url && !FaceStyleCore.validateTutorialUrl(url)) {
+          $("templateTutorialMessage").textContent = "教程链接请填写完整的 http 或 https 地址。";
+          return;
+        }
+        if (url) tutorials.push({ label, url });
+      }
+      startChallenge({ templateId: state.pendingTemplateId, reminderTime, tutorials });
+    }
+
+    function submitCustomChallenge(event) {
+      event.preventDefault();
+      const title = $("customChallengeTitle").value.trim();
+      const durationDays = Number($("customChallengeDays").value);
+      const frequency = $("customChallengeFrequency").value;
+      const reminderTime = $("challengeReminderTime").value;
+      const [hours, minutes] = reminderTime.split(":").map(Number);
+      const validReminderTime = /^\d{2}:\d{2}$/.test(reminderTime) && hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60;
+      const tutorialLabels = [...document.querySelectorAll("#tutorialInputs [name=tutorialLabel]")];
+      const tutorialUrls = [...document.querySelectorAll("#tutorialInputs [name=tutorialUrl]")];
+      if (!title || !Number.isInteger(durationDays) || durationDays < 1 || durationDays > 90 || !["daily", "weekly"].includes(frequency) || !validReminderTime) {
+        $("customChallengeMessage").textContent = "请填写挑战名称、1–90 天的持续时间、完成频率和提醒时间。";
+        return;
+      }
+      const tutorials = [];
+      for (let index = 0; index < tutorialUrls.length; index += 1) {
+        const url = tutorialUrls[index].value.trim();
+        const label = tutorialLabels[index].value.trim();
+        if (Boolean(label) !== Boolean(url)) {
+          $("customChallengeMessage").textContent = "教程名称和链接需要同时填写。";
+          return;
+        }
+        if (url && !FaceStyleCore.validateTutorialUrl(url)) {
+          $("customChallengeMessage").textContent = "教程链接请填写完整的 http 或 https 地址。";
+          return;
+        }
+        if (url) tutorials.push({ label, url });
+      }
+      startChallenge({ templateId: "custom", title, taskLabel: state.pendingCustomTaskLabel || title, durationDays, frequency, reminderTime, tutorials });
+    }
+
+    function openDeleteChallengeConfirmation() {
+      if (!state.challengeState.active) return;
+      openModalSheet($("deleteChallengeSheet"), document.activeElement, $("cancelDeleteChallengeButton"), () => closeDeleteChallengeConfirmation());
+    }
+
+    function closeDeleteChallengeConfirmation(returnFocus = true) {
+      const sheet = $("deleteChallengeSheet");
+      if (sheet.classList.contains("hidden")) return;
+      closeModalSheet(sheet, returnFocus);
+    }
+
+    async function deleteActiveChallenge() {
+      const challenge = state.challengeState.active;
+      if (!challenge) return;
+      if ($("deleteChallengeSheet").classList.contains("hidden")) {
+        openDeleteChallengeConfirmation();
+        return;
+      }
+      const challengeId = challenge.id;
+      state.challengeState = FaceStyleCore.addPendingPhotoDeletion(state.challengeState, challengeId);
+      saveChallengeState();
+      state.challengeState.active = null;
+      saveChallengeState();
+      renderHomeChallengeEntry();
+      closeDeleteChallengeConfirmation(false);
+      renderChallengeCenter();
+      try {
+        if (typeof window.deleteChallengePhotos !== "function") throw new Error("照片存储不可用");
+        await Promise.resolve(window.deleteChallengePhotos(challengeId));
+        state.challengeState = FaceStyleCore.removePendingPhotoDeletion(state.challengeState, challengeId);
+        saveChallengeState();
+      } catch (_) {
+        showToast("挑战已删除，照片清理稍后会自动重试");
+        return;
+      }
+      showToast("当前挑战已删除");
+    }
+
+    async function completeActiveChallenge() {
+      const challenge = state.challengeState.active;
+      const today = localDateString();
+      if (!FaceStyleCore.isChallengeCompletionEligible(challenge, today)) return;
+      const progress = FaceStyleCore.getChallengeProgress(challenge, today);
+      const challengeId = challenge.id;
+      state.challengeState = FaceStyleCore.addPendingPhotoDeletion(state.challengeState, challengeId);
+      saveChallengeState();
+      state.challengeState.history.push(FaceStyleCore.createChallengeHistoryEntry(challenge, progress, today));
+      state.challengeState.active = null;
+      saveChallengeState();
+      renderHomeChallengeEntry();
+      renderChallengeCenter();
+      try {
+        await Promise.resolve(window.deleteChallengePhotos(challengeId));
+        state.challengeState = FaceStyleCore.removePendingPhotoDeletion(state.challengeState, challengeId);
+        saveChallengeState();
+      } catch (_) {
+        showToast("挑战已完成；照片清理稍后会自动重试");
+        return;
+      }
+      showToast("挑战已完成，已保存到挑战记录");
+    }
+
+    function focusTodayControl(preferredId = "checkInButton") {
+      requestAnimationFrame(() => {
+        const preferred = $(preferredId);
+        const controls = [preferred, $("undoCheckInButton"), $("yesterdayCheckInButton"), $("newChallengeButton")];
+        const target = controls.find((item) => item && !item.classList.contains("hidden") && !item.disabled);
+        target?.focus();
+      });
+    }
+
+    function toggleChallengeCheckInFor(date, focusId = "checkInButton") {
+      const challenge = state.challengeState.active;
+      if (!challenge) return;
+      state.challengeState.active = FaceStyleCore.toggleChallengeCheckIn(challenge, date);
+      saveChallengeState();
+      renderChallengeCenter();
+      focusTodayControl(focusId);
+    }
+
+    function completeToday() {
+      const challenge = state.challengeState.active;
+      const today = localDateString();
+      const challengeDay = FaceStyleCore.getChallengeDay(challenge, today);
+      if (!challenge || !FaceStyleCore.isChallengeOccurrenceDay(challenge, challengeDay)) {
+        showToast("今天不在挑战周期内");
+        return;
+      }
+      if (!challenge.checkIns[today]) toggleChallengeCheckInFor(today, "undoCheckInButton");
+    }
+
+    function undoToday() {
+      const challenge = state.challengeState.active;
+      const today = localDateString();
+      if (challenge?.checkIns[today]) toggleChallengeCheckInFor(today, "checkInButton");
+    }
+
+    function openTutorial(url) {
+      const safeUrl = FaceStyleCore.validateTutorialUrl(url);
+      if (!safeUrl) {
+        showToast("这个教程链接不可用");
+        return;
+      }
+      const domain = new URL(safeUrl).hostname;
+      state.pendingTutorialUrl = safeUrl;
+      $("tutorialConfirmText").textContent = `将前往 ${domain} 查看教程。该页面由第三方提供。`;
+      openModalSheet($("tutorialConfirmSheet"), document.activeElement, $("confirmTutorialButton"), () => closeTutorialConfirmation());
+    }
+
+    function closeTutorialConfirmation(returnFocus = true) {
+      if ($("tutorialConfirmSheet").classList.contains("hidden")) return;
+      closeModalSheet($("tutorialConfirmSheet"), returnFocus);
+      state.pendingTutorialUrl = "";
+    }
+
+    async function copyTutorial(url, successMessage = "教程链接已复制") {
+      const safeUrl = FaceStyleCore.validateTutorialUrl(url);
+      if (!safeUrl) {
+        showToast("这个教程链接不可用");
+        return false;
+      }
+      try {
+        if (window.navigator?.clipboard?.writeText) await window.navigator.clipboard.writeText(safeUrl);
+        else {
+          const input = document.createElement("textarea");
+          input.value = safeUrl;
+          input.setAttribute("readonly", "");
+          input.style.position = "fixed";
+          input.style.opacity = "0";
+          document.body.append(input);
+          input.select();
+          const copied = document.execCommand("copy");
+          input.remove();
+          if (!copied) throw new Error("copy failed");
+        }
+        showToast(successMessage);
+        return true;
+      } catch (_) {
+        showToast("无法自动复制，请手动复制教程链接");
+        return false;
+      }
+    }
+
+    async function confirmTutorialOpen() {
+      const url = state.pendingTutorialUrl;
+      closeTutorialConfirmation();
+      if (!url) return;
+      const popup = window.open(url, "_blank", "noopener,noreferrer");
+      if (!popup) await copyTutorial(url, "未能打开新窗口，教程链接已复制");
+    }
+
+    function downloadChallengeCalendar() {
+      const challenge = state.challengeState.active;
+      if (!challenge) return;
+      const returnUrl = location.protocol === "https:" ? `${location.origin}${location.pathname}?view=challenge` : "";
+      const content = FaceStyleCore.buildChallengeCalendarText(challenge, returnUrl);
+      const objectUrl = URL.createObjectURL(new Blob(["\uFEFF", content], { type: "text/calendar;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `${challenge.title.replace(/[\\\\/:*?\"<>|]/g, "-") || "我的变美挑战"}.ics`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+      showToast(returnUrl ? "日历文件已下载" : "日历文件已下载；部署到 HTTPS 后可从日历返回挑战页");
+    }
+
+    function drawPosterCover(context, image, x, y, width, height) {
+      const sourceWidth = image.width || image.naturalWidth;
+      const sourceHeight = image.height || image.naturalHeight;
+      const scale = Math.max(width / sourceWidth, height / sourceHeight);
+      const drawWidth = sourceWidth * scale;
+      const drawHeight = sourceHeight * scale;
+      context.drawImage(image, x + (width - drawWidth) / 2, y + (height - drawHeight) / 2, drawWidth, drawHeight);
+    }
+
+    async function loadChallengePosterImage(blob) {
+      if (!blob) return null;
+      if (typeof createImageBitmap === "function") {
+        try {
+          const bitmap = await createImageBitmap(blob);
+          return { image: bitmap, cleanup: () => bitmap.close?.() };
+        } catch (_) { /* fall back to a temporary object URL */ }
+      }
+      return new Promise((resolve, reject) => {
+        let objectUrl = "";
+        const cleanup = () => {
+          if (!objectUrl) return;
+          const url = objectUrl;
+          objectUrl = "";
+          try { URL.revokeObjectURL(url); } catch (_) { /* no URL remains to clean */ }
+        };
+        try {
+          objectUrl = URL.createObjectURL(blob);
+          const image = new Image();
+          image.onload = () => {
+            cleanup();
+            resolve({ image, cleanup });
+          };
+          image.onerror = () => {
+            cleanup();
+            reject(new Error("照片无法用于生成海报"));
+          };
+          image.src = objectUrl;
+        } catch (error) {
+          cleanup();
+          reject(error);
+        }
+      });
+    }
+
+    function canvasToPngBlob(canvas) {
+      return new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("海报导出失败，请刷新后重试")), "image/png");
+      });
+    }
+
+    async function buildChallengePoster(challenge, progress, photos) {
+      const posterColors = { paper: "#F7F3EE", card: "#FFFDF9", gold: "#C9A87C", ink: "#2C2420", muted: "#7A6B5A", line: "#EDE5D8", photoLabelOverlay: "rgba(44,36,32,.76)" };
+      const canvas = $("posterCanvas");
+      canvas.width = 1080;
+      canvas.height = 1440;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("当前浏览器无法生成海报");
+      const storedPhotos = FaceStyleCore.normalizeChallengePosterPhotos(photos);
+      const start = storedPhotos.find((item) => item.slot === "start")?.blob;
+      const end = storedPhotos.find((item) => item.slot === "end")?.blob;
+      let posterImages = [];
+      if (start && end) {
+        const results = await Promise.allSettled([loadChallengePosterImage(start), loadChallengePosterImage(end)]);
+        const loadedImages = results.filter((item) => item.status === "fulfilled").map((item) => item.value);
+        posterImages = results.every((item) => item.status === "fulfilled") ? loadedImages : [];
+        if (!posterImages.length) loadedImages.forEach((item) => item?.cleanup());
+      }
+      try {
+        context.fillStyle = posterColors.paper;
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = posterColors.line;
+        context.beginPath();
+        context.arc(930, 120, 240, 0, Math.PI * 2);
+        context.fill();
+        context.strokeStyle = posterColors.gold;
+        context.lineWidth = 4;
+        context.strokeRect(34, 34, canvas.width - 68, canvas.height - 68);
+        context.fillStyle = posterColors.gold;
+        context.font = "700 26px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
+        context.fillText("COLLECTED BEAUTY PRACTICE", 90, 112);
+        context.fillStyle = posterColors.ink;
+        context.font = "500 22px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
+        context.fillText(`CHALLENGE ${String(challenge.id || "").slice(-18)}`, 90, 150);
+        context.font = "700 58px 'Noto Serif SC', 'Songti SC', serif";
+        context.fillText((challenge.title || "我的挑战").slice(0, 16), 90, 220);
+        context.fillStyle = posterColors.muted;
+        context.font = "400 30px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
+        context.fillText(`完成日期 ${FaceStyleCore.getChallengePosterFinishDate(challenge)}`, 90, 276);
+        context.fillStyle = posterColors.ink;
+        context.font = "700 46px 'Noto Serif SC', 'Songti SC', serif";
+        context.fillText(`我完成了 ${progress.completed}/${progress.total} 天挑战`, 90, 376);
+        context.fillStyle = posterColors.card;
+        context.fillRect(90, 430, 900, 150);
+        [["完成", `${progress.completed}/${progress.total}`], ["完成率", `${progress.completionRate}%`], ["连续", `${progress.streak} 天`]].forEach(([label, value], index) => {
+          const x = 140 + index * 290;
+          context.fillStyle = posterColors.muted;
+          context.font = "400 25px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
+          context.fillText(label, x, 480);
+          context.fillStyle = posterColors.ink;
+          context.font = "700 38px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
+          context.fillText(value, x, 535);
+        });
+        if (posterImages.length === 2) {
+          [[posterImages[0], 90, "开始"], [posterImages[1], 555, "结束"]].forEach(([item, x, label]) => {
+            context.save();
+            context.beginPath();
+            context.rect(x, 650, 435, 540);
+            context.clip();
+            drawPosterCover(context, item.image, x, 650, 435, 540);
+            context.restore();
+            context.fillStyle = posterColors.photoLabelOverlay;
+            context.fillRect(x + 24, 1134, 92, 38);
+            context.fillStyle = posterColors.card;
+            context.font = "700 22px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
+            context.fillText(label, x + 42, 1161);
+          });
+        } else {
+          context.fillStyle = posterColors.card;
+          context.fillRect(90, 650, 900, 540);
+          context.fillStyle = posterColors.gold;
+          context.beginPath();
+          context.arc(540, 870, 120, 0, Math.PI * 2);
+          context.fill();
+          context.fillStyle = posterColors.ink;
+          context.font = "700 42px 'Noto Serif SC', 'Songti SC', serif";
+          context.textAlign = "center";
+          context.fillText("每一天的完成，都值得记录", 540, 1060);
+          context.textAlign = "left";
+        }
+        context.fillStyle = posterColors.muted;
+        context.font = "400 24px -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif";
+        context.fillText("本地生成 · 由你决定是否分享", 90, 1330);
+        return await canvasToPngBlob(canvas);
+      } finally {
+        posterImages.forEach((item) => item?.cleanup());
+      }
+    }
+
+    async function downloadChallengePoster() {
+      const challenge = state.challengeState.active;
+      const button = $("downloadPosterButton");
+      if (!challenge || button.disabled) return;
+      const progress = FaceStyleCore.getChallengeProgress(challenge, localDateString());
+      button.disabled = true;
+      button.textContent = "正在生成海报…";
+      let photos = [];
+      try {
+        photos = await getChallengePhotos(challenge.id);
+      } catch (_) {
+        photos = [];
+        showToast("本机照片暂时无法读取，将使用进度海报");
+      }
+      let objectUrl = "";
+      let link;
+      try {
+        const blob = await buildChallengePoster(challenge, progress, photos);
+        objectUrl = URL.createObjectURL(blob);
+        link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = `变美挑战-${FaceStyleCore.sanitizeChallengePosterFilename(challenge.title)}.png`;
+        document.body.append(link);
+        link.click();
+        button.disabled = false;
+        button.textContent = "下载结营海报";
+        showToast("结营海报已下载");
+      } catch (_) {
+        button.textContent = "海报导出失败，请刷新后重试";
+        showToast("海报导出失败，请刷新后重试");
+      } finally {
+        link?.remove();
+        if (objectUrl) setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+      }
+    }
+
+    function renderChallengeCenter() {
+      const challenge = state.challengeState.active;
+      const entryKicker = `<p class="identity-label">TODAY'S ENTRY · ${escapeHtml(localDateString())}</p>`;
+      renderChallengePhotoComparison(challenge);
+      if (!challenge) {
+        $("todayChallenge").innerHTML = `${entryKicker}<h3>从一件小事开始</h3><p>选一个 7 或 30 天挑战，把变美的下一步变得清楚、轻松。</p>`;
+        $("challengeProgress").replaceChildren();
+        const history = state.challengeState.history || [];
+        $("challengeHistory").innerHTML = history.length
+          ? history.slice().reverse().map((item) => `<p><strong>${escapeHtml(item.title)}</strong> · ${escapeHtml(item.completedAt)} · 完成 ${item.completed}/${item.total || item.durationDays} 次 · ${item.completionRate}%</p>`).join("")
+          : "<p>挑战开始后，每天只需要完成一件事。</p>";
+        $("completionCard").classList.add("hidden");
+        $("newChallengeButton").textContent = "选择一个挑战";
+        $("deleteChallengeButton").classList.add("hidden");
+        return;
+      }
+      const today = localDateString();
+      const progress = FaceStyleCore.getChallengeProgress(challenge, today);
+      const checkedIn = Boolean(challenge.checkIns[today]);
+      const challengeDay = FaceStyleCore.getChallengeDay(challenge, today);
+      const todayInChallenge = challengeDay >= 1 && challengeDay <= challenge.durationDays;
+      const canCheckInToday = todayInChallenge && FaceStyleCore.isChallengeOccurrenceDay(challenge, challengeDay);
+      const nextOccurrenceDay = FaceStyleCore.getNextChallengeOccurrenceDay(challenge, challengeDay);
+      const nextTaskCopy = !todayInChallenge
+        ? ""
+        : canCheckInToday ? "今天有一项挑战任务。" : nextOccurrenceDay ? `今天是休息日 · 下次任务：第 ${nextOccurrenceDay} 天` : "今天是休息日 · 本轮任务已经全部排完";
+      const checkInLabel = challengeDay > challenge.durationDays ? "挑战已结束" : challengeDay < 1 ? "挑战尚未开始" : canCheckInToday ? "完成今日打卡" : "今天休息";
+      const tutorial = canCheckInToday ? FaceStyleCore.getChallengeTutorialForDay(challenge, challengeDay) : null;
+      const yesterdayDay = challengeDay - 1;
+      const yesterdayDate = FaceStyleCore.getChallengeDateForDay(challenge, yesterdayDay);
+      const yesterdayAvailable = FaceStyleCore.isChallengeOccurrenceDay(challenge, yesterdayDay) && !challenge.checkIns[yesterdayDate];
+      const tutorialActions = tutorial
+        ? `<div class="tutorial-actions"><button id="openTutorialButton" type="button" data-tutorial-url="${escapeHtml(tutorial.url)}">打开今天的教程</button><button id="copyTutorialButton" type="button" data-tutorial-url="${escapeHtml(tutorial.url)}">复制链接</button></div><span class="today-tutorial-url">${escapeHtml(tutorial.url)}</span>`
+        : "";
+      $("todayChallenge").innerHTML = `${entryKicker}<p class="today-kicker">今天 · 第 <span id="todayDayNumber">${progress.day}</span> 天</p><h3 id="todayTaskTitle">${escapeHtml(challenge.taskLabel)}</h3><p>${escapeHtml(challenge.title)}</p>${nextTaskCopy ? `<p>${escapeHtml(nextTaskCopy)}</p>` : ""}${tutorialActions}<button id="checkInButton" class="primary-btn" type="button"${canCheckInToday && !checkedIn ? "" : " disabled"}>${checkedIn ? "今天已完成" : checkInLabel}</button><button id="undoCheckInButton" class="text-btn${checkedIn ? "" : " hidden"}" type="button">撤销今天的打卡</button>${yesterdayAvailable ? `<button id="yesterdayCheckInButton" class="text-btn" type="button" data-yesterday-checkin="${yesterdayDate}">补记昨天</button>` : ""}<button id="addChallengeCalendarButton" class="secondary-btn" type="button">加入手机日历</button>`;
+      $("challengeProgress").innerHTML = [
+        ["完成", `${progress.completed}/${progress.total} 次`],
+        ["连续", `${progress.streak} 次`],
+        ["进度", `${progress.completionRate}%`]
+      ].map(([label, value]) => `<article><span>${label}</span><strong>${value}</strong></article>`).join("");
+      const photoDays = Array.isArray(challenge.photoDays) ? challenge.photoDays.filter(Number.isFinite).join(" / ") : "";
+      $("challengeHistory").innerHTML = `<p>从 ${escapeHtml(challenge.startedAt)} 开始 · ${photoDays ? `第 ${photoDays} 天留一张对照照` : "按自己的节奏记录"}</p>`;
+      const challengeComplete = challengeDay >= challenge.durationDays;
+      $("completionCard").classList.toggle("hidden", !challengeComplete);
+      if (challengeComplete) {
+        $("completionCopy").textContent = `已走完 ${progress.total} 次任务。下载海报后，可将本次挑战保存为一条不含照片的记录。`;
+        $("completionSummary").innerHTML = [["完成", `${progress.completed}/${progress.total}`], ["完成率", `${progress.completionRate}%`], ["连续", `${progress.streak} 次`]].map(([label, value]) => `<span>${label}<strong>${value}</strong></span>`).join("");
+        $("completionComparisonPreview").textContent = "正在检查本机对照照…";
+        $("downloadPosterButton").disabled = false;
+        $("downloadPosterButton").textContent = "下载结营海报";
+      }
+      $("newChallengeButton").textContent = "换一个挑战";
+      $("deleteChallengeButton").classList.remove("hidden");
+    }
+
+    window.openChallengeCenter = openChallengeCenter;
+    window.closeChallengeCenter = closeChallengeCenter;
+    window.renderChallengeCenter = renderChallengeCenter;
+    window.loadChallengeState = loadChallengeState;
+    window.saveChallengeState = saveChallengeState;
+    window.selectChallengeTemplate = selectChallengeTemplate;
+    window.submitCustomChallenge = submitCustomChallenge;
+    window.deleteActiveChallenge = deleteActiveChallenge;
+    window.openChallengePhotoDb = openChallengePhotoDb;
+    window.saveChallengePhoto = saveChallengePhoto;
+    window.getChallengePhotos = getChallengePhotos;
+    window.deleteChallengePhotos = deleteChallengePhotos;
+    window.retryPendingPhotoDeletions = retryPendingPhotoDeletions;
+    window.compressChallengePhoto = compressChallengePhoto;
+    window.completeToday = completeToday;
+    window.undoToday = undoToday;
+    window.openTutorial = openTutorial;
+    window.downloadChallengeCalendar = downloadChallengeCalendar;
+    window.buildChallengePoster = buildChallengePoster;
+    window.downloadChallengePoster = downloadChallengePoster;
+
+    function renderKeywordGuide(selectedCard) {
+      const keywords = [
+        selectedCard?.searchKeyword || "面部比例 妆容思路 对照",
+        "科学护肤 基础三件套",
+        state.profile?.primaryGoal === "hair" ? "低维护 发型 脸侧层次" : "眼距 眉形 眼线 对照"
+      ];
+      $("keywordList").innerHTML = Array.from(new Set(keywords)).map((keyword) => `<div class="keyword-row"><span>${escapeHtml(keyword)}</span><button class="copy-btn" type="button" data-keyword="${escapeHtml(keyword)}">复制</button></div>`).join("");
       $("keywordList").querySelectorAll(".copy-btn").forEach((button) => button.addEventListener("click", () => copyKeyword(button)));
+    }
+
+    function openReportChallengeSetup(actionId, trigger) {
+      const action = state.report?.actionCards.find((item) => item.id === actionId);
+      if (!action) return;
+      if (state.challengeState.active) {
+        openChallengeCenter("report", trigger);
+        showToast("你已有进行中的挑战");
+        return;
+      }
+      const templateId = action.id === "style-focus" && state.profile?.primaryGoal === "makeup" ? "makeup-3-in-7" : "";
+      openChallengeCenter("report", trigger);
+      openTemplateSheet(templateId, $("newChallengeButton"));
+      if (templateId) {
+        const template = FaceStyleCore.getChallengeTemplates().find((item) => item.id === templateId);
+        if (template) showTemplateSetup(template);
+      } else {
+        const durationDays = action.id === "photo-review" ? 30 : 7;
+        const prefill = { title: action.title, taskLabel: action.action, durationDays, frequency: "daily" };
+        showCustomChallengeForm(prefill);
+      }
+    }
+
+    function renderReportChallengeRecommendations(report) {
+      const active = state.challengeState?.active;
+      $("reportActiveChallenge").classList.toggle("hidden", !active);
+      $("reportActiveChallenge").innerHTML = active
+        ? `<article class="editorial-challenge editorial-challenge-active"><div class="challenge-art" aria-hidden="true">今</div><div class="challenge-copy"><small>正在进行</small><h4>${escapeHtml(active.title)}</h4><p>报告页和“我的变美挑战”共用这一份进度。</p><button class="secondary-btn challenge-open" type="button" data-open-active-challenge>去今日任务</button></div></article>`
+        : "";
+      $("reportChallengeCards").classList.toggle("hidden", Boolean(active));
+      $("reportChallengeCards").innerHTML = report.actionCards.map((item, index) => `<button class="editorial-challenge" type="button" data-report-challenge-id="${escapeHtml(item.id)}">
+        <span class="challenge-art" aria-hidden="true">0${index + 1}</span>
+        <span class="challenge-copy"><small>从建议到练习</small><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.reason)}</p><p class="challenge-task"><b>挑战任务：</b>${escapeHtml(item.action)}</p><p class="challenge-meta">${escapeHtml(item.duration)} · ${escapeHtml(item.cost)}</p><p><b>观察：</b>${escapeHtml(item.successSignal)}<br><b>停止边界：</b>${escapeHtml(item.stopRule)}</p></span>
+      </button>`).join("");
+      renderKeywordGuide(report.actionCards[0] || null);
+    }
+
+    function normalizeIdentityPercent(value) {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? Math.min(100, Math.max(0, numeric)) : 0;
+    }
+
+    function renderIdentityRadar(axes) {
+      const normalizedAxes = axes.map((axis) => ({ ...axis, value: normalizeIdentityPercent(axis.value) }));
+      const center = 120;
+      const radius = 82;
+      const point = (index, value = 100) => {
+        const angle = -Math.PI / 2 + index * Math.PI * 2 / normalizedAxes.length;
+        const distance = radius * value / 100;
+        return [FaceStyleCore.round(center + Math.cos(angle) * distance, 1), FaceStyleCore.round(center + Math.sin(angle) * distance, 1)];
+      };
+      const grid = [33, 66, 100].map((level) => normalizedAxes.map((_, index) => point(index, level).join(",")).join(" "));
+      const values = normalizedAxes.map((axis, index) => point(index, axis.value).join(",")).join(" ");
+      const labels = normalizedAxes.map((axis, index) => {
+        const [x, y] = point(index, 122);
+        return `<text x="${x}" y="${y}" text-anchor="middle">${escapeHtml(axis.label)}</text>`;
+      }).join("");
+      $("identityRadar").innerHTML = `<svg class="identity-radar-svg" viewBox="0 0 240 240" role="img" aria-label="六维特征图谱">${grid.map((points) => `<polygon class="radar-grid" points="${points}"></polygon>`).join("")}<polygon class="radar-value" points="${values}"></polygon>${labels}</svg>`;
+    }
+
+    function renderIdentityTraitBars(report, identity) {
+      const court = report.readableProfile.threeCourts;
+      const courtValues = court.values.map(normalizeIdentityPercent);
+      const identityAxes = identity.axes.slice(0, 3).map((axis) => ({ ...axis, value: normalizeIdentityPercent(axis.value) }));
+      $("identityTraitBars").innerHTML = `
+        <article class="trait-bar-card">
+          <div class="trait-heading"><span>三庭视觉参照</span><b>${courtValues.join(" · ")}%</b></div>
+          <div class="court-bar">${courtValues.map((value, index) => `<i style="--segment:${value}" aria-label="${["上庭", "中庭", "下庭"][index]} ${value}%"></i>`).join("")}</div>
+          <p>${escapeHtml(court.summary)}</p>
+        </article>
+        ${identityAxes.map((axis) => `<article class="trait-row"><span>${escapeHtml(axis.label)}</span><div><i style="--value:${axis.value}"></i></div><b>${axis.value >= 68 ? "明显" : axis.value >= 34 ? "中间" : "轻微"}</b></article>`).join("")}`;
+    }
+
+    function renderReport(report, photo) {
+      const identity = FaceStyleCore.buildIdentityPresentation(state.measurements, report.readableProfile, new Date());
+      const readable = report.readableProfile;
+      const terminology = [
+        ["脸型倾向", readable.faceShape.primary],
+        ["五官量感", readable.featureWeight.term],
+        ["线条倾向", readable.lineTendency.term]
+      ];
+      $("identitySerial").textContent = `美学身份卡 · ${identity.serial}`;
+      $("identityType").textContent = identity.type;
+      $("identityTitle").textContent = identity.title;
+      $("identityPoem").textContent = identity.poem;
+      $("reportPhoto").src = photo;
+      $("identityPortraitTags").innerHTML = identity.portraitTags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("");
+      renderIdentityRadar(identity.axes);
+      renderIdentityTraitBars(report, identity);
+      $("terminologyGrid").innerHTML = terminology.map(([label, value]) => `<span>${escapeHtml(label)} · <b>${escapeHtml(value)}</b></span>`).join("");
+      $("identityMemories").innerHTML = `<h3>最有记忆点的地方</h3><div id="strengthList"><ul class="identity-note-list">${readable.strengths.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
+      $("identityDirections").innerHTML = `<h3>可以尝试的方向</h3><div id="attentionDirection"><ul class="identity-note-list">${readable.attention.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div><p id="monthlyFocus" class="identity-note-list">本月先做：${escapeHtml(report.actionCards[0]?.action || "在相同条件下记录一次造型对照。")}</p>`;
+      $("collectionSerial").textContent = identity.serial;
+      $("reportDate").dateTime = localDateString();
+      $("reportDate").textContent = `生成于 ${localDateString()}`;
+      $("memorySentence").textContent = readable.memorySentence;
+      if (report.quality.overridden || report.quality.level === "low") {
+        $("qualityBanner").textContent = `参考级照片：${report.quality.issues.map((item) => item.message).join("、")}。部分数据已降低置信度。`;
+        $("qualityBanner").classList.remove("hidden");
+      } else {
+        $("qualityBanner").classList.add("hidden");
+      }
+      $("coreTraits").innerHTML = report.coreTraits.map((item) => `
+        <article class="science-card">
+          <span class="badge">几何测量 · ${confidenceLabel(item.confidence)}</span>
+          <h4>${escapeHtml(item.title)}</h4><strong>${escapeHtml(item.value)}</strong>
+          <p>${escapeHtml(item.explanation)}</p><p><b>可以试：</b>${escapeHtml(item.action)}</p>
+        </article>`).join("");
+
+      $("dataGroups").innerHTML = report.dataGroups.map((group) => `
+        <details class="data-details">
+          <summary><span>${escapeHtml(group.title)}</span><span>${group.items.length} 项</span></summary>
+          <div>${group.items.map(renderMetric).join("")}</div>
+        </details>`).join("");
+
+      $("styleAdviceGrid").innerHTML = report.styleAdvice.map((item) => `
+        <article class="editorial-advice">
+          <div class="advice-art" aria-hidden="true"><span>${escapeHtml(item.title.slice(0, 1))}</span></div>
+          <div class="advice-copy"><small>造型经验 · ${item.metricIds.length} 项关联数据</small><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.explanation)}</p><p><b>${escapeHtml(item.value)}</b></p><p class="advice-action"><b>可尝试：</b>${escapeHtml(item.action)}</p></div>
+        </article>`).join("");
+
+      if (report.carePlan) {
+        $("carePlan").classList.remove("hidden");
+        $("carePlanContent").innerHTML = `
+          <p><span class="badge">通用护理</span><strong>${escapeHtml(report.carePlan.tendency)}</strong></p>
+          <div class="care-columns">
+            <div><h4>早间基础</h4><ul>${report.carePlan.morning.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>
+            <div><h4>晚间基础</h4><ul>${report.carePlan.evening.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>
+          </div><p class="question-intro"><b>停止边界：</b>${escapeHtml(report.carePlan.boundary)}</p>`;
+      } else {
+        $("carePlan").classList.add("hidden");
+      }
+
+      renderReportChallengeRecommendations(report);
+      $("sourceList").innerHTML = report.sources.map((source) => `<a href="${source.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title)} · ${source.type}</a>`).join("");
+      $("limitations").innerHTML = report.limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+    }
+
+    function renderMetric(item) {
+      const unitLabels = { ratio: "", eye_width: " 个眼宽", "%": "%", "°": "°", "% residual": "%" };
+      const value = Number.isInteger(item.value) ? item.value : Number(item.value).toFixed(2);
+      return `<div class="metric-row"><strong>${escapeHtml(item.label || item.id)}</strong><b>${value}${unitLabels[item.unit] ?? ` ${escapeHtml(item.unit)}`}</b><small>公式：${escapeHtml(item.formulaText || "照片内关键点计算")}<br>参照：${escapeHtml(item.referenceType || "照片内归一化几何")} · ${confidenceLabel(item.confidence)}</small></div>`;
+    }
+
+    function confidenceLabel(value) {
+      return ({ high: "较高置信度", medium: "中等置信度", low: "低置信度" })[value] || "需结合实拍";
     }
 
     async function copyKeyword(button) {
@@ -625,61 +3102,118 @@
       setTimeout(() => { button.textContent = "复制"; }, 1500);
     }
 
-    async function saveReport() {
+    async function captureIdentityCanvas() {
+      if (!window.html2canvas) throw new Error("身份卡生成组件未加载，请检查网络后重试。");
+      return html2canvas($("reportCapture"), {
+        scale: Math.min(3, Math.max(2, window.devicePixelRatio || 2)),
+        backgroundColor: "#F7F3EE",
+        useCORS: true,
+        logging: false
+      });
+    }
+
+    const canvasToBlob = (canvas) => new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("身份卡图片生成失败。")), "image/png"));
+
+    async function saveIdentityCard() {
       const button = $("saveButton");
       const message = $("reportMessage");
       message.classList.add("hidden");
       button.disabled = true;
-      button.textContent = "正在生成报告图…";
+      button.textContent = "正在保存身份卡…";
       try {
-        if (!window.html2canvas) throw new Error("图片导出组件未加载，请检查网络后重试。");
-        const canvas = await html2canvas($("reportCapture"), {
-          scale: Math.min(3, Math.max(2, window.devicePixelRatio || 2)),
-          backgroundColor: "#fffbf7",
-          useCORS: true,
-          logging: false
-        });
+        const canvas = await captureIdentityCanvas();
         const link = document.createElement("a");
-        const date = new Date().toISOString().slice(0, 10);
-        link.download = `看脸找风格-${date}.png`;
+        link.download = `美学身份卡-${localDateString()}.png`;
         link.href = canvas.toDataURL("image/png");
         link.click();
-        showToast("报告图已保存");
+        showToast("身份卡已保存");
       } catch (error) {
         console.error(error);
-        message.textContent = error.message || "报告图生成失败，请截屏保存或稍后重试。";
+        message.textContent = error.message || "身份卡生成失败，请截屏保存或稍后重试。";
         message.classList.remove("hidden");
       } finally {
         button.disabled = false;
-        button.textContent = "保存报告图";
+        button.textContent = "保存身份卡";
+      }
+    }
+
+    async function shareIdentityCard() {
+      const button = $("shareIdentityButton");
+      const message = $("reportMessage");
+      const shareFallback = "请先保存身份卡，再从相册分享。";
+      message.classList.add("hidden");
+      button.disabled = true;
+      button.textContent = "正在准备分享…";
+      try {
+        const canvas = await captureIdentityCanvas();
+        const blob = await canvasToBlob(canvas);
+        const file = new File([blob], `美学身份卡-${localDateString()}.png`, { type: "image/png" });
+        if (!navigator.share || !navigator.canShare || !navigator.canShare({ files: [file] })) throw new Error("share-unavailable");
+        await navigator.share({ files: [file], title: "我的美学身份卡" });
+      } catch (error) {
+        if (error?.name === "AbortError") return;
+        const detail = error?.message && error.message !== "share-unavailable"
+          ? `${error.message}。`
+          : error?.message === "share-unavailable"
+            ? "当前浏览器暂不支持直接分享，请先保存身份卡，再从相册分享。"
+            : "身份卡分享准备失败，";
+        message.textContent = error?.message === "share-unavailable" ? detail : `${detail}${shareFallback}`;
+        message.classList.remove("hidden");
+      } finally {
+        button.disabled = false;
+        button.textContent = "分享身份卡";
       }
     }
 
     function resetApp() {
       state.photo = "";
+      state.detection = null;
+      state.quality = null;
+      state.measurements = null;
+      state.questionnaire = {};
+      state.profile = null;
       state.report = null;
+      state.questionIndex = 0;
+      state.qualityFailureCount = 0;
+      state.qualityOverride = false;
       $("fileInput").value = "";
+      $("questionnaireForm").reset();
+      $("qualityCard").classList.add("hidden");
+      $("questionMessage").classList.add("hidden");
       $("analysisPhoto").removeAttribute("src");
       $("reportPhoto").removeAttribute("src");
       $("reportMessage").classList.add("hidden");
+      clearRenderedReport();
       hideMessage();
       setAnalysisStep(0);
       showView("upload");
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
+    function clearRenderedReport() {
+      ["identitySerial", "identityType", "identityTitle", "identityPoem", "identityPortraitTags", "identityRadar", "identityTraitBars", "terminologyGrid", "identityMemories", "identityDirections", "coreTraits", "dataGroups", "styleAdviceGrid", "carePlanContent", "reportChallengeCards", "reportActiveChallenge", "sourceList", "limitations", "keywordList"].forEach((id) => {
+        $(id).replaceChildren();
+      });
+      ["collectionSerial", "reportDate", "memorySentence"].forEach((id) => { $(id).textContent = ""; });
+      $("reportActiveChallenge").classList.add("hidden");
+      $("reportChallengeCards").classList.remove("hidden");
+      $("qualityBanner").textContent = "";
+      $("qualityBanner").classList.add("hidden");
+      $("carePlan").classList.remove("hidden");
+      $("evidenceDrawer").removeAttribute("open");
+    }
+
     function setAnalysisStep(activeStep) {
       for (let step = 1; step <= 3; step += 1) {
         const element = $(`analyzeStep${step}`);
-        const icon = element.querySelector(".step-icon");
         element.classList.toggle("active", step === activeStep);
         element.classList.toggle("done", activeStep > step);
-        icon.textContent = activeStep > step ? "✓" : String(step);
       }
     }
 
     function showView(name) {
       Object.entries(views).forEach(([key, element]) => element.classList.toggle("hidden", key !== name));
+      document.body.classList.toggle("challenge-mode", name === "challenge");
     }
 
     function showMessage(text, isError = false) {

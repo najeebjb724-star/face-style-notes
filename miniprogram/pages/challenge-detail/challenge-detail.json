@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "今日任务",
+  "usingComponents": {
+    "photo-pair": "/components/photo-pair/photo-pair"
+  }
+}

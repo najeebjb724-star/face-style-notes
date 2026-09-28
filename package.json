@@ -1,0 +1,8 @@
+{
+  "name": "face-style-notes-mini-program",
+  "private": true,
+  "scripts": {
+    "test": "node --test",
+    "test:face-analysis-release": "node scripts/verify-face-analysis-release.cjs"
+  }
+}

@@ -1,0 +1,8 @@
+<button class="tap-target card {{selected ? 'selected' : ''}}" bindtap="select">
+  <view class="copy">
+    <text class="kind">{{template.kind === 'habit' ? '习惯养成' : '变美训练'}}</text>
+    <text class="title">{{template.title}}</text>
+    <text class="meta">{{template.durationDays}} 天 · {{template.taskLabel}}</text>
+  </view>
+  <text class="check">{{selected ? '✓' : '›'}}</text>
+</button>

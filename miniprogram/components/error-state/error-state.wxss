@@ -1,0 +1,27 @@
+.error-state {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 32rpx;
+  text-align: center;
+  color: #2C2420;
+  background: #FFFDF9;
+  border: 1rpx solid #EDE5D8;
+  border-radius: 24rpx;
+}
+
+.error-state__message {
+  display: block;
+  color: #7A6B5A;
+}
+
+.error-state__retry {
+  min-height: 44px;
+  margin-top: 24rpx;
+  color: #2C2420;
+  background: #C9A87C;
+  border-radius: 999rpx;
+}
+
+.error-state__retry::after {
+  border: 0;
+}

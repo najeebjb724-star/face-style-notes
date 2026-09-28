@@ -1,0 +1,39 @@
+{
+  "pages": [
+    "pages/home/home",
+    "pages/consent/consent",
+    "pages/photo-check/photo-check",
+    "pages/analysis/analysis",
+    "pages/report/report",
+    "pages/challenges/challenges",
+    "pages/challenge-create/challenge-create",
+    "pages/challenge-detail/challenge-detail",
+    "pages/challenge-complete/challenge-complete",
+    "pages/profile/profile"
+  ],
+  "window": {
+    "navigationBarTitleText": "美学身份卡",
+    "navigationBarBackgroundColor": "#FFFDF9",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F7F3EE"
+  },
+  "tabBar": {
+    "color": "#7A6B5A",
+    "selectedColor": "#2C2420",
+    "backgroundColor": "#FFFDF9",
+    "list": [
+      {
+        "pagePath": "pages/home/home",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/challenges/challenges",
+        "text": "挑战"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的"
+      }
+    ]
+  }
+}

@@ -1,0 +1,58 @@
+:host {
+  display: block;
+  box-sizing: border-box;
+}
+
+.consent-card {
+  box-sizing: border-box;
+  padding: 40rpx 32rpx;
+  border: 1px solid #D4C4B0;
+  border-radius: 28rpx;
+  background: #FFFDF9;
+}
+
+.eyebrow,
+.title,
+.copy {
+  display: block;
+}
+
+.eyebrow {
+  color: #7A6B5A;
+  font-size: 24rpx;
+  letter-spacing: 4rpx;
+}
+
+.title {
+  margin-top: 16rpx;
+  color: #2C2420;
+  font-size: 40rpx;
+  font-weight: 600;
+}
+
+.copy {
+  margin-top: 24rpx;
+  color: #7A6B5A;
+  font-size: 28rpx;
+  line-height: 1.7;
+}
+
+.tap-target {
+  box-sizing: border-box;
+  min-height: 44px;
+  margin-top: 28rpx;
+  border-radius: 999rpx;
+  font-size: 28rpx;
+}
+
+.primary-action {
+  background: #2C2420;
+  color: #FFFDF9;
+}
+
+.secondary-action {
+  margin-top: 16rpx;
+  border: 1px solid #C9A87C;
+  background: #FFFDF9;
+  color: #2C2420;
+}

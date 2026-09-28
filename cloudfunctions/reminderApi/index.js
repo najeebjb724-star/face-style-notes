@@ -1,0 +1,172 @@
+const { createHash } = require("node:crypto");
+const { assertAccountWritable } = require("./cloud-guards");
+
+function codedError(code) {
+  return Object.assign(new Error(code), { code });
+}
+
+function isMissingDocument(error) {
+  return error?.code === "DATABASE_DOCUMENT_NOT_EXIST" || error?.errCode === -502005
+    || /not[ _-]?exist/i.test(error?.message || "");
+}
+
+async function readOptional(reference) {
+  try { return (await reference.get())?.data || null; }
+  catch (error) { if (isMissingDocument(error)) return null; throw error; }
+}
+
+function getConfig(environment = process.env) {
+  return { templateId: typeof environment.REMINDER_TEMPLATE_ID === "string" ? environment.REMINDER_TEMPLATE_ID.trim() : "" };
+}
+
+function getTemplateData(environment = process.env) {
+  if (typeof environment.REMINDER_TEMPLATE_DATA !== "string" || !environment.REMINDER_TEMPLATE_DATA.trim()) return null;
+  try {
+    const data = JSON.parse(environment.REMINDER_TEMPLATE_DATA);
+    return data && typeof data === "object" && !Array.isArray(data) ? data : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function subscriptionId(openid, challengeId, templateId) {
+  return `reminder-${createHash("sha256").update(`${openid}:${challengeId}:${templateId}`).digest("hex")}`;
+}
+
+function challengeDeletionId(openid, challengeId) {
+  return `account-challenge-${createHash("sha256").update(JSON.stringify([openid, challengeId])).digest("hex")}`;
+}
+
+function nextDueAt(reminderTime, now) {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(reminderTime || "");
+  if (!match) return now.toISOString();
+  const chinaNow = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const due = new Date(Date.UTC(chinaNow.getUTCFullYear(), chinaNow.getUTCMonth(), chinaNow.getUTCDate(), Number(match[1]) - 8, Number(match[2])));
+  if (due <= now) due.setUTCDate(due.getUTCDate() + 1);
+  return due.toISOString();
+}
+
+async function getActiveChallenge(database, openid) {
+  const result = await database.collection("challenges").where({ _openid: openid, status: "active" }).limit(1).get();
+  return result.data[0] || null;
+}
+
+function createReminderApi({ database, getWXContext, getConfig: config = getConfig, now = () => new Date(), sendSubscription, templateData = null }) {
+  if (!database || typeof getWXContext !== "function") throw codedError("INVALID_CONFIGURATION");
+
+  async function saveSubscriptionResult({ templateId, status } = {}) {
+    const { OPENID: openid } = getWXContext();
+    if (!openid) throw codedError("UNAUTHENTICATED");
+    const configuredTemplateId = config().templateId;
+    if (!configuredTemplateId || templateId !== configuredTemplateId || !["accept", "reject", "ban"].includes(status)) throw codedError("INVALID_ARGUMENT");
+    const challenge = await getActiveChallenge(database, openid);
+    if (!challenge) throw codedError("CHALLENGE_NOT_ACTIVE");
+    const id = subscriptionId(openid, challenge._id, templateId);
+    await database.runTransaction(async transaction => {
+      await assertAccountWritable(transaction, openid);
+      const current = await readOptional(transaction.collection("challenges").doc(challenge._id));
+      const deletion = await readOptional(transaction.collection("deletion_jobs").doc(challengeDeletionId(openid, challenge._id)));
+      if (!current || current._openid !== openid || current.status !== "active" || deletion?.state === "deleting" || deletion?.state === "deleted") throw codedError("CHALLENGE_NOT_ACTIVE");
+      await transaction.collection("reminder_subscriptions").doc(id).set({ data: {
+        _openid: openid,
+        challengeId: challenge._id,
+        templateId,
+        status,
+        dueAt: status === "accept" ? nextDueAt(current.reminderTime, now()) : null,
+        usedAt: null,
+        sendState: status === "accept" ? "pending" : "unavailable",
+        updatedAt: now().toISOString()
+      } });
+    });
+    return { ok: true };
+  }
+
+  async function sendDueReminders(at = now()) {
+    const timestamp = at.toISOString();
+    const result = await database.collection("reminder_subscriptions").where({
+      status: "accept",
+      usedAt: null,
+      sendState: "pending",
+      dueAt: database.command.lte(timestamp)
+    }).orderBy("dueAt", "asc").limit(100).get();
+    const due = result.data;
+    if (!templateData || typeof sendSubscription !== "function") return { sent: 0, skipped: due.length };
+    let sent = 0;
+    for (const subscription of due) {
+      let claimed;
+      try {
+        claimed = await database.runTransaction(async transaction => {
+          const reference = transaction.collection("reminder_subscriptions").doc(subscription._id);
+          const current = await readOptional(reference);
+          if (!current || current.status !== "accept" || current.usedAt || current.sendState !== "pending" || current.dueAt > timestamp) return null;
+          await assertAccountWritable(transaction, current._openid);
+          const challenge = await readOptional(transaction.collection("challenges").doc(current.challengeId));
+          const deletion = await readOptional(transaction.collection("deletion_jobs").doc(challengeDeletionId(current._openid, current.challengeId)));
+          if (!challenge || challenge._openid !== current._openid || challenge.status !== "active" || deletion?.state === "deleting" || deletion?.state === "deleted") {
+            await reference.update({ data: { sendState: "unavailable", sendError: "CHALLENGE_NOT_ACTIVE", updatedAt: timestamp } });
+            return null;
+          }
+          await reference.update({ data: { sendState: "sending", attemptedAt: timestamp, updatedAt: timestamp } });
+          return current;
+        });
+      } catch (error) {
+        if (error?.code === "ACCOUNT_DELETION_IN_PROGRESS") continue;
+        if (!isMissingDocument(error)) throw error;
+        try {
+          await database.collection("reminder_subscriptions").doc(subscription._id).update({ data: {
+            sendState: "unavailable", sendError: "CHALLENGE_NOT_ACTIVE", updatedAt: timestamp
+          } });
+        } catch (_) {}
+        continue;
+      }
+      if (!claimed) continue;
+      try {
+        await sendSubscription({
+          touser: claimed._openid,
+          templateId: claimed.templateId,
+          page: "pages/challenge-detail/challenge-detail",
+          data: templateData
+        });
+      } catch (_) {
+        try {
+          await database.collection("reminder_subscriptions").doc(claimed._id).update({ data: { sendState: "manual_review", sendError: "SEND_FAILED", updatedAt: timestamp } });
+        } catch (_) {}
+        continue;
+      }
+      try {
+        await database.collection("reminder_subscriptions").doc(claimed._id).update({ data: { usedAt: timestamp, sendState: "sent", updatedAt: timestamp } });
+        sent += 1;
+      } catch (_) {
+        try {
+          await database.collection("reminder_subscriptions").doc(claimed._id).update({ data: { sendState: "manual_review", sendError: "POST_SEND_PERSIST_FAILED", updatedAt: timestamp } });
+        } catch (_) {}
+      }
+    }
+    return { sent, skipped: 0 };
+  }
+
+  return { getConfig: config, saveSubscriptionResult, sendDueReminders };
+}
+
+function createMain(cloud, environment = process.env) {
+  const api = createReminderApi({
+    database: cloud.database(),
+    getWXContext: () => cloud.getWXContext(),
+    getConfig: () => getConfig(environment),
+    templateData: getTemplateData(environment),
+    sendSubscription: request => cloud.openapi.subscribeMessage.send(request)
+  });
+  return async function main(event = {}) {
+    if (event.action === "getConfig") return api.getConfig();
+    if (event.action === "saveSubscriptionResult") return api.saveSubscriptionResult(event.payload);
+    throw codedError("INVALID_ARGUMENT");
+  };
+}
+
+async function main(event) {
+  const cloud = require("wx-server-sdk");
+  cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+  return createMain(cloud)(event);
+}
+
+module.exports = { main, createMain, createReminderApi, getConfig, getTemplateData, nextDueAt, subscriptionId };
