@@ -1,0 +1,31 @@
+<view class="page">
+  <text class="eyebrow">上传前检查</text>
+  <text class="title">准备一张自然、清晰的正面照片</text>
+  <text class="guide">照片问题只会影响结构与风格参考的稳定性，不代表对你的外貌评价。</text>
+
+  <canvas type="2d" id="photo-compressor" class="compression-canvas"></canvas>
+  <image wx:if="{{selectedPhoto}}" class="preview" src="{{selectedPhoto.path}}" mode="aspectFit" />
+  <view wx:if="{{compressionError}}" class="notice">{{compressionError}}</view>
+  <text wx:if="{{quality && quality.pendingFaceChecks}}" class="reference-note">本地已检查亮度与清晰度；面部大小与姿态将在云端 68 点检查中补充。</text>
+
+  <button wx:if="{{!selectedPhoto}}" class="tap-target primary-action" loading="{{choosing}}" disabled="{{choosing}}" bindtap="choosePhoto">拍照或从相册选择</button>
+
+  <view wx:elif="{{quality && !quality.accepted}}" class="quality-card">
+    <text class="quality-title">这张照片可能影响部分参考结果</text>
+    <view wx:for="{{quality.issues}}" wx:key="id" class="issue">
+      <text>{{item.message}}：{{item.action}}</text>
+    </view>
+    <button class="tap-target primary-action" bindtap="chooseAgain">重新拍一张</button>
+    <button class="tap-target secondary-action" bindtap="useAnyway">仍用这张照片分析</button>
+    <text class="reference-note">继续后会把报告标记为参考结果，并降低相关结论的置信度。</text>
+  </view>
+
+  <view wx:else class="quality-card">
+    <text class="quality-title">本地基础质量检查已完成</text>
+    <text wx:if="{{quality.overridden}}" class="reference-note">这张照片将生成参考结果。</text>
+    <button class="tap-target primary-action" bindtap="continueAnalysis">继续下一步</button>
+    <button class="tap-target secondary-action" bindtap="chooseAgain">换一张照片</button>
+  </view>
+
+  <text class="safe-note">本页只完成本地准备，不会在此处上传照片或开始分析。</text>
+</view>

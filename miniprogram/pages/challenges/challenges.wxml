@@ -1,0 +1,25 @@
+<view class="page">
+  <text class="eyebrow">美学身份卡</text>
+  <text class="title">今天，为自己留一点仪式感</text>
+  <text class="copy">习惯养成和变美练习都从一件小事开始。</text>
+
+  <view wx:if="{{activeChallenge}}" class="active-card">
+    <text class="section-label">正在进行</text>
+    <text class="card-title">{{activeChallenge.title}}</text>
+    <button class="tap-target primary-button" bindtap="openActiveChallenge">进入今日任务</button>
+  </view>
+
+  <view wx:else class="welcome-card">
+    <text class="card-title">挑一个此刻最想坚持的方向</text>
+    <text class="muted">即使暂时未连接云端，也可以先浏览全部模板。</text>
+    <button class="tap-target primary-button" bindtap="startChallenge">选择我的挑战</button>
+  </view>
+
+  <view class="template-preview">
+    <text class="section-label">灵感模板</text>
+    <view wx:for="{{templates}}" wx:key="id" class="template-row">
+      <text>{{item.title}}</text>
+      <text class="template-kind">{{item.kind === 'habit' ? '习惯养成' : '变美训练'}}</text>
+    </view>
+  </view>
+</view>

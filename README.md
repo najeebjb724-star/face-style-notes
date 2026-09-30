@@ -1,60 +1,68 @@
-# 美学身份卡 · Face Style Notes
+# 美学身份卡微信小程序
 
-一款面向年轻女性的移动端面部比例分析与变美行动网页。上传正面照片后，页面会把面部轮廓与比例整理成可读、可收藏、可分享的“美学身份卡”，并可继续创建变美挑战、完成打卡和记录前后对比。
+这是一个把照片分析、身份卡、个人挑战、离线打卡、海报分享和数据管理整合到微信小程序中的项目。照片分析结果只作个人造型参考，不用于医疗诊断、身份识别、效果承诺或颜值排名。
 
-> 当前完整网页版 MVP 与 GitHub Pages 部署位于 `codex/aesthetic-identity-card-ui` 分支。
+## 当前状态
 
-[在线体验](https://najeebjb724-star.github.io/face-style-notes/) · [查看完整源码](https://github.com/najeebjb724-star/face-style-notes/tree/codex/aesthetic-identity-card-ui)
+**本地文档与自动验证状态：发布文档包和本地自动化验证已完成。** 这不代表挑战照片云端桥已完成，也不代表任何外部或线上能力（微信后台、CloudBase、云存储、CloudRun、体验版、真机权限或审核）已经可用。
 
-![美学身份卡手机端首页预览](https://raw.githubusercontent.com/najeebjb724-star/face-style-notes/codex/aesthetic-identity-card-ui/assets/preview.png)
+**发布状态：BLOCKED，不可上传提审，也不可称为“审核就绪”。** 已注册的公开 AppID 已写入 `project.config.json`，但当前仍没有生产 EnvId、完成的备案/隐私配置、订阅消息模板、已部署的云托管版本和回滚版本，也没有微信开发者工具或真机验证记录。`miniprogram/config/env.js` 的三个环境值仍为空。
 
-## 核心功能
+2026-09-21 的本地验证结果会记录在 [发布检查清单](docs/wechat/release-checklist.md)。本地测试通过不代表微信后台、CloudBase、云存储、真机权限或提审通过。
 
-- **照片质量检查**：提示角度、清晰度、亮度和人脸大小问题。
-- **参考级继续分析**：照片不完全合格时，用户仍可主动选择继续，并看到可信度提示。
-- **可读面部数据**：将三庭、眼距、轮廓和六维特征转成容易理解的描述。
-- **美学身份卡**：以杂志与收藏卡风格呈现结果，可保存或通过系统分享。
-- **变美挑战**：模板优先、可选自定义，支持打卡、日历提醒、前后照片对比和挑战海报。
+## 最短的下一步
 
-## 隐私与结果边界
+1. 在微信公众平台继续完成备案和正式隐私指引；公开 AppID 已配置，**绝不要发送、粘贴或提交 AppSecret**。
+2. 创建 CloudBase 开发环境并记录 EnvId，再按 [云端配置](docs/wechat/cloud-setup.md) 关闭 [发布检查清单](docs/wechat/release-checklist.md) 的阶段 1：目标环境、权限、索引、函数、定时器、订阅模板、监控、云托管、回滚和运行时环境选择。
+3. **阶段 2：**阶段 1 全部通过后，上传体验版并填写 [审核员指引](docs/wechat/reviewer-guide.md) 的版本、账号和日期。
+4. **阶段 3–4：**在该体验版上按 [关键旅程](tests/e2e/critical-journeys.md)、[真机矩阵](docs/wechat/device-matrix.md) 和审核员指引留存真实证据；全部通过后才签字并提交审核。
 
-用户选择的照片在浏览器本地处理，不会发送到本项目服务器。挑战记录和可选对比照片可能保存在当前浏览器的本地存储中。GitHub Pages 与第三方 CDN 会产生加载页面、脚本、字体或模型所需的常规网络请求，但不会上传用户选择的照片。
+## 本地验证
 
-身份卡基于单张照片与几何比例提供风格参考，不评价美丑，不构成医疗、健康或人格判断。拍摄角度、光线、镜头畸变、表情和启发式规则都会影响结果。
+需要 Node.js。仓库依赖已可用时，在项目根目录运行：
 
-[查看完整隐私说明](https://github.com/najeebjb724-star/face-style-notes/blob/codex/aesthetic-identity-card-ui/PRIVACY.md)
-
-## 本地体验
-
-下载或克隆[完整源码分支](https://github.com/najeebjb724-star/face-style-notes/tree/codex/aesthetic-identity-card-ui)，在项目目录运行：
-
-```bash
-python -m http.server 8000
+```powershell
+npm test
+git diff --check
 ```
 
-然后访问 `http://127.0.0.1:8000/`。首次打开需要联网加载 Tailwind CSS、Face-API.js、html2canvas 和面部关键点模型。
+真实 68 点模型还需要 Docker/Node 20 发布门槛验证：
 
-## 技术构成
-
-- 单文件 HTML、CSS 与原生 JavaScript
-- Tailwind CSS CDN
-- Face-API.js 0.22.2 与 68 点关键点模型
-- html2canvas 1.4.1
-- localStorage、IndexedDB、Web Share 与日历 `.ics` 文件
-- GitHub Actions 与 GitHub Pages
-
-## 测试状态
-
-完整源码分支已通过 81 项自动测试：
-
-```bash
-node --test tests/*.test.cjs
+```powershell
+npm run test:face-analysis-release
 ```
 
-## 当前阶段
+不要把真实用户照片放入仓库或测试夹具。自动化测试、模拟数据库和固定虚构人物照片都不能替代真实 CloudBase 与真机验证。
 
-这是用于验证“面部分析 → 身份卡 → 变美挑战 → 打卡与分享”链路的网页版 MVP。微信登录、云数据库、订阅消息、日历能力和小程序码将在迁移到微信小程序时另行设计。
+## 发布前硬阻塞
 
-## License
+- 分析照片上传成功但尚未执行 `attachUpload` 时，尚无生产环境证据证明服务端能取得并清理该对象的精确云文件 ID。必须在真实环境验证“上传前由服务端掌握精确 ID”或经验证的存储清单/到期策略，才能采用异常上传不超过 30 分钟的清理承诺。
+- 照片生命周期定时器、50 条处理上限、函数超时、容量、告警、人工处置与存储回执尚未在生产环境验证；不能把一分钟配置等同于 30 分钟物理删除保证。
+- 挑战照片仍只有本地预览，没有按用户隔离的云上传/持久化桥；需要服务端保存精确 `fileId`、`challengeId`、`_openid` 和可选保留策略。
+- `miniprogram/app.js` 与 `miniprogram/pages/home/home.js` 目前固定调用 `getCloudEnv("develop")`；必须实现并验证运行时按开发/体验/发布渠道选择环境，才可把 trial/release EnvId 用于体验版或发布版。
+- 真实 68 点模型镜像、照片域名白名单、一次性凭证网络链路和 CloudRun/云托管部署尚未在目标环境重新验证；固定依赖的安全风险也需升级验证或书面接受。
+- CloudBase 权限、复合索引、事务冲突、真实原子性、存储删除回执、分享预览/小程序码到期清理和大账户分批删除尚未实测。
+- 订阅消息缺少正式模板字段映射和受权限保护的调度器；发送采用“最多尝试一次”，不确定结果进入 `manual_review`，不得自动重发。
+- 缺少运营主体联系/投诉方式，以及删除审计记录的有限保留期限和到期清除机制。
+- 设备、网络、权限拒绝、320px、大字体、安全区、长报告、相册保存和好友分享全矩阵均未执行。
 
-本项目采用 [MIT License](https://github.com/najeebjb724-star/face-style-notes/blob/codex/aesthetic-identity-card-ui/LICENSE)。
+## 已知产品边界
+
+- 小程序尚未采集网页版问卷，因此不会生成问卷专属护理方案。
+- 挑战照片和结营对照照仅在当前页面/Canvas 中使用，不会上传或持久化；拒绝选择不影响文字挑战和结营。
+- 手机日历按剩余挑战日期逐次请求创建普通事件，没有声称支持官方重复日程；用户取消后停止。
+- 分享预览有效期为七天；过期、失效或云服务不可用时，好友可能看到不可用提示。相册图片、截图和他人另存的副本无法远程删除。
+- “清空数据”会清除业务数据并安排文件清理，但不会注销微信账号，也会保留完成重试和核查所需的最小删除任务/摘要，直到有限审计策略实施。
+- 已提交给微信的订阅消息无法撤回；删除只阻止后续可领取或尚未发送的任务。
+- 网络失败时打卡先进入本地队列；恢复后必须验证当天最终只有一条记录，未同步完成前不能结营。
+
+## 文档入口
+
+- [发布检查清单](docs/wechat/release-checklist.md)
+- [云端配置](docs/wechat/cloud-setup.md)
+- [真机与权限矩阵](docs/wechat/device-matrix.md)
+- [关键端到端旅程](tests/e2e/critical-journeys.md)
+- [审核员指引](docs/wechat/reviewer-guide.md)
+- [隐私与数据管理说明](docs/wechat/privacy-guideline.md)
+- [人脸分析单独同意文案](docs/wechat/face-consent-copy.md)
+- [数据保留与删除](docs/wechat/data-retention.md)

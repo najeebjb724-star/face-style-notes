@@ -1,0 +1,31 @@
+<view class="page">
+  <text class="eyebrow">这一段认真，被你好好收下了</text>
+  <text class="title">挑战结营</text>
+  <view wx:if="{{history}}" class="summary-card">
+    <text class="summary-mark">✓</text>
+    <text class="section-title">{{history.title}}</text>
+    <text>完成 {{history.completed}} / {{history.total}} 次</text>
+    <text>完成率 {{history.completionRate}}%</text>
+    <text>最长连续 {{history.streak}} 次</text>
+    <text class="muted">没有照片也可以完整结营，不影响这份文字复盘。</text>
+  </view>
+  <view wx:else class="summary-card">
+    <text class="section-title">这次复盘暂时无法恢复</text>
+    <text class="muted">挑战已完成，但本机没有找到详细数据。你仍可以回到挑战中心。</text>
+  </view>
+  <view class="quiet-card">
+    <text class="section-title">接下来</text>
+    <text class="muted">稍后可以从挑战中心开启新的练习。海报仅保存到你的本地相册。</text>
+  </view>
+  <canvas id="challengePoster" type="2d" style="width: 300px; height: 420px; position: fixed; left: -9999px;"></canvas>
+  <view wx:if="{{history}}" class="quiet-card">
+    <text class="section-title">可选对比照片</text>
+    <text class="muted">仅用于本次本地海报生成，不会上传或保存到挑战记录。</text>
+    <button class="tap-target" bindtap="choosePosterPhotos">选择本次海报图片（开始和结束）</button>
+    <checkbox-group bindchange="setPosterPhotoConsent"><label><checkbox value="includePhotos" checked="{{includePosterPhotos}}" />我同意将这张图片放入本次海报</label></checkbox-group>
+  </view>
+  <button wx:if="{{history}}" class="tap-target primary-button" bindtap="saveChallengePoster" loading="{{posterSaving}}">保存结营海报</button>
+  <text wx:if="{{posterError}}" class="muted">{{posterError}}</text>
+  <button wx:if="{{posterError}}" class="tap-target" bindtap="retryChallengePosterAuthorization">授权后重试</button>
+  <button class="tap-target primary-button" bindtap="backToChallenges">回到挑战中心</button>
+</view>

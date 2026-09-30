@@ -1,0 +1,21 @@
+<view class="page report-page">
+  <text wx:if="{{loading}}" class="copy">正在读取你的结构参考…</text>
+  <text wx:if="{{errorText}}" class="error">{{errorText}}</text>
+  <block wx:if="{{report}}">
+    <identity-card presentation="{{report.identity}}" />
+    <view class="group"><text class="group-title">身份卡维度</text><view wx:for="{{report.identity.axes}}" wx:key="id" class="axis"><text>{{item.label}}</text><view class="axis-track"><view class="axis-fill" style="width: {{item.value}}%;"></view></view><text>{{item.value}}</text></view></view>
+    <view class="summary-card"><text class="section-label">一句话记忆</text><text class="memory">{{report.memorySentence}}</text></view>
+    <view wx:if="{{report.quality.referenceOnly}}" class="summary-card"><text>这份内容仅作照片内结构参考。</text></view>
+    <view class="group"><text class="group-title">可读观察</text><text class="line">{{report.readableProfile.threeCourts.summary}}</text><text class="line">{{report.readableProfile.fiveEyes.summary}}</text><text wx:for="{{report.readableProfile.strengths}}" wx:key="*this" class="line">观察到：{{item}}</text><text wx:for="{{report.readableProfile.attention}}" wx:key="*this" class="line">留意：{{item}}</text></view>
+    <view class="group"><text class="group-title">核心观察</text><view wx:for="{{report.coreTraits}}" wx:key="title" class="advice"><text>{{item.title}} · {{item.value}}</text><text>{{item.explanation}}</text><text>{{item.action}}</text></view></view>
+    <view wx:for="{{report.dataGroups}}" wx:key="id" class="group"><text class="group-title">{{item.title}}</text><view wx:for="{{item.items}}" wx:key="id" class="metric"><text>{{item.label}}</text><text>{{item.value}} {{item.unit}}</text></view></view>
+    <view class="group"><text class="group-title">造型建议</text><view wx:for="{{report.styleAdvice}}" wx:key="title" class="advice"><text>{{item.title}} · {{item.value}}</text><text>{{item.explanation}}</text><text>{{item.action}}</text></view></view>
+    <view wx:if="{{report.carePlan}}" class="group"><text class="group-title">基础护理</text><text>{{report.carePlan.tendency}}</text><text wx:for="{{report.carePlan.morning}}" wx:key="*this" class="line">早：{{item}}</text><text wx:for="{{report.carePlan.evening}}" wx:key="*this" class="line">晚：{{item}}</text><text>{{report.carePlan.boundary}}</text></view>
+    <view class="group"><text class="group-title">使用边界与来源</text><text wx:for="{{report.limitations}}" wx:key="*this" class="line">{{item}}</text><text wx:for="{{report.sources}}" wx:key="id" class="line">{{item.title}}</text></view>
+    <button class="primary tap-target" bindtap="createRecommendedChallenge">加入推荐挑战</button>
+    <canvas id="identityPoster" type="2d" style="width: 300px; height: 420px; position: fixed; left: -9999px;"></canvas>
+    <button class="primary tap-target" bindtap="saveIdentityPoster" loading="{{posterSaving}}">保存身份卡海报</button>
+    <text wx:if="{{posterError}}" class="error">{{posterError}}</text>
+    <button wx:if="{{posterError}}" class="tap-target" bindtap="retryIdentityPosterAuthorization">授权后重试</button>
+  </block>
+</view>

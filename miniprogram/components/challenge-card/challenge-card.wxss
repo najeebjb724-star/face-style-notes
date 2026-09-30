@@ -1,0 +1,8 @@
+.card, .copy { box-sizing: border-box; width: 100%; }
+.tap-target { box-sizing: border-box; min-height: 44px; }
+.card { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; margin: 0; padding: 28rpx; border: 1rpx solid #EDE5D8; border-radius: 24rpx; background: #FFFDF9; color: #2C2420; text-align: left; }
+.card.selected { border-color: #C9A87C; background: #EDE5D8; }
+.copy { display: flex; flex: 1; flex-direction: column; gap: 8rpx; }
+.kind, .meta { color: #7A6B5A; font-size: 23rpx; }
+.title { font-size: 30rpx; font-weight: 600; }
+.check { color: #7A6B5A; font-size: 36rpx; }

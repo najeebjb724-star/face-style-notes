@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "照片处理说明",
+  "usingComponents": {
+    "privacy-consent": "/components/privacy-consent/privacy-consent"
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "triggers": [
+    { "name": "photo-lifecycle-every-minute", "type": "timer", "config": "0 */1 * * * * *" }
+  ]
+}

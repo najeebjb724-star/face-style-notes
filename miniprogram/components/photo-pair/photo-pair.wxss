@@ -1,0 +1,9 @@
+.photo-card, .pair, .slot, image { box-sizing: border-box; width: 100%; }
+.photo-card { margin: 28rpx 0; padding: 28rpx; border-radius: 24rpx; background: #FFFDF9; }
+.title { display: block; font-size: 30rpx; font-weight: 600; }
+.muted { display: block; margin: 10rpx 0 20rpx; color: #7A6B5A; font-size: 24rpx; line-height: 1.6; }
+.pair { display: flex; gap: 16rpx; }
+.tap-target { box-sizing: border-box; min-height: 44px; }
+.slot { flex: 1; height: 220rpx; margin: 0; padding: 0; overflow: hidden; border: 1rpx dashed #D4C4B0; border-radius: 20rpx; background: #F7F3EE; color: #7A6B5A; font-size: 24rpx; }
+.slot image { height: 100%; }
+.stage { margin: 20rpx 0 0; border: 0; background: transparent; color: #7A6B5A; font-size: 25rpx; }

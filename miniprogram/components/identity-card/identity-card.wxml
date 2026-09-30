@@ -1,0 +1,6 @@
+<view class="identity-card" wx:if="{{presentation}}">
+  <text class="serial">美学身份卡 · {{presentation.serial}}</text>
+  <text class="title">{{presentation.title}}</text>
+  <text class="poem">{{presentation.poem}}</text>
+  <view class="tags"><text wx:for="{{presentation.portraitTags}}" wx:key="*this" class="tag">{{item}}</text></view>
+</view>

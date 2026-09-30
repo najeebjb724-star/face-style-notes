@@ -1,0 +1,4 @@
+<view class="page">
+  <text class="page-kicker">美学身份卡</text>
+  <privacy-consent bind:accept="acceptConsent" bind:decline="declineConsent" />
+</view>

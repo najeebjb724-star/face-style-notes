@@ -1,0 +1,77 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100vh;
+  gap: 32rpx;
+  padding: 64rpx 32rpx 48rpx;
+}
+
+.hero,
+.entry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.eyebrow,
+.card-label {
+  color: #7A6B5A;
+  font-size: 24rpx;
+  letter-spacing: 2rpx;
+}
+
+.title {
+  font-size: 48rpx;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.subtitle {
+  color: #7A6B5A;
+  font-size: 28rpx;
+  line-height: 1.6;
+}
+
+.primary-button,
+.secondary-button {
+  box-sizing: border-box;
+  min-height: 44px;
+  margin: 0;
+  border-radius: 16rpx;
+  font-size: 30rpx;
+  line-height: 44px;
+}
+
+.primary-button {
+  background: #C9A87C;
+  color: #2C2420;
+}
+
+.secondary-button {
+  background: #FFFDF9;
+  border: 2rpx solid #D4C4B0;
+  color: #2C2420;
+}
+
+.state-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  box-sizing: border-box;
+  padding: 32rpx;
+  border: 2rpx solid #EDE5D8;
+  border-radius: 20rpx;
+  background: #FFFDF9;
+}
+
+.card-title {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.card-copy {
+  color: #7A6B5A;
+  font-size: 28rpx;
+}

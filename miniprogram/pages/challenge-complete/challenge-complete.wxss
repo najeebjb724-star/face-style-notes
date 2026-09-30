@@ -1,0 +1,9 @@
+.page, .summary-card, .quiet-card { box-sizing: border-box; width: 100%; }
+.page { min-height: 100vh; padding: 64rpx 32rpx 96rpx; background: #F7F3EE; }
+.eyebrow, .muted { color: #7A6B5A; font-size: 26rpx; line-height: 1.65; }
+.title { display: block; margin: 16rpx 0 36rpx; font-size: 52rpx; font-weight: 600; }
+.summary-card, .quiet-card { display: flex; flex-direction: column; gap: 16rpx; margin: 24rpx 0; padding: 36rpx 30rpx; border-radius: 28rpx; background: #FFFDF9; }
+.summary-mark { display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 80rpx; height: 80rpx; border-radius: 50%; background: #EDE5D8; color: #2C2420; font-size: 40rpx; }
+.section-title { font-size: 32rpx; font-weight: 600; }
+.tap-target { box-sizing: border-box; min-height: 44px; }
+.primary-button { margin-top: 36rpx; border: 0; border-radius: 999rpx; background: #C9A87C; color: #2C2420; font-weight: 600; }

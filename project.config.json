@@ -1,0 +1,15 @@
+{
+  "miniprogramRoot": "miniprogram/",
+  "cloudfunctionRoot": "cloudfunctions/",
+  "compileType": "miniprogram",
+  "libVersion": "3.10.4",
+  "appid": "wx7ea0d886cbaea650",
+  "projectname": "face-style-notes-mini-program",
+  "setting": {
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true
+  },
+  "condition": {}
+}

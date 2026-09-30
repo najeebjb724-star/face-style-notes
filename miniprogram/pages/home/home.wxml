@@ -1,0 +1,24 @@
+<view class="page">
+  <view class="hero">
+    <text class="eyebrow">美学身份卡</text>
+    <text class="title">用你的节奏，认识自己的风格</text>
+    <text class="subtitle">从一份温和的面部解读或一个小挑战开始。</text>
+  </view>
+
+  <view class="entry-list">
+    <button class="primary-button" bindtap="startAnalysis">开始面部解读</button>
+    <button class="secondary-button" bindtap="openChallenge">先做一个变美挑战</button>
+  </view>
+
+  <view wx:if="{{activeChallenge}}" class="state-card" bindtap="openChallenge">
+    <text class="card-label">正在进行</text>
+    <text class="card-title">你的变美挑战</text>
+    <text class="card-copy">{{activeChallenge.title}}</text>
+  </view>
+
+  <view wx:if="{{latestReport}}" class="state-card" bindtap="openLatestReport">
+    <text class="card-label">最新记录</text>
+    <text class="card-title">查看你的美学身份卡</text>
+    <text class="card-copy">回看这次风格观察</text>
+  </view>
+</view>

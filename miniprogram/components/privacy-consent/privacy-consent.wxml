@@ -1,0 +1,8 @@
+<view class="consent-card">
+  <text class="eyebrow">照片处理说明</text>
+  <text class="title">只为本次结构与风格参考</text>
+  <text class="copy">照片用于提取结构参考，不用于公开展示。我们会长期保存结构化报告与身份卡，不长期保存本次分析原图。</text>
+  <text class="copy">分析正常完成后立即删除原图；发生中断或网络异常时，最长 30 分钟内清理。</text>
+  <button class="tap-target primary-action" bindtap="accept">同意并选择照片</button>
+  <button class="tap-target secondary-action" bindtap="decline">暂不同意，先去做挑战</button>
+</view>
