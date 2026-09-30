@@ -29,6 +29,12 @@ test("mini program project uses the registered public AppID", () => {
   assert.equal(project.appid, "wx7ea0d886cbaea650");
 });
 
+test("mini program project exposes the deployable cloud function root", () => {
+  const project = JSON.parse(fs.readFileSync(path.join(__dirname, "../../project.config.json"), "utf8"));
+
+  assert.equal(project.cloudfunctionRoot, "cloudfunctions/");
+});
+
 test("cloud environment lookup uses the free environment only before release", () => {
   const { getCloudEnv } = require("../../miniprogram/config/env");
 
